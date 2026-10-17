@@ -1,0 +1,9 @@
+services:
+  postgres:
+    ports: !reset []
+  object-storage:
+    ports: !reset []
+  api:
+    ports: !reset []
+  web:
+    ports: !reset []

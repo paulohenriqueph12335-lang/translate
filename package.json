@@ -1,0 +1,18 @@
+{
+  "name": "tradutor-documental",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter @tradutor/api --filter @tradutor/worker --filter @tradutor/web dev",
+    "build": "corepack pnpm --recursive build",
+    "typecheck": "corepack pnpm --recursive typecheck",
+    "lint": "corepack pnpm --recursive lint",
+    "test": "corepack pnpm --recursive test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  }
+}

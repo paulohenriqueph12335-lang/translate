@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+.pnpm-store/
+*.log
+.DS_Store
+Thumbs.db
+data/
+tmp/
+
+# Cache local do PowerShell
+Microsoft/
