@@ -17,6 +17,7 @@ import { createIdentityService, type PublicUser } from './modules/identity/servi
 import { createTeamService } from './modules/teams/service.js';
 import { createUserAdminService } from './modules/users/service.js';
 import { createS3Storage, type ObjectStorage } from '@tradutor/core/storage';
+import { machineTranslatorsFromEnv, type MachineProviderName, type MachineTranslator } from '@tradutor/core/translation';
 import { AppError } from './http/errors.js';
 import { createRateLimiter } from './http/rate-limit.js';
 import { registerRoutes, SESSION_COOKIE } from './http/routes.js';
@@ -39,6 +40,8 @@ export interface AppDeps {
   rateLimits?: { login: RateLimitOptions; signup: RateLimitOptions };
   /** Armazenamento de objetos; padrão é o S3 configurado. Testes injetam falhas por aqui. */
   storage?: ObjectStorage;
+  /** Provedores gratuitos para a revisão automática; padrão é o do ambiente. Testes injetam um falso. */
+  machine?: Partial<Record<MachineProviderName, MachineTranslator>>;
 }
 
 interface RateLimitOptions {
@@ -48,7 +51,19 @@ interface RateLimitOptions {
 
 const defaultRateLimits = { login: { limit: 10, windowMs: 15 * 60_000 }, signup: { limit: 5, windowMs: 60 * 60_000 } };
 
-export async function buildApp({ config, pool, logger, now, rateLimits = defaultRateLimits, storage = createS3Storage(config) }: AppDeps) {
+export async function buildApp({
+  config,
+  pool,
+  logger,
+  now,
+  rateLimits = defaultRateLimits,
+  storage = createS3Storage(config),
+  machine = machineTranslatorsFromEnv({
+    ...(config.LIBRETRANSLATE_URL ? { LIBRETRANSLATE_URL: config.LIBRETRANSLATE_URL } : {}),
+    ...(config.LIBRETRANSLATE_API_KEY ? { LIBRETRANSLATE_API_KEY: config.LIBRETRANSLATE_API_KEY } : {}),
+    ...(config.DEEPL_API_KEY ? { DEEPL_API_KEY: config.DEEPL_API_KEY } : {}),
+  }),
+}: AppDeps) {
   const app = Fastify({
     logger: logger ?? {
       level: config.LOG_LEVEL,
@@ -71,7 +86,7 @@ export async function buildApp({ config, pool, logger, now, rateLimits = default
     teams: createTeamService(deps),
     audit: createAuditService(deps),
     documents: createDocumentService({ ...deps, storage }),
-    translations: createTranslationService({ ...deps, storage, masks: translators.maskFor, numbering: translatorNumbering }),
+    translations: createTranslationService({ ...deps, storage, masks: translators.maskFor, numbering: translatorNumbering, machine }),
     translatorNumbering,
     profiles: createProfileService(deps),
     translators,

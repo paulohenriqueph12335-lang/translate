@@ -24,6 +24,19 @@ const schema = z.object({
   UPLOAD_MAX_BATCH_FILES: z.coerce.number().int().min(1).max(100).default(100),
   UPLOAD_MAX_BATCH_MB: z.coerce.number().int().min(1).max(10_240).default(1024),
   UPLOAD_TMP_DIR: z.string().min(1).optional(),
+  // Revisão automática (ADR-016): o mesmo provedor gratuito do worker, para retraduzir trechos no idioma errado.
+  LIBRETRANSLATE_URL: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
+  LIBRETRANSLATE_API_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
+  DEEPL_API_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
 });
 
 export type Config = z.infer<typeof schema>;

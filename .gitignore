@@ -13,3 +13,6 @@ tmp/
 
 # Cache local do PowerShell
 Microsoft/
+
+# Contas de teste da simulação (só local)
+docs/exemplos-simulados/.credenciais-simulacao.json

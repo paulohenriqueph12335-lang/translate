@@ -358,7 +358,31 @@ export interface TranslationDetail {
     approvalOverrideReason: string | null;
   };
   frame: PreviewFrame;
-  draft: { revision: number; content: DraftContent; issues: DraftIssue[]; origin: string; createdAt: string; author: string | null } | null;
+  draft: {
+    revision: number;
+    content: DraftContent;
+    issues: DraftIssue[];
+    /** Correções feitas pela revisão automática nesta revisão (ADR-016). */
+    corrections: Correction[];
+    origin: string;
+    createdAt: string;
+    author: string | null;
+  } | null;
+}
+
+export interface Correction {
+  code: string;
+  block: number;
+  before: string;
+  after: string;
+  message: string;
+}
+
+export interface AutoReviewResult {
+  revision: number | null;
+  corrections: Correction[];
+  unresolved: string[];
+  issues: DraftIssue[];
 }
 
 export interface TranslationFacets {

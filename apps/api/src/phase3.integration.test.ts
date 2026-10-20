@@ -290,7 +290,8 @@ describe('glossário', () => {
     await processNextJob(processing(fakeMachine.translator));
     assert.ok(fakeMachine.calls.flat().every((text) => !/Histórico Escolar/i.test(text)));
     const detail = await c.op!.get(`/api/v1/translations/${job}`);
-    assert.match(JSON.stringify(detail.body.draft.content), /School Transcript/);
+    // O título do original está em maiúsculas: o termo aprovado sai em maiúsculas também.
+    assert.match(JSON.stringify(detail.body.draft.content), /SCHOOL TRANSCRIPT/);
   });
 });
 

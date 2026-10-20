@@ -22,6 +22,10 @@ import {
   swornFrame,
   type DraftIssue,
   type GlossaryTerm,
+  autoReview,
+  type Correction,
+  type MachineProviderName,
+  type MachineTranslator,
   type Language,
   type TranslatorProfile,
 } from '@tradutor/core/translation';
@@ -114,9 +118,14 @@ interface JobRow {
 
 const JOB_SELECT = `
   SELECT j.*, d.display_name AS document_name, d.tags, b.id AS batch_id, b.name AS batch_name, b.team_id, b.owner_id,
-         ou.display_name AS owner_name, t.name::text AS team_name, ru.display_name AS requested_by_name,
-         su.display_name AS submitted_by_name, au.display_name AS approved_by_name, asg.display_name AS assignee_name,
-         st.name AS translator_name, stm.edition AS mask_edition,
+         (SELECT display_name FROM users WHERE id = b.owner_id) AS owner_name,
+         (SELECT name::text FROM teams WHERE id = b.team_id) AS team_name,
+         (SELECT display_name FROM users WHERE id = j.requested_by) AS requested_by_name,
+         (SELECT display_name FROM users WHERE id = j.submitted_by) AS submitted_by_name,
+         (SELECT display_name FROM users WHERE id = j.approved_by) AS approved_by_name,
+         (SELECT display_name FROM users WHERE id = j.assignee_id) AS assignee_name,
+         (SELECT name FROM sworn_translators WHERE id = j.translator_id) AS translator_name,
+         (SELECT edition FROM sworn_translator_masks WHERE id = j.mask_id) AS mask_edition,
          (SELECT nr.id FROM numbering_requests nr WHERE nr.job_id = j.id AND nr.status = 'pending') AS pending_request_id,
          to_char(j.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
          (SELECT count(*)::int FROM jsonb_array_elements(r.issues) i WHERE i->>'severity' = 'error') AS error_count,
@@ -124,14 +133,6 @@ const JOB_SELECT = `
     FROM translation_jobs j
     JOIN documents d ON d.id = j.document_id
     JOIN batches b ON b.id = d.batch_id
-    LEFT JOIN teams t ON t.id = b.team_id
-    JOIN users ru ON ru.id = j.requested_by
-    JOIN users ou ON ou.id = b.owner_id
-    LEFT JOIN users su ON su.id = j.submitted_by
-    LEFT JOIN users au ON au.id = j.approved_by
-    LEFT JOIN users asg ON asg.id = j.assignee_id
-    LEFT JOIN sworn_translators st ON st.id = j.translator_id
-    LEFT JOIN sworn_translator_masks stm ON stm.id = j.mask_id
     LEFT JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision`;
 
 const numberText = (row: Pick<JobRow, 'number_label' | 'book_label' | 'sheet_label'>) =>
@@ -269,7 +270,14 @@ export function createTranslationService({
   masks,
   now = () => new Date(),
   numbering,
-}: ServiceDeps & { storage: ObjectStorage; masks: MaskSource; numbering: TranslatorNumberingService }) {
+  machine = {},
+}: ServiceDeps & {
+  storage: ObjectStorage;
+  masks: MaskSource;
+  numbering: TranslatorNumberingService;
+  /** Provedores gratuitos para a revisão automática (ADR-016). */
+  machine?: Partial<Record<MachineProviderName, MachineTranslator>>;
+}) {
   async function loadJob(db: Pick<PoolClient, 'query'>, ctx: AuthenticatedContext, jobId: string, lock = false) {
     const result = await db.query<JobRow>(`${JOB_SELECT} WHERE j.id = $1 ${lock ? 'FOR UPDATE OF j' : ''}`, [jobId]);
     const row = result.rows[0];
@@ -288,8 +296,15 @@ export function createTranslationService({
 
   async function currentDraft(db: Pick<PoolClient, 'query'>, jobId: string, revision: number | null) {
     if (!revision) return null;
-    const result = await db.query<{ content: Draft; issues: DraftIssue[]; origin: string; created_at: Date; author_name: string | null }>(
-      `SELECT r.content, r.issues, r.origin, r.created_at, u.display_name AS author_name
+    const result = await db.query<{
+      content: Draft;
+      issues: DraftIssue[];
+      corrections: Correction[];
+      origin: string;
+      created_at: Date;
+      author_name: string | null;
+    }>(
+      `SELECT r.content, r.issues, r.corrections, r.origin, r.created_at, u.display_name AS author_name
          FROM translation_drafts r LEFT JOIN users u ON u.id = r.author_id
         WHERE r.job_id = $1 AND r.revision = $2`,
       [jobId, revision],
@@ -448,6 +463,7 @@ export function createTranslationService({
             revision: row.current_revision,
             content: draft.content,
             issues: draft.issues,
+            corrections: draft.corrections,
             origin: draft.origin,
             createdAt: draft.created_at.toISOString(),
             author: draft.author_name,
@@ -506,7 +522,7 @@ export function createTranslationService({
     await loadJob(pool, ctx, jobId);
     const draft = await currentDraft(pool, jobId, number);
     if (!draft) throw notFound('Revisão não encontrada');
-    return { revision: number, content: draft.content, issues: draft.issues, origin: draft.origin };
+    return { revision: number, content: draft.content, issues: draft.issues, corrections: draft.corrections, origin: draft.origin };
   }
 
   /** Grava uma nova revisão. `baseRevision` evita sobrescrever a edição de outra pessoa. */
@@ -540,6 +556,58 @@ export function createTranslationService({
         errors: issues.filter((issue) => issue.severity === 'error').length,
       });
       return { revision: next, issues };
+    });
+  }
+
+  /** Provedor escolhido nas Configurações, se estiver configurado neste processo. */
+  async function activeTranslator() {
+    const provider = await machineProvider();
+    return provider === 'none' ? null : (machine[provider] ?? null);
+  }
+
+  /**
+   * Revisão automática (ADR-016) sobre a revisão atual: corrige idioma, números, datas, glossário e marcadores e grava
+   * uma nova revisão com a lista do que mudou. Sem nada para corrigir, não cria revisão.
+   */
+  async function applyAutoReview(db: PoolClient, ctx: AuthenticatedContext, row: JobRow) {
+    const current = await currentDraft(db, row.id, row.current_revision);
+    if (!current) throw conflict('A tradução ainda não tem rascunho');
+    const rules = await loadRules(db, row.translation_mode, row.target_language);
+    const glossary = await glossaryFor(db, row);
+    const review = await autoReview({
+      draft: current.content,
+      sourceText: row.extracted_text,
+      glossary,
+      rules,
+      translator: row.requested_mode === 'manual' ? null : await activeTranslator(),
+    });
+    const issues = checkDraft(review.draft, row.extracted_text, glossary, rules);
+    if (!review.corrections.length) return { revision: row.current_revision, corrections: [], unresolved: review.unresolved, issues };
+    const next = (row.current_revision ?? 0) + 1;
+    await db.query(
+      `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, author_id, corrections)
+       VALUES ($1, $2, $3, $4, 'review', $5, $6)`,
+      [row.id, next, JSON.stringify(review.draft), JSON.stringify(issues), ctx.actor.id, JSON.stringify(review.corrections)],
+    );
+    await db.query(
+      `UPDATE translation_jobs SET current_revision = $2, document_type = nullif($3, ''), updated_at = now() WHERE id = $1`,
+      [row.id, next, review.draft.documentType.slice(0, 200)],
+    );
+    await audit(db, ctx, row, 'translation.auto_reviewed', {
+      revision: next,
+      corrections: review.corrections.length,
+      unresolved: review.unresolved.length,
+    });
+    row.current_revision = next;
+    return { revision: next, corrections: review.corrections, unresolved: review.unresolved, issues };
+  }
+
+  async function autoReviewDraft(ctx: AuthenticatedContext, jobId: string) {
+    return withTransaction(pool, async (db) => {
+      const row = await loadJob(db, ctx, jobId, true);
+      requireEditor(ctx, row);
+      if (row.status !== 'in_review') throw conflict('A tradução não está em revisão');
+      return applyAutoReview(db, ctx, row);
     });
   }
 
@@ -590,6 +658,8 @@ export function createTranslationService({
       async (db, row) => {
         requireEditor(ctx, row);
         await requireQuota(db, row, row.assignee_id);
+        // A revisão automática corre antes de marcar como pronta: o que tem conserto é corrigido no documento.
+        await applyAutoReview(db, ctx, row);
         // Correção, diagramação e revisão (conforme a modalidade): todos os itens confirmados antes de marcar como pronta.
         const pending = checklistFor(row, await loadRules(db, row.translation_mode, row.target_language)).filter((item) => !item.checked);
         if (pending.length) {
@@ -1213,6 +1283,7 @@ export function createTranslationService({
     revision,
     saveDraft,
     submit,
+    autoReviewDraft,
     returnForChanges,
     cancel,
     reprocess,

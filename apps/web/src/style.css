@@ -1708,3 +1708,24 @@ h4 {
 .checklist .check {
   align-items: flex-start;
 }
+
+/* Revisão automática (ADR-016) */
+.corrections summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.correction-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  max-height: 320px;
+  overflow: auto;
+}
+.correction-list del {
+  color: var(--danger);
+}
+.correction-list ins {
+  color: var(--green);
+  text-decoration: none;
+}

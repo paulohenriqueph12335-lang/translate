@@ -94,6 +94,7 @@ O primeiro Diretor é criado pela linha de comando ([ADR-004](decisions/004-dire
 | `GET /api/v1/translation-profiles` | autenticado | Modalidades, etapas e regras efetivas por idioma de destino ([ADR-015](decisions/015-translation-modes.md)) |
 | `PUT /api/v1/translation-profiles/:mode/:target` | Supervisor, Diretor | `{ rules \| null }`; `null` volta ao padrão das skills |
 | `PUT /api/v1/translations/:id/checks` | quem edita ou conclui | `{ keys, checked }`: checklist de correção, diagramação e revisão; "Pronta" exige todos (`checklist_incomplete`) |
+| `POST /api/v1/translations/:id/auto-review` | quem edita | Revisão automática ([ADR-016](decisions/016-automatic-review.md)): corrige a revisão atual e devolve `{ revision, corrections, unresolved, issues }`; com correções, grava revisão de origem `review`. "Pronta" roda a mesma revisão antes de seguir |
 
 `POST /api/v1/batches` aceita `mode` (`sworn`, `certified`, `technical`, `simple`; padrão `sworn`) e qualquer par entre `pt` e `en`, `fr`, `it`, `es`. `GET /api/v1/translations` filtra por `translationMode`.
 

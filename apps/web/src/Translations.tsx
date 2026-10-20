@@ -7,6 +7,8 @@ import {
   queryString,
   translationStatusLabel,
   type DraftContent,
+  type AutoReviewResult,
+  type Correction,
   type SwornTranslator,
   type Me,
   type Team,
@@ -216,6 +218,36 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
   );
 }
 
+/** O que a revisão automática corrigiu no documento (ADR-016) e o que ficou para a pessoa. */
+function CorrectionsPanel({ corrections, unresolved }: { corrections: Correction[]; unresolved: string[] }) {
+  if (!corrections.length && !unresolved.length) return null;
+  return (
+    <details className="card corrections" open={unresolved.length > 0}>
+      <summary>
+        Revisão automática: {corrections.length} correção(ões) no documento
+        {unresolved.length ? ` · ${unresolved.length} ponto(s) para conferir` : ''}
+      </summary>
+      {unresolved.length > 0 && (
+        <ul className="alert anomalies">
+          {unresolved.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      <ul className="correction-list">
+        {corrections.map((item, index) => (
+          <li key={index}>
+            <strong>{item.block ? `Bloco ${item.block}` : 'Documento'}:</strong> {item.message}
+            <span className="muted small-text block-line">
+              <del>{item.before || '—'}</del> → <ins>{item.after}</ins>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 export function StatusBadge({ status }: { status: TranslationStatus }) {
   const tone =
     status === 'approved'
@@ -238,6 +270,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
+  const [review, setReview] = useState<AutoReviewResult | null>(null);
   const reload = () => setVersion((current) => current + 1);
 
   // Ao (re)carregar, descarta edições locais da revisão anterior.
@@ -287,6 +320,20 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       reload();
     }
     return !!saved;
+  }
+
+  async function autoReviewNow() {
+    if (!(await save())) return;
+    const result = await run('Revisão automática concluída.', () => api<AutoReviewResult>('POST', `/translations/${id}/auto-review`));
+    if (result) {
+      setReview(result);
+      setFeedback({
+        ok: result.corrections.length
+          ? `Revisão automática: ${result.corrections.length} correção(ões) aplicada(s) ao documento.`
+          : 'Revisão automática: nada a corrigir.',
+      });
+      reload();
+    }
   }
 
   async function ready() {
@@ -355,6 +402,11 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             </button>
           </>
         )}
+        {t.permissions.edit && t.status === 'in_review' && !editing && (
+          <button onClick={() => void autoReviewNow()} disabled={busy} title="Corrige idioma, números, datas, glossário e marcadores">
+            Revisão automática
+          </button>
+        )}
         {t.permissions.submit && (
           <button className="primary" onClick={() => void ready()} disabled={busy}>
             {dirty ? 'Salvar e marcar como pronta' : 'Pronta — enviar para conclusão'}
@@ -400,6 +452,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       </div>
 
       <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
+      <CorrectionsPanel corrections={data.draft?.corrections ?? []} unresolved={review?.unresolved ?? []} />
       {panel === 'conclude' && (
         <ConcludePanel
           id={id}

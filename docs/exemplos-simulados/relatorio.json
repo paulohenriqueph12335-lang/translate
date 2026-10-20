@@ -1,0 +1,286 @@
+[
+  {
+    "document": "certidao-nascimento-1.pdf",
+    "type": "Certidão de nascimento",
+    "mode": "sworn",
+    "target": "en",
+    "processingMs": 24730,
+    "machineCorrections": [
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1225 – Livro 7 – Folha 25",
+    "output": "certidao-nascimento-1 - ENG.docx",
+    "totalMs": 25469,
+    "ok": true
+  },
+  {
+    "document": "certidao-nascimento-2.pdf",
+    "type": "Certidão de nascimento",
+    "mode": "sworn",
+    "target": "fr",
+    "processingMs": 43486,
+    "machineCorrections": [
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1226 – Livro 7 – Folha 26",
+    "output": "certidao-nascimento-2-FRA.docx",
+    "totalMs": 43930,
+    "ok": true
+  },
+  {
+    "document": "certidao-nascimento-3.pdf",
+    "type": "Certidão de nascimento",
+    "mode": "sworn",
+    "target": "it",
+    "processingMs": 49494,
+    "machineCorrections": [
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1227 – Livro 7 – Folha 27",
+    "output": "certidao-nascimento-3 - ITA.docx",
+    "totalMs": 49929,
+    "ok": true
+  },
+  {
+    "document": "cin-1.pdf",
+    "type": "CIN (Carteira de Identidade Nacional)",
+    "mode": "sworn",
+    "target": "fr",
+    "processingMs": 15502,
+    "machineCorrections": [
+      "spacing",
+      "spacing",
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1228 – Livro 7 – Folha 28",
+    "output": "cin-1-FRA.docx",
+    "totalMs": 15888,
+    "ok": true
+  },
+  {
+    "document": "cin-2.pdf",
+    "type": "CIN (Carteira de Identidade Nacional)",
+    "mode": "sworn",
+    "target": "it",
+    "processingMs": 16942,
+    "machineCorrections": [
+      "spacing",
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1229 – Livro 7 – Folha 29",
+    "output": "cin-2 - ITA.docx",
+    "totalMs": 17387,
+    "ok": true
+  },
+  {
+    "document": "cin-3.pdf",
+    "type": "CIN (Carteira de Identidade Nacional)",
+    "mode": "sworn",
+    "target": "es",
+    "processingMs": 10771,
+    "machineCorrections": [
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1230 – Livro 7 – Folha 30",
+    "output": "cin-3 - ESP.docx",
+    "totalMs": 11218,
+    "ok": true
+  },
+  {
+    "document": "cnh-1.pdf",
+    "type": "CNH",
+    "mode": "sworn",
+    "target": "it",
+    "processingMs": 13830,
+    "machineCorrections": [],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1231 – Livro 7 – Folha 31",
+    "output": "cnh-1 - ITA.docx",
+    "totalMs": 14218,
+    "ok": true
+  },
+  {
+    "document": "cnh-2.pdf",
+    "type": "CNH",
+    "mode": "sworn",
+    "target": "es",
+    "processingMs": 9248,
+    "machineCorrections": [],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1232 – Livro 7 – Folha 32",
+    "output": "cnh-2 - ESP.docx",
+    "totalMs": 9631,
+    "ok": true
+  },
+  {
+    "document": "cnh-3.pdf",
+    "type": "CNH",
+    "mode": "sworn",
+    "target": "en",
+    "processingMs": 7674,
+    "machineCorrections": [],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1233 – Livro 7 – Folha 33",
+    "output": "cnh-3 - ENG.docx",
+    "totalMs": 8019,
+    "ok": true
+  },
+  {
+    "document": "fatura-cartao-1.pdf",
+    "type": "Fatura de cartão",
+    "mode": "simple",
+    "target": "es",
+    "processingMs": 10746,
+    "machineCorrections": [],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": null,
+    "output": "fatura-cartao-1 - ESP.docx",
+    "totalMs": 11680,
+    "ok": true
+  },
+  {
+    "document": "fatura-cartao-2.pdf",
+    "type": "Fatura de cartão",
+    "mode": "technical",
+    "target": "en",
+    "processingMs": 10789,
+    "machineCorrections": [],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": null,
+    "output": "fatura-cartao-2 - ENG.docx",
+    "totalMs": 11257,
+    "ok": true
+  },
+  {
+    "document": "fatura-cartao-3.pdf",
+    "type": "Fatura de cartão",
+    "mode": "simple",
+    "target": "fr",
+    "processingMs": 20031,
+    "machineCorrections": [],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": null,
+    "output": "fatura-cartao-3-FRA.docx",
+    "totalMs": 20441,
+    "ok": true
+  },
+  {
+    "document": "certidao-conselho-medicina-1.pdf",
+    "type": "Certidão do conselho de medicina (CFM)",
+    "mode": "certified",
+    "target": "en",
+    "processingMs": 13865,
+    "machineCorrections": [
+      "marker_language",
+      "date_format"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": null,
+    "output": "certidao-conselho-medicina-1 - ENG.docx",
+    "totalMs": 14209,
+    "ok": true
+  },
+  {
+    "document": "certidao-conselho-medicina-2.pdf",
+    "type": "Certidão do conselho de medicina (CFM)",
+    "mode": "certified",
+    "target": "fr",
+    "processingMs": 30833,
+    "machineCorrections": [
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": null,
+    "output": "certidao-conselho-medicina-2-FRA.docx",
+    "totalMs": 31141,
+    "ok": true
+  },
+  {
+    "document": "certidao-conselho-medicina-3.pdf",
+    "type": "Certidão do conselho de medicina (CFM)",
+    "mode": "certified",
+    "target": "it",
+    "processingMs": 32536,
+    "machineCorrections": [
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": null,
+    "output": "certidao-conselho-medicina-3 - ITA.docx",
+    "totalMs": 33032,
+    "ok": true
+  },
+  {
+    "document": "apostila-1.pdf",
+    "type": "Apostila",
+    "mode": "sworn",
+    "target": "fr",
+    "processingMs": 33804,
+    "machineCorrections": [
+      "spacing",
+      "marker_language",
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1234 – Livro 7 – Folha 34",
+    "output": "apostila-1-FRA.docx",
+    "totalMs": 34308,
+    "ok": true
+  },
+  {
+    "document": "apostila-2.pdf",
+    "type": "Apostila",
+    "mode": "sworn",
+    "target": "it",
+    "processingMs": 40184,
+    "machineCorrections": [
+      "marker_language",
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1235 – Livro 7 – Folha 35",
+    "output": "apostila-2 - ITA.docx",
+    "totalMs": 42580,
+    "ok": true
+  },
+  {
+    "document": "apostila-3.pdf",
+    "type": "Apostila",
+    "mode": "sworn",
+    "target": "es",
+    "processingMs": 18534,
+    "machineCorrections": [
+      "marker_language",
+      "marker_language"
+    ],
+    "issuesAfterProcessing": [],
+    "issuesAtSubmit": [],
+    "number": "1236 – Livro 7 – Folha 36",
+    "output": "apostila-3 - ESP.docx",
+    "totalMs": 19069,
+    "ok": true
+  }
+]

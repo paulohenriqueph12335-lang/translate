@@ -15,6 +15,7 @@ import {
   type UploadLimits,
   LANGUAGE_PAIRS,
   splitPair,
+  modeLabel,
   type TranslationMode,
 } from './api';
 import { ModeSelect, PairSelect } from './Modes';
@@ -443,7 +444,7 @@ function History({
               <span className="muted">
                 {batch.team?.name ?? 'Sem equipe'} · {batch.owner.displayName} · {dateTime(batch.createdAt)}
                 {batch.translation
-                  ? ` · tradução ${batch.translation.sourceLanguage.toUpperCase()} → ${batch.translation.targetLanguage.toUpperCase()}`
+                  ? ` · ${batch.mode ? modeLabel[batch.mode].toLowerCase() : 'tradução'} ${batch.translation.sourceLanguage.toUpperCase()} → ${batch.translation.targetLanguage.toUpperCase()}`
                   : ''}
               </span>
               <Progress counts={batch.counts} />

@@ -113,7 +113,8 @@ describe('rascunho por tradução automática', () => {
       memory: noMemory,
     });
     // O RG com o órgão emissor é código: fica como no original e não vai ao provedor (ADR-013).
-    assert.deepEqual(calls[0], ['RG', 'SEXO', 'Feminino']);
+    // Texto em maiúsculas vai em minúsculas (o provedor erra menos) e volta em maiúsculas; siglas curtas vão como estão.
+    assert.deepEqual(calls[0], ['RG', 'Sexo', 'Feminino']);
     const table = result.draft.blocks[0];
     assert.equal(table?.kind, 'table');
     if (table?.kind === 'table') assert.equal(table.rows[1]!.cells[0]!.text, '12.345.678-9 SSP/SP');

@@ -31,3 +31,21 @@ A API tem testes unitários das políticas, senhas e limitador, e testes de inte
 As regras de numeração por tradutor (ADR-014) têm testes unitários em `apps/api/src/modules/numbering/rules.test.ts` (Walter, Patricia, Carla, estoque, Antonio, Vivian e leitura de CSV) e de integração em `apps/api/src/numbering-rules.integration.test.ts` (planilhas, livro que trava e troca sozinho, 2 usos em protocolos diferentes, protocolo zerado, teto da assinatura, reserva, bloqueio, avisos e painel).
 
 As modalidades (ADR-015) têm testes unitários em `packages/core/src/translation/profiles.test.ts` (datas por idioma, números como no original, nome do arquivo, etapas e ajuste inválido) e de integração em `apps/api/src/modes.integration.test.ts` (regras por idioma, ajuste e volta ao padrão pelo Supervisor, checklist antes de "Pronta", conclusão certificada sem numeração com sufixo `-FRA` e glossário das skills sem duplicar).
+
+A revisão automática (ADR-016) tem testes unitários em `packages/core/src/translation/review.test.ts` (detecção dos cinco idiomas, retradução do trecho no idioma errado, números e datas devolvidos ao formato, glossário, marcadores, terceiro idioma transcrito) e `machine/proper-names.test.ts` (pessoas, cidades, endereços, "S.A.", maiúsculas e ordinais), e de integração em `apps/api/src/auto-review.integration.test.ts` (no processamento, pelo botão e antes de "Pronta").
+
+### Simulação e carga no sistema local
+
+Com o Compose no ar e as contas de teste em `docs/exemplos-simulados/.credenciais-simulacao.json` (fora do Git):
+
+```bash
+cd packages/core && node --import tsx scripts/simular-documentos.ts
+```
+
+envia os 18 documentos fictícios de `docs/exemplos-simulados/originais`, conclui e salva o Word de cada um em `traduzidos/`, com `relatorio.json`. E
+
+```bash
+cd packages/core && node --import tsx scripts/teste-carga.ts 20
+```
+
+mede a API (1 a 32 clientes, parando no p95 de 1,5 s, em 2% de erros ou em 85% de CPU de um contêiner) e a fila (20 documentos), gravando `teste-carga.json`.

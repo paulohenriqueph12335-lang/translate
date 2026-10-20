@@ -4,7 +4,8 @@ import { convertLongDates, convertNumericDate, numericDateToLong, separatorsDiff
 import { stripEmphasis } from '../checks.js';
 import type { Draft, DraftBlock, Language, TableCell } from '../draft.js';
 import type { SourceLayout } from '../layout/source-layout.js';
-import { markerText, noteText, noteTranslation } from './notes.js';
+import { markerText, noteText, noteTranslation, visualLabel } from './notes.js';
+import { personNames, placeNames, webAddresses } from './proper-names.js';
 import type { MachineTranslator } from './providers.js';
 
 /** Busca na memória de tradução: trecho do original (normalizado) → tradução aprovada. */
@@ -68,6 +69,12 @@ export function prepareSegment(text: string, from: Language, to: Language, rules
       .replace(/\b[nN][º°]\s*/g, 'No. ')
       .replace(/\b(\d+)[ªº°]/g, (_match, value: string) => `${value}${englishOrdinal(Number(value))}`);
   }
+  if (from === 'pt' && to === 'fr') {
+    // "1ª/1º" → "1re/1er"; demais "2e" (as skills: ordinais no padrão do idioma de destino).
+    result = result.replace(/(\d+)([ªº°])/g, (_match, value: string, mark: string) =>
+      value === '1' ? (mark === 'ª' ? '1re' : '1er') : `${value}e`,
+    );
+  }
   if (from === 'en' && to !== 'en') {
     // "Part No." / "Chip NO." é abreviação de número: o provedor lê como a palavra "no" ("Chip não").
     result = result.replace(/\b(No|NO)\.(?=\s|$)/g, to === 'fr' ? 'n°' : 'nº');
@@ -85,7 +92,7 @@ export function prepareSegment(text: string, from: Language, to: Language, rules
  * Termos do glossário e trechos com dígitos viram marcadores que o provedor não altera, e voltam como a tradução
  * aprovada ou o número já convertido. Sem isso, provedores trocam separadores de identificadores ("000.123.456-7").
  */
-export function protectSegment(text: string, glossary: GlossaryTerm[]) {
+export function protectSegment(text: string, glossary: GlossaryTerm[], keep: string[] = []) {
   const restore: Array<[string, string]> = [];
   const mark = (prefix: string, value: string) => {
     const marker = `[[${prefix}${restore.length}]]`;
@@ -93,16 +100,28 @@ export function protectSegment(text: string, glossary: GlossaryTerm[]) {
     return marker;
   };
   let protectedText = text;
+  // Marcadores do original entre colchetes ("[CARIMBO]", "[QR CODE]"): o provedor costuma apagá-los.
+  protectedText = protectedText.replace(/\[[^[\]]{2,60}\]/g, (value) => mark('M', value));
   [...glossary]
     .sort((left, right) => right.source.length - left.source.length)
     .forEach((term) => {
       const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(term.source)}(?![\\p{L}\\p{N}])`, 'giu');
       protectedText = protectedText.replace(pattern, () => mark('G', term.target));
     });
+  // Nomes próprios, cidades e endereços eletrônicos ficam como no original (regra das skills).
+  [...new Set(keep)]
+    .filter((value) => value.trim().length >= 3)
+    .sort((left, right) => right.length - left.length)
+    .forEach((value) => {
+      const pattern = new RegExp(`(?<![\\p{L}\\p{N}\\[])${escapeRegExp(value)}(?![\\p{L}\\p{N}])`, 'gu');
+      protectedText = protectedText.replace(pattern, () => mark('P', value));
+    });
+  // Abreviações com pontos ("S.A.", "U.F."): o provedor junta ou apaga letras ("BANCO FICTICIO.A.").
+  protectedText = protectedText.replace(/(?<![\p{L}\[])(?:\p{Lu}\.){2,}/gu, (value) => mark('P', value));
   protectedText = protectedText.replace(/\*\*/g, () => mark('B', '**'));
   // Abreviações de número ("nº") o provedor estraga ("n.o", "não"): vão como marcador.
   protectedText = protectedText.replace(/(?<![\p{L}\p{N}])[nN][º°](?![\p{L}])/gu, (value) => mark('S', value));
-  protectedText = protectedText.replace(/(?<!\[\[[GNBS]\d*)\p{N}(?:[\p{N}.,/:-]*\p{N})?/gu, (value) => mark('N', value));
+  protectedText = protectedText.replace(/(?<!\[\[[GNBSPM]\d*)\p{N}(?:[\p{N}.,/:-]*\p{N})?[ªº°]?/gu, (value) => mark('N', value));
   const values = new Map(restore);
   return {
     text: protectedText,
@@ -112,7 +131,7 @@ export function protectSegment(text: string, glossary: GlossaryTerm[]) {
      */
     restore: (translated: string): string | null => {
       const seen = new Set<string>();
-      const result = translated.replace(/\[{1,2}\s*([GNBS])\s*(\d+)\s*\]{1,2}/gi, (match, prefix: string, index: string) => {
+      const result = translated.replace(/\[{1,2}\s*([GNBSPM])\s*(\d+)\s*\]{1,2}/gi, (match, prefix: string, index: string) => {
         const marker = `[[${prefix.toUpperCase()}${index}]]`;
         const value = values.get(marker);
         if (value === undefined) return match;
@@ -161,6 +180,37 @@ export function layoutFromText(text: string): SourceLayout {
 
 type Translated = { text: string; origin: 'machine' | 'memory' | 'rules' };
 
+const LOCALE: Record<Language, string> = { pt: 'pt-BR', en: 'en-US', fr: 'fr-FR', it: 'it-IT', es: 'es-ES' };
+
+/** Só maiúsculas (com pelo menos duas letras seguidas). */
+export const isAllCaps = (text: string) => /\p{Lu}{2}/u.test(text) && !/\p{Ll}/u.test(text.replace(/\[\[[A-Z]\d+\]\]/g, ''));
+
+/**
+ * Trecho pronto para o provedor: glossário, números, nomes próprios e marcadores protegidos. Texto todo em maiúsculas
+ * o provedor traduz mal ("REPÚBLICA FICTÍCIA" → "RÉPUBLIQUE FICIQUE"): vai em minúsculas e volta em maiúsculas.
+ */
+export function guardForTranslation(prepared: string, to: Language, glossary: GlossaryTerm[], keep: string[] = []) {
+  const guarded = protectSegment(prepared, glossary, keep);
+  // Siglas curtas ("RG", "CPF") vão como estão.
+  if (!isAllCaps(prepared) || !/\p{Lu}{4}/u.test(prepared)) return { text: guarded.text, restore: guarded.restore };
+  return {
+    text: sentenceCase(guarded.text),
+    restore: (value: string) => guarded.restore(value)?.toLocaleUpperCase(LOCALE[to]) ?? null,
+  };
+}
+
+/** Nomes de pessoas, cidades e endereços de um conjunto de trechos, para proteger em todos eles. */
+export function properNounsOf(texts: string[]) {
+  const places = texts.flatMap(placeNames);
+  return [...texts.flatMap(personNames), ...places, ...places.map((place) => place.toLocaleUpperCase('pt-BR')), ...texts.flatMap(webAddresses)];
+}
+
+/** Minúsculas com a primeira letra maiúscula, sem mexer nos marcadores de proteção ("[[N0]]"). */
+function sentenceCase(text: string) {
+  const lower = text.replace(/\[\[[A-Z]\d+\]\]|[^[]+|\[/g, (part) => (part.startsWith('[[') ? part : part.toLocaleLowerCase('pt-BR')));
+  return lower.replace(/\p{Ll}/u, (letter) => letter.toLocaleUpperCase('pt-BR'));
+}
+
 /**
  * Rascunho com a estrutura do original (ADR-009) e o texto traduzido trecho a trecho (ADR-008): memória de tradução
  * primeiro, depois o provedor gratuito; sem provedor, o texto original preparado (datas, decimais e glossário).
@@ -193,6 +243,8 @@ export async function buildMachineDraft(input: MachineDraftInput): Promise<Machi
   }
   for (const note of layout.notes) if ('quote' in note) collect(note.quote);
   const originals = [...new Set(segments)];
+  // Nomes de pessoas, cidades e endereços do documento inteiro: a mesma cidade aparece com e sem a sigla do estado.
+  const properNouns = properNounsOf(originals);
 
   const memory = await input.memory(originals.map(memoryKey));
   const translations = new Map<string, Translated>();
@@ -214,8 +266,7 @@ export async function buildMachineDraft(input: MachineDraftInput): Promise<Machi
       translations.set(original, { text: plain, origin: 'rules' });
       continue;
     }
-    const guarded = protectSegment(prepared, input.glossary);
-    pending.push({ original, prepared: plain, text: guarded.text, restore: guarded.restore });
+    pending.push({ original, prepared: plain, ...guardForTranslation(prepared, to, input.glossary, properNouns) });
   }
 
   let characters = 0;
@@ -264,6 +315,9 @@ export async function buildMachineDraft(input: MachineDraftInput): Promise<Machi
         };
       }
       default: {
+        // Rótulo de elemento visual sozinho ("BRASÃO", "QR CODE"): só o marcador entre colchetes (regra das skills).
+        const label = markers && (block.kind === 'paragraph' || block.kind === 'heading') ? visualLabel(block.text, to) : null;
+        if (label) return { ...block, text: label, sourceText: block.text, origin: 'rules' };
         const result = lookup(block.text);
         return { ...block, text: result.text, sourceText: block.text, origin: result.origin };
       }

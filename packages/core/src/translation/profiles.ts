@@ -51,6 +51,9 @@ export const MARKERS: Record<
     illegible: string;
     decorativeBand: string;
     footer: string;
+    logo: string;
+    electronicSignature: string;
+    photo: string;
   }
 > = {
   pt: {
@@ -64,6 +67,9 @@ export const MARKERS: Record<
     illegible: 'ilegível',
     decorativeBand: 'Faixa decorativa',
     footer: 'Rodapé',
+    logo: 'Logotipo',
+    electronicSignature: 'Assinatura eletrônica',
+    photo: 'Foto',
   },
   en: {
     coatOfArms: 'Coat of Arms',
@@ -76,6 +82,9 @@ export const MARKERS: Record<
     illegible: 'illegible',
     decorativeBand: 'Decorative band',
     footer: 'Footer',
+    logo: 'Logo',
+    electronicSignature: 'Electronic signature',
+    photo: 'Photo',
   },
   fr: {
     coatOfArms: 'Armoiries',
@@ -88,6 +97,9 @@ export const MARKERS: Record<
     illegible: 'illisible',
     decorativeBand: 'Bandeau décoratif',
     footer: 'Pied de page',
+    logo: 'Logo',
+    electronicSignature: 'Signature électronique',
+    photo: 'Photo',
   },
   it: {
     coatOfArms: 'Stemma',
@@ -100,6 +112,9 @@ export const MARKERS: Record<
     illegible: 'illeggibile',
     decorativeBand: 'Fascia decorativa',
     footer: 'Piè di pagina',
+    logo: 'Logo',
+    electronicSignature: 'Firma elettronica',
+    photo: 'Foto',
   },
   es: {
     coatOfArms: 'Escudo',
@@ -112,6 +127,9 @@ export const MARKERS: Record<
     illegible: 'ilegible',
     decorativeBand: 'Franja decorativa',
     footer: 'Pie de página',
+    logo: 'Logotipo',
+    electronicSignature: 'Firma electrónica',
+    photo: 'Foto',
   },
 };
 

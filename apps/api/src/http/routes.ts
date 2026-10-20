@@ -594,6 +594,13 @@ export function registerRoutes(
     return services.translations.submit(ctx, id);
   });
 
+  // Revisão automática (ADR-016): corrige o rascunho atual e devolve o que mudou.
+  app.post('/api/v1/translations/:id/auto-review', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translations.autoReviewDraft(ctx, id);
+  });
+
   app.post('/api/v1/translations/:id/return', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);

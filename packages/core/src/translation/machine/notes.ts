@@ -94,3 +94,52 @@ export function noteTranslation(text: string, quote: string): string | null {
   const footer = /^(?:Footer|Rodapé|Pied de page|Piè di pagina|Pie de página):\s*“(.+)”\s*$/.exec(text.trim());
   return footer ? footer[1]!.trim() : null;
 }
+
+/** Rótulos do original que indicam um elemento visual, no idioma de origem (sem acento, em maiúsculas). */
+const VISUAL_LABELS: Record<string, keyof (typeof MARKERS)['en']> = {
+  BRASAO: 'coatOfArms',
+  'BRASAO DA REPUBLICA': 'coatOfArms',
+  'BRASAO DE ARMAS': 'coatOfArms',
+  'COAT OF ARMS': 'coatOfArms',
+  SIMBOLO: 'logo',
+  LOGOTIPO: 'logo',
+  LOGO: 'logo',
+  SELO: 'seal',
+  SEAL: 'seal',
+  CARIMBO: 'stamp',
+  STAMP: 'stamp',
+  'QR CODE': 'qrCode',
+  'CODIGO QR': 'qrCode',
+  ASSINATURA: 'signature',
+  SIGNATURE: 'signature',
+  'ASSINATURA ELETRONICA': 'electronicSignature',
+  'ASSINATURA DIGITAL': 'electronicSignature',
+  FOTO: 'photo',
+  FOTOGRAFIA: 'photo',
+  PHOTO: 'photo',
+};
+
+const foldLabel = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[[\]]/g, '')
+    .trim()
+    .toUpperCase();
+
+/** Chave do marcador para um rótulo de elemento visual ("Brasão", "[QR CODE]"), em qualquer idioma conhecido. */
+export function visualLabelKey(text: string): keyof (typeof MARKERS)['en'] | null {
+  const folded = foldLabel(text);
+  if (VISUAL_LABELS[folded]) return VISUAL_LABELS[folded];
+  for (const labels of Object.values(MARKERS))
+    for (const [key, label] of Object.entries(labels)) if (foldLabel(label) === folded) return key as keyof (typeof MARKERS)['en'];
+  return null;
+}
+
+/** Parágrafo que é só o rótulo de um elemento visual vira o marcador no idioma de destino ("[Coat of Arms]"). */
+export function visualLabel(text: string, target: Language) {
+  const plain = text.replace(/\*\*/g, '').trim();
+  if (plain.length > 40) return null;
+  const key = visualLabelKey(plain);
+  return key ? `[${MARKERS[target][key]}]` : null;
+}

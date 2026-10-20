@@ -67,6 +67,32 @@ export function fixedColumns(tables: Table[], text: (cell: TableCell) => string)
   return fixed;
 }
 
+/**
+ * Colunas de nomes próprios em maiúsculas numa tabela de três ou mais colunas (lançamentos de fatura, lista de
+ * estabelecimentos): três ou mais linhas, pelo menos 3/4 delas em maiúsculas. A primeira coluna (rótulos) e a
+ * primeira linha (cabeçalho) ficam de fora.
+ */
+function capitalColumns(tables: Table[], text: (cell: TableCell) => string) {
+  const width = tables[0]!.columns.length;
+  const names = new Set<number>();
+  if (width < 3) return names;
+  const values: string[][] = Array.from({ length: width }, () => []);
+  for (const block of tables) {
+    const position = columnOf(block);
+    block.rows.slice(1).forEach((row) => {
+      for (const cell of row.cells) {
+        const value = plain(text(cell));
+        if (value && cell.colSpan === 1 && /\p{L}{2}/u.test(value)) values[position.get(cell)!]?.push(value);
+      }
+    });
+  }
+  values.forEach((list, index) => {
+    if (index === 0 || list.length < 3) return;
+    if (list.filter((value) => !/\p{Ll}/u.test(value)).length / list.length >= 0.75) names.add(index);
+  });
+  return names;
+}
+
 /** Coluna de cada célula, contando as mesclagens horizontais e as verticais vindas das linhas de cima. */
 export function columnOf(block: Table) {
   const position = new Map<TableCell, number>();
@@ -96,14 +122,18 @@ export function keptCells(blocks: DraftBlock[], text: (cell: TableCell) => strin
   const kept = new Set<TableCell>();
   for (const tables of families.values()) {
     const fixed = fixedColumns(tables, text);
+    const names = capitalColumns(tables, text);
     for (const block of tables) {
       const position = columnOf(block);
       for (const row of block.rows)
         for (const cell of row.cells) {
           const value = text(cell);
           if (!value.trim()) continue;
-          const inFixedColumn = row.style === 'normal' && cell.colSpan === 1 && fixed.has(position.get(cell)!);
-          if ((inFixedColumn && !isProse(value)) || isCodeLike(value)) kept.add(cell);
+          const column = position.get(cell)!;
+          const inFixedColumn = row.style === 'normal' && cell.colSpan === 1 && fixed.has(column);
+          // Coluna de nomes em maiúsculas (estabelecimentos, cidades numa fatura): só as células em maiúsculas ficam.
+          const name = cell.colSpan === 1 && names.has(column) && !/\p{Ll}/u.test(plain(value));
+          if ((inFixedColumn && !isProse(value)) || name || isCodeLike(value)) kept.add(cell);
         }
     }
   }

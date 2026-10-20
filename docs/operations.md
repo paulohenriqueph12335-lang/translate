@@ -43,6 +43,10 @@ Entre em <http://localhost:5173>. Novos cadastros ficam pendentes até um Direto
 - Porta ocupada: ajuste a porta de host no `.env`; não altere a porta interna sem atualizar os endereços de rede Compose.
 - `corepack enable` dá `EPERM` em `C:\Program Files\nodejs`: use `corepack pnpm ...` diretamente no diretório do projeto.
 
+## Capacidade
+
+Medida no teste de carga de 20/10/2026 ([resultados](exemplos-simulados/README.md#teste-de-carga-20102026-máquina-de-desenvolvimento-docker-desktop)): uma instância da API responde ~75 requisições/s com p95 de 44 ms antes de ocupar um núcleo inteiro; um worker traduz ~370 documentos simples por hora (~10 s cada), com o LibreTranslate usando ~1,5 núcleo. Para crescer: mais instâncias da API atrás de um balanceador, mais workers (a fila usa `SKIP LOCKED`) e mais núcleos para o tradutor (`TRANSLATOR_THREADS`).
+
 ## Persistência e recuperação
 
 Volumes atuais: `postgres_data` e `object_storage_data`. Eles sobrevivem a `docker compose down`. Não existe rotina automatizada de backup/restore ainda. Antes de atualizar volumes com dados importantes, exporte cópia independente; a estratégia formal entra na fase 8.

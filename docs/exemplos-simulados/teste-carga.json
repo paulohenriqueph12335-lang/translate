@@ -1,0 +1,78 @@
+{
+  "quando": "2026-10-20T19:38:46.614Z",
+  "limites": {
+    "p95Ms": 1500,
+    "errorRate": 0.02,
+    "cpu": 85
+  },
+  "fase1": {
+    "degraus": [
+      {
+        "clientes": 1,
+        "requisicoes": 707,
+        "porSegundo": 47,
+        "p50Ms": 19,
+        "p95Ms": 34,
+        "p99Ms": 66,
+        "erros": 0,
+        "cpu": {
+          "web": 0.19,
+          "api": 44.15,
+          "worker": 0.25,
+          "translator": 0.01,
+          "postgres": 33.85,
+          "object-storage": 0.98
+        },
+        "memoria": {
+          "web": "126.1MiB",
+          "api": "349MiB",
+          "worker": "323.9MiB",
+          "translator": "2.217GiB",
+          "postgres": "170.2MiB",
+          "object-storage": "209MiB"
+        }
+      },
+      {
+        "clientes": 2,
+        "requisicoes": 1132,
+        "porSegundo": 75,
+        "p50Ms": 24,
+        "p95Ms": 44,
+        "p99Ms": 59,
+        "erros": 0,
+        "cpu": {
+          "web": 0.2,
+          "api": 95.42,
+          "worker": 0.64,
+          "translator": 0.01,
+          "postgres": 58.35,
+          "object-storage": 0.46
+        },
+        "memoria": {
+          "web": "106.6MiB",
+          "api": "275.1MiB",
+          "worker": "324MiB",
+          "translator": "2.218GiB",
+          "postgres": "174.7MiB",
+          "object-storage": "209.2MiB"
+        }
+      }
+    ],
+    "parada": "CPU de um contêiner passou de 85% com 2 clientes"
+  },
+  "fase2": {
+    "documentos": 20,
+    "envioSegundos": 0.6,
+    "filaSegundos": 193.8,
+    "porDocumentoSegundos": 9.7,
+    "documentosPorHora": 371,
+    "prontos": 20,
+    "falhas": 0,
+    "cpuMedia": {
+      "worker": 1,
+      "translator": 151,
+      "api": 5,
+      "postgres": 2
+    }
+  }
+}

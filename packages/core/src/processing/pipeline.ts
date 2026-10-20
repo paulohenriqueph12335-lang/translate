@@ -12,6 +12,7 @@ import { analyzeDocxLayout } from '../translation/layout/docx-layout.js';
 import { analyzePdfLayout } from '../translation/layout/pdf-layout.js';
 import { buildMachineDraft, type MemoryLookup } from '../translation/machine/machine-draft.js';
 import { loadRules, type Mode } from '../translation/profiles.js';
+import { autoReview } from '../translation/review.js';
 import {
   MachineTranslationFailed,
   type MachineProviderName,
@@ -222,7 +223,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
            FROM translation_jobs j
            JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision
            JOIN documents d ON d.id = j.document_id
-          WHERE j.status = 'approved' AND j.approval_override_reason IS NULL
+          WHERE j.status = 'approved' AND j.approval_override_reason IS NULL AND j.annulled_at IS NULL
             AND j.source_language = $1 AND j.target_language = $2
             AND (($3::text IS NOT NULL AND j.source_title IS NOT NULL AND length(j.source_title) >= 6
                   AND position(upper(j.source_title) IN upper($3)) > 0)
@@ -231,11 +232,15 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
         [job.source_language, job.target_language, extractedText, doc.tags],
       )
     ).rows[0] ?? null;
-  const known = example ? { documentType: example.content.documentType, sourceTitle: example.content.sourceTitle } : null;
+  // Tipo e título só de um exemplo com o mesmo título do original: etiqueta em comum não diz que o documento é do mesmo tipo.
+  const known =
+    example?.by_title ? { documentType: example.content.documentType, sourceTitle: example.content.sourceTitle } : null;
 
   let draft: Draft | null = null;
   let origin: 'machine' | 'manual' = 'manual';
   let notice: string | null = null;
+  // Provedor também usado pela revisão automática; na tradução manual o sistema não traduz nada.
+  let reviewTranslator: MachineTranslator | null = null;
 
   // Tradução automática gratuita, trecho a trecho, dentro da estrutura do original (ADR-008, ADR-009).
   if (job.requested_mode !== 'manual' && extractedText) {
@@ -243,6 +248,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
       (await pool.query<{ provider: MachineProviderSetting }>('SELECT provider FROM machine_translation_settings')).rows[0]?.provider ??
       'libretranslate';
     const translator = setting === 'none' ? null : (deps.machine?.[setting] ?? null);
+    reviewTranslator = translator;
     if (!translator) {
       notice =
         setting === 'none'
@@ -281,6 +287,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
           return;
         }
         notice = `A tradução automática falhou (${error.message}): o rascunho traz o texto original para ser traduzido.`;
+        reviewTranslator = null;
       }
     }
   }
@@ -315,6 +322,11 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
         extractedText,
         glossary,
       });
+  // Revisão automática (ADR-016): corrige idioma, números, datas, glossário e marcadores antes da revisão humana.
+  const review = await autoReview({ draft, sourceText: extractedText, glossary, rules, translator: reviewTranslator });
+  draft = review.draft;
+  const corrections = review.corrections;
+  if (corrections.length) notice = `${notice ?? ''} Revisão automática: ${corrections.length} correção(ões) feita(s).`.trim();
   const issues = checkDraft(draft, extractedText, glossary, rules);
   const extractedForReview = extraction
     ? [
@@ -334,13 +346,10 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
     // Outro worker assumiu o trabalho (lease vencido): descarta este resultado.
     if (!owned.rowCount) return;
     const revision = owned.rows[0]!.next;
-    await db.query(`INSERT INTO translation_drafts (job_id, revision, content, issues, origin) VALUES ($1, $2, $3, $4, $5)`, [
-      job.id,
-      revision,
-      JSON.stringify(draft),
-      JSON.stringify(issues),
-      origin,
-    ]);
+    await db.query(
+      `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, corrections) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [job.id, revision, JSON.stringify(draft), JSON.stringify(issues), origin, JSON.stringify(corrections)],
+    );
     await db.query(
       `UPDATE translation_jobs SET status = 'in_review', current_revision = $2, extracted_text = $3, source_title = nullif($4, ''),
               assist_notice = $5, pattern_known = $6, document_type = nullif($7, ''), failure_code = NULL,
@@ -360,6 +369,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
         patternKnown,
         errors: issues.filter((issue) => issue.severity === 'error').length,
         warnings: issues.length,
+        corrections: corrections.length,
       },
     });
     const link = { batchId: doc.batch_id, documentId: job.document_id, translationId: job.id };

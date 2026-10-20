@@ -80,6 +80,9 @@ services:
       UPLOAD_MAX_FILE_MB: ${UPLOAD_MAX_FILE_MB:-50}
       UPLOAD_MAX_BATCH_FILES: ${UPLOAD_MAX_BATCH_FILES:-100}
       UPLOAD_MAX_BATCH_MB: ${UPLOAD_MAX_BATCH_MB:-1024}
+      # Revisão automática (ADR-016): retraduz trechos no idioma errado com o mesmo provedor do worker.
+      LIBRETRANSLATE_URL: http://translator:5000
+      DEEPL_API_KEY: ${DEEPL_API_KEY:-}
     ports:
       - "127.0.0.1:${API_PORT:-3000}:3000"
     depends_on:
