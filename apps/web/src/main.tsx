@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { api, ApiError, type Me } from './api';
 import { AuthScreen } from './AuthScreen';
 import { Dashboard } from './Dashboard';
+import { UpdateBanner } from './UpdateBanner';
 import './style.css';
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <UpdateBanner />
     <App />
   </React.StrictMode>,
 );

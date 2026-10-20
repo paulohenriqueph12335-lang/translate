@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import { withTransaction } from '../../db/pool.js';
+import { withTransaction } from '@tradutor/core/db';
 import { recordAudit } from '../audit/audit.js';
 import { hashPassword, PASSWORD_MAX, PASSWORD_MIN } from './passwords.js';
 

@@ -29,4 +29,4 @@ No Windows, use `corepack pnpm ...` sem `corepack enable` se não tiver permiss�
 
 ## Situação atual
 
-Fase 1 implementada: cadastro pendente com aprovação, login com sessões revogáveis, hierarquia Diretor/Líder/Operador por equipe e trilha de auditoria. Ainda faltam uploads, fila de trabalhos, tradução e adaptadores documentais. Veja [o roadmap](docs/roadmap.md) antes de assumir que uma funcionalidade está pronta.
+Fase 1 implementada: cadastro pendente com aprovação, login com sessões revogáveis, hierarquia Diretor/Líder/Operador por equipe e trilha de auditoria. Fase 2: lotes com upload validado e armazenamento privado. Fase 3: tradução juramentada assistida (PDF → rascunho → revisão → aprovação → DOCX numerado), traduzida automaticamente pelo LibreTranslate local (gratuito) ou pelo DeepL Free na estrutura do original, revisada na prévia e concluída pelo Líder ou Diretor, com notificações, etiquetas e área de downloads. Ainda faltam OCR local e operação de piloto. Veja [o roadmap](docs/roadmap.md) antes de assumir que uma funcionalidade está pronta.

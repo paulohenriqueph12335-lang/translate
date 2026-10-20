@@ -1,14 +1,27 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { Readable } from 'node:stream';
 import { z } from 'zod';
 import type { Config } from '../config.js';
 import type { AuthenticatedContext, RequestContext } from '../modules/context.js';
 import type { AuditService } from '../modules/audit/service.js';
+import { ALLOWED_EXTENSIONS } from '../modules/documents/format.js';
+import type { DocumentService } from '../modules/documents/service.js';
+import type { NotificationService } from '../modules/notifications/service.js';
+import type { NumberingService } from '../modules/numbering/service.js';
+import { NumberingConfig, SCHEMES } from '../modules/numbering/rules.js';
+import type { TranslatorNumberingService } from '../modules/numbering/translator-numbering.js';
+import type { ProfileService } from '../modules/translations/profiles.js';
+import type { DashboardService } from '../modules/dashboards/service.js';
+import { MAX_MASK_BYTES, type TranslatorService } from '../modules/translators/service.js';
+import type { TranslationService } from '../modules/translations/service.js';
+import { Draft, LANGUAGES, MODES, TranslationRules } from '@tradutor/core/translation';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../modules/identity/passwords.js';
 import type { IdentityService } from '../modules/identity/service.js';
 import { pageQuery } from '../modules/pagination.js';
 import type { TeamService } from '../modules/teams/service.js';
 import type { UserAdminService } from '../modules/users/service.js';
 import { AppError } from './errors.js';
+import { contentDisposition } from './content-disposition.js';
 import type { RateLimiter } from './rate-limit.js';
 
 export const SESSION_COOKIE = 'sid';
@@ -18,6 +31,14 @@ export interface Services {
   users: UserAdminService;
   teams: TeamService;
   audit: AuditService;
+  documents: DocumentService;
+  translations: TranslationService;
+  notifications: NotificationService;
+  numbering: NumberingService;
+  translatorNumbering: TranslatorNumberingService;
+  profiles: ProfileService;
+  dashboards: DashboardService;
+  translators: TranslatorService;
 }
 
 const email = z
@@ -30,6 +51,30 @@ const uuid = z.uuid();
 const teamRole = z.enum(['leader', 'operator']);
 const teamName = z.string().trim().min(2).max(80);
 const idParams = z.strictObject({ id: uuid });
+/** Data AAAA-MM-DD dos filtros de período. */
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida (use AAAA-MM-DD)');
+const flag = z.enum(['true', 'false']).transform((value) => value === 'true');
+/** Lista separada por vírgulas em query string, validada item a item. */
+const csv = <T extends z.ZodType<unknown, string>>(item: T) =>
+  z
+    .string()
+    .max(500)
+    .transform((value) => value.split(',').filter(Boolean))
+    .pipe(z.array(item));
+/** Etiqueta: minúsculas, sem espaços nas pontas; até 10 por documento. */
+const tag = z
+  .string()
+  .trim()
+  .min(1)
+  .max(40)
+  .transform((value) => value.toLocaleLowerCase('pt-BR').replace(/\s+/g, ' '));
+const tags = z
+  .array(tag)
+  .max(10, 'Até 10 etiquetas por documento')
+  .transform((list) => [...new Set(list)]);
+/** Remove chaves indefinidas, para os serviços com exactOptionalPropertyTypes. */
+const defined = <T extends Record<string, unknown>>(value: T) =>
+  Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as { [K in keyof T]: Exclude<T[K], undefined> };
 const teamMemberParams = z.strictObject({ id: uuid, userId: uuid });
 
 const parse = <T extends z.ZodType>(schema: T, value: unknown): z.infer<T> => {
@@ -175,10 +220,32 @@ export function registerRoutes(
     return { items: await services.teams.listMembers(ctx, id) };
   });
 
+  app.get('/api/v1/teams/:id/candidates', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const query = parse(
+      z.strictObject({
+        q: z.string().trim().max(100).optional(),
+        assignment: z.enum(['any', 'unassigned', 'assigned']).default('any'),
+        ...pageQuery,
+      }),
+      request.query,
+    );
+    return services.teams.listCandidates(ctx, id, {
+      assignment: query.assignment,
+      limit: query.limit,
+      ...(query.q ? { q: query.q } : {}),
+      ...(query.cursor ? { cursor: query.cursor } : {}),
+    });
+  });
+
   app.post('/api/v1/teams/:id/members', async (request, reply) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    const body = parse(z.strictObject({ email, role: teamRole }), request.body);
+    const body = parse(
+      z.union([z.strictObject({ email, role: teamRole }), z.strictObject({ userId: uuid, role: teamRole })]),
+      request.body,
+    );
     return reply.code(201).send({ member: await services.teams.addMember(ctx, id, body) });
   });
 
@@ -199,11 +266,797 @@ export function registerRoutes(
   // ---------- Auditoria (Diretor) ----------
   app.get('/api/v1/audit-events', async (request) => {
     const ctx = auth(request);
-    const query = parse(z.strictObject({ action: z.string().max(64).optional(), ...pageQuery }), request.query);
-    return services.audit.list(ctx, {
+    const query = parse(
+      z.strictObject({
+        action: z.string().max(64).optional(),
+        category: z
+          .string()
+          .regex(/^[a-z_]{1,32}$/)
+          .optional(),
+        actorId: uuid.optional(),
+        system: flag.optional(),
+        teamId: uuid.optional(),
+        targetType: z.string().max(32).optional(),
+        targetId: z.string().max(64).optional(),
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        q: z.string().trim().max(100).optional(),
+        ...pageQuery,
+      }),
+      request.query,
+    );
+    return services.audit.list(ctx, defined({ ...query, q: query.q || undefined }));
+  });
+
+  app.get('/api/v1/audit-events/facets', async (request) => services.audit.facets(auth(request)));
+
+  // ---------- Lotes e documentos (ADR-006) ----------
+  const idempotencyKey = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, 'Idempotency-Key inválida');
+
+  app.post('/api/v1/batches', async (request, reply) => {
+    const ctx = auth(request);
+    const body = parse(
+      z.strictObject({
+        teamId: uuid.optional(),
+        name: z.string().trim().min(1).max(120).optional(),
+        // Todo documento enviado é processado (ADR-010); sem par informado, PT → EN.
+        translation: z
+          .strictObject({ sourceLanguage: z.enum(LANGUAGES), targetLanguage: z.enum(LANGUAGES) })
+          .refine((pair) => pair.sourceLanguage !== pair.targetLanguage, 'Idiomas de origem e destino iguais')
+          .default({ sourceLanguage: 'pt', targetLanguage: 'en' }),
+        tags: tags.optional(),
+        // Juramentada, certificada, técnica ou simples (ADR-015); sem informar, juramentada.
+        mode: z.enum(MODES).optional(),
+        files: z
+          .array(
+            z.strictObject({
+              name: z
+                .string()
+                .trim()
+                .min(1)
+                .max(255)
+                .refine((name) => !/[\\/\u0000-\u001f]/.test(name), 'Nome de arquivo inválido'),
+              size: z.number().int().min(0),
+            }),
+          )
+          .min(1, 'Envie ao menos um arquivo'),
+      }),
+      request.body,
+    );
+    const header = request.headers['idempotency-key'];
+    const key = header === undefined ? undefined : parse(idempotencyKey, header);
+    const result = await services.documents.createBatch(
+      ctx,
+      {
+        files: body.files,
+        translation: body.translation,
+        ...(body.tags ? { tags: body.tags } : {}),
+        ...(body.mode ? { mode: body.mode } : {}),
+        ...(body.teamId ? { teamId: body.teamId } : {}),
+        ...(body.name ? { name: body.name } : {}),
+      },
+      key,
+    );
+    return reply.code(result.replayed ? 200 : 201).send({ batch: result.batch, documents: result.documents });
+  });
+
+  app.get('/api/v1/batches', async (request) => {
+    const ctx = auth(request);
+    const query = parse(
+      z.strictObject({
+        teamId: uuid.optional(),
+        unassigned: z.enum(['true', 'false']).optional(),
+        status: z.enum(['open', 'completed']).optional(),
+        mine: z.enum(['true', 'false']).optional(),
+        q: z.string().trim().max(100).optional(),
+        ...pageQuery,
+      }),
+      request.query,
+    );
+    return services.documents.listBatches(ctx, {
       limit: query.limit,
-      ...(query.action ? { action: query.action } : {}),
+      ...(query.teamId ? { teamId: query.teamId } : {}),
+      ...(query.unassigned === 'true' ? { unassigned: true } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.mine === 'true' ? { mine: true } : {}),
+      ...(query.q ? { q: query.q } : {}),
       ...(query.cursor ? { cursor: query.cursor } : {}),
     });
+  });
+
+  // Limites para a interface validar antes de enviar; o servidor continua sendo quem decide.
+  app.get('/api/v1/batches/limits', async (request) => {
+    auth(request);
+    return {
+      maxFileMb: config.UPLOAD_MAX_FILE_MB,
+      maxBatchFiles: config.UPLOAD_MAX_BATCH_FILES,
+      maxBatchMb: config.UPLOAD_MAX_BATCH_MB,
+      extensions: ALLOWED_EXTENSIONS,
+    };
+  });
+
+  app.get('/api/v1/batches/:id', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const result = await services.documents.getBatch(ctx, id);
+    // Visibilidade já verificada pelo lote; as traduções de cada documento seguem a mesma regra.
+    const translations = await services.translations.forDocuments(result.documents.map((doc) => doc.id));
+    return { ...result, documents: result.documents.map((doc) => ({ ...doc, translations: translations.get(doc.id) ?? [] })) };
+  });
+
+  app.post('/api/v1/batches/:id/assign', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ teamId: uuid }), request.body);
+    return services.documents.assignBatch(ctx, id, body.teamId);
+  });
+
+  app.post('/api/v1/batches/:id/cancel', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.documents.cancelBatch(ctx, id);
+  });
+
+  app.get('/api/v1/documents', async (request) => {
+    const ctx = auth(request);
+    const query = parse(
+      z.strictObject({
+        q: z.string().trim().max(100).optional(),
+        teamId: uuid.optional(),
+        unassigned: flag.optional(),
+        batchId: uuid.optional(),
+        mine: flag.optional(),
+        uploadedBy: uuid.optional(),
+        status: csv(z.enum(['awaiting_upload', 'uploading', 'stored', 'rejected', 'upload_failed', 'cancelled'])).optional(),
+        format: csv(z.enum(['pdf', 'docx', 'pptx', 'jpeg', 'png'])).optional(),
+        tag: tag.optional(),
+        untagged: flag.optional(),
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        translation: z.enum(['none', 'active', 'approved', 'failed']).optional(),
+        ...pageQuery,
+      }),
+      request.query,
+    );
+    return services.documents.searchDocuments(ctx, defined({ ...query, q: query.q || undefined }));
+  });
+
+  app.put('/api/v1/documents/:id/tags', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ tags }), request.body);
+    return { document: await services.documents.updateTags(ctx, id, body.tags) };
+  });
+
+  app.get('/api/v1/tags', async (request) => ({ items: await services.documents.listTags(auth(request)) }));
+
+  app.post('/api/v1/documents/:id/cancel', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return { document: await services.documents.cancelDocument(ctx, id) };
+  });
+
+  app.get('/api/v1/documents/:id/original', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const file = await services.documents.openOriginal(ctx, id);
+    return reply
+      .header('content-type', file.contentType)
+      .header('content-length', String(file.size))
+      .header('content-disposition', contentDisposition(file.name))
+      .header('x-content-type-options', 'nosniff')
+      .send(file.stream);
+  });
+
+  // O conteúdo chega como fluxo bruto; o limite global de corpo não se aplica aqui, e o serviço impõe o tamanho declarado.
+  void app.register(async (scope) => {
+    scope.addContentTypeParser('application/octet-stream', (_request, payload, done) => done(null, payload));
+    scope.put('/api/v1/documents/:id/content', async (request) => {
+      const ctx = auth(request);
+      const { id } = parse(idParams, request.params);
+      if (request.headers['content-type'] !== 'application/octet-stream') {
+        throw new AppError(400, 'VALIDATION_FAILED', 'Envie o arquivo como application/octet-stream');
+      }
+      const length = request.headers['content-length'];
+      const contentLength = length && /^\d+$/.test(length) ? Number(length) : undefined;
+      return { document: await services.documents.uploadContent(ctx, id, request.body as Readable, contentLength) };
+    });
+  });
+
+  // ---------- Traduções juramentadas (ADR-007) ----------
+  const language = z.enum(LANGUAGES);
+  const translationStatus = z.enum(['queued', 'processing', 'in_review', 'awaiting_approval', 'approved', 'failed', 'cancelled']);
+  const optionalText = (max: number) =>
+    z
+      .string()
+      .trim()
+      .max(max)
+      .transform((value) => value || null)
+      .nullable();
+
+  // Diagnóstico para a interface: há worker ativo, tradução automática disponível e tradutor público configurado?
+  app.get('/api/v1/translation-capabilities', async (request) => {
+    auth(request);
+    return services.translations.capabilities();
+  });
+
+  app.put('/api/v1/machine-translation-settings', async (request) => {
+    const ctx = auth(request);
+    const body = parse(z.strictObject({ provider: z.enum(['libretranslate', 'deepl', 'none']) }), request.body);
+    return services.translations.setMachineProvider(ctx, body.provider);
+  });
+
+  app.post('/api/v1/documents/:id/translations', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        sourceLanguage: language,
+        targetLanguage: language,
+        mode: z.enum(['auto', 'manual']).default('auto'),
+        translationMode: z.enum(MODES).optional(),
+      }),
+      request.body,
+    );
+    return reply.code(201).send(await services.translations.start(ctx, id, defined(body)));
+  });
+
+  // ---------- Modalidades e regras de tradução (ADR-015) ----------
+  app.get('/api/v1/translation-profiles', async (request) => services.profiles.list(auth(request)));
+
+  app.put('/api/v1/translation-profiles/:mode/:target', async (request) => {
+    const ctx = auth(request);
+    const params = parse(z.strictObject({ mode: z.enum(MODES), target: z.enum(LANGUAGES) }), request.params);
+    const body = parse(z.strictObject({ rules: TranslationRules.nullable() }), request.body);
+    return services.profiles.set(ctx, params.mode, params.target, body.rules);
+  });
+
+  app.put('/api/v1/translations/:id/checks', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        keys: z
+          .array(z.string().regex(/^[a-z]+:\d{1,3}$/))
+          .min(1)
+          .max(100),
+        checked: z.boolean(),
+      }),
+      request.body,
+    );
+    return services.translations.setChecks(ctx, id, body);
+  });
+
+  app.get('/api/v1/translations', async (request) => {
+    const ctx = auth(request);
+    const query = parse(
+      z.strictObject({
+        status: csv(translationStatus).optional(),
+        teamId: uuid.optional(),
+        unassigned: flag.optional(),
+        documentId: uuid.optional(),
+        batchId: uuid.optional(),
+        sourceLanguage: language.optional(),
+        targetLanguage: language.optional(),
+        tag: tag.optional(),
+        documentType: z.string().trim().max(200).optional(),
+        translationMode: z.enum(MODES).optional(),
+        patternKnown: flag.optional(),
+        approvedBy: uuid.optional(),
+        mine: flag.optional(),
+        assigneeId: uuid.optional(),
+        unclaimed: flag.optional(),
+        annulled: flag.optional(),
+        uploadedBy: uuid.optional(),
+        createdFrom: isoDate.optional(),
+        createdTo: isoDate.optional(),
+        approvedFrom: isoDate.optional(),
+        approvedTo: isoDate.optional(),
+        q: z.string().trim().max(100).optional(),
+        ...pageQuery,
+      }),
+      request.query,
+    );
+    return services.translations.list(ctx, defined({ ...query, q: query.q || undefined, documentType: query.documentType || undefined }));
+  });
+
+  app.get('/api/v1/translation-facets', async (request) => services.translations.facets(auth(request)));
+
+  app.get('/api/v1/translations/:id', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translations.get(ctx, id);
+  });
+
+  app.get('/api/v1/translations/:id/revisions', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return { items: await services.translations.revisions(ctx, id) };
+  });
+
+  app.get('/api/v1/translations/:id/revisions/:revision', async (request) => {
+    const ctx = auth(request);
+    const params = parse(z.strictObject({ id: uuid, revision: z.coerce.number().int().min(1) }), request.params);
+    return services.translations.revision(ctx, params.id, params.revision);
+  });
+
+  // Rascunhos de documentos longos passam do limite padrão de 64 KiB.
+  app.put('/api/v1/translations/:id/draft', { bodyLimit: 2 * 1024 * 1024 }, async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ baseRevision: z.number().int().min(1), draft: Draft }), request.body);
+    return services.translations.saveDraft(ctx, id, body);
+  });
+
+  app.post('/api/v1/translations/:id/submit', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translations.submit(ctx, id);
+  });
+
+  app.post('/api/v1/translations/:id/return', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ comment: z.string().trim().min(3).max(2000), reprocess: z.boolean().optional() }), request.body);
+    return services.translations.returnForChanges(ctx, id, defined(body));
+  });
+
+  app.post('/api/v1/translations/:id/approve', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const label = z.string().trim().min(1).max(40);
+    const body = parse(
+      z.strictObject({
+        overrideReason: z.string().trim().min(10).max(1000).optional(),
+        // Tradutor juramentado e numeração dele, digitada conforme as regras do tradutor (ADR-012).
+        translatorId: uuid.optional(),
+        number: label.optional(),
+        book: label.optional(),
+        sheet: label.optional(),
+      }),
+      request.body,
+    );
+    return services.translations.approve(ctx, id, defined(body));
+  });
+
+  app.post('/api/v1/translations/:id/cancel', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translations.cancel(ctx, id);
+  });
+
+  app.post('/api/v1/translations/:id/claim', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translations.claim(ctx, id);
+  });
+
+  app.put('/api/v1/translations/:id/assignee', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ userId: uuid }), request.body);
+    return services.translations.reassign(ctx, id, body.userId);
+  });
+
+  app.post('/api/v1/translations/:id/numbering-requests', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const positive = z.string().trim().min(1).max(40).optional();
+    const body = parse(
+      z
+        .strictObject({
+          kind: z.enum(['change', 'annul']),
+          reason: z.string().trim().min(5).max(1000),
+          number: positive,
+          book: positive,
+          sheet: positive,
+        })
+        .refine(
+          (value) => value.kind === 'annul' || value.number || value.book || value.sheet,
+          'Informe o número, o livro ou a folha corretos',
+        ),
+      request.body,
+    );
+    return reply.code(201).send(await services.numbering.createRequest(ctx, id, defined(body)));
+  });
+
+  // ---------- Numeração e painéis (plano de hierarquia) ----------
+  const year = z.coerce.number().int().min(2000).max(2999);
+
+  app.get('/api/v1/numbering', async (request) => {
+    const ctx = auth(request);
+    const query = parse(z.strictObject({ year: year.optional() }), request.query);
+    return services.numbering.overview(ctx, query.year);
+  });
+
+  app.put('/api/v1/numbering/quotas', async (request) => {
+    const ctx = auth(request);
+    const body = parse(
+      z.strictObject({
+        year,
+        scope: z.enum(['organization', 'team', 'user']),
+        teamId: uuid.optional(),
+        userId: uuid.optional(),
+        quota: z.number().int().min(1).max(1_000_000).nullable(),
+      }),
+      request.body,
+    );
+    return services.numbering.setQuota(ctx, defined(body));
+  });
+
+  app.get('/api/v1/numbering-requests', async (request) => {
+    const ctx = auth(request);
+    const query = parse(z.strictObject({ status: z.enum(['pending', 'approved', 'rejected', 'reverted']).optional() }), request.query);
+    return services.numbering.listRequests(ctx, defined(query));
+  });
+
+  app.post('/api/v1/numbering-requests/:id/decide', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ approve: z.boolean(), note: z.string().trim().min(1).max(1000).optional() }), request.body);
+    return services.numbering.decide(ctx, id, defined(body));
+  });
+
+  app.post('/api/v1/numbering-requests/:id/revert', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.numbering.revert(ctx, id);
+  });
+
+  const period = { from: isoDate.optional(), to: isoDate.optional(), teamId: uuid.optional() };
+
+  app.get('/api/v1/dashboards/organization', async (request) => {
+    const ctx = auth(request);
+    return services.dashboards.organization(ctx, defined(parse(z.strictObject(period), request.query)));
+  });
+
+  app.get('/api/v1/dashboards/team', async (request) => {
+    const ctx = auth(request);
+    return services.dashboards.team(ctx, defined(parse(z.strictObject(period), request.query)));
+  });
+
+  app.post('/api/v1/translations/:id/reprocess', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translations.reprocess(ctx, id);
+  });
+
+  app.get('/api/v1/translations/:id/preview', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const query = parse(
+      z.strictObject({ revision: z.coerce.number().int().min(1).optional(), translatorId: uuid.optional() }),
+      request.query,
+    );
+    const file = await services.translations.preview(ctx, id, query.revision, query.translatorId);
+    return reply
+      .header('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      .header('content-disposition', contentDisposition(file.name))
+      .header('x-content-type-options', 'nosniff')
+      .send(file.docx);
+  });
+
+  app.get('/api/v1/translations/:id/final', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const file = await services.translations.openFinal(ctx, id);
+    return reply
+      .header('content-type', file.contentType)
+      .header('content-disposition', contentDisposition(file.name))
+      .header('x-content-type-options', 'nosniff')
+      .send(file.stream);
+  });
+
+  // ---------- Tradutores juramentados (ADR-012) ----------
+  const translatorBody = {
+    name: z.string().trim().min(3).max(160),
+    registration: optionalText(240).optional(),
+    languages: optionalText(120).optional(),
+    notes: optionalText(2000).optional(),
+  };
+
+  app.get('/api/v1/sworn-translators', async (request) => {
+    const ctx = auth(request);
+    const query = parse(z.strictObject({ active: flag.optional() }), request.query);
+    return { items: await services.translators.list(ctx, defined(query)) };
+  });
+
+  app.post('/api/v1/sworn-translators', async (request, reply) => {
+    const ctx = auth(request);
+    const body = parse(z.strictObject({ ...translatorBody, active: z.boolean().optional() }), request.body);
+    const input = {
+      name: body.name,
+      registration: body.registration ?? null,
+      languages: body.languages ?? null,
+      notes: body.notes ?? null,
+      ...(body.active !== undefined ? { active: body.active } : {}),
+    };
+    return reply.code(201).send({ translator: await services.translators.create(ctx, input) });
+  });
+
+  // ---------- Regras de numeração por tradutor (ADR-014) ----------
+  const entryText = (max: number) => z.string().trim().max(max).nullable().optional();
+  const entryBody = z.strictObject({
+    translatorId: uuid,
+    number: entryText(40),
+    book: entryText(40),
+    pages: z.number().int().min(1).max(10_000).nullable().optional(),
+    protocol: entryText(60),
+    medium: z.enum(['digital', 'impresso']).nullable().optional(),
+    language: entryText(40),
+    free: z.boolean().optional(),
+    protocolValue: z.number().min(0).max(1_000_000).nullable().optional(),
+    translatorFee: z.number().min(0).max(1_000_000).nullable().optional(),
+  });
+
+  app.get('/api/v1/sworn-translators/:id/numbering', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translatorNumbering.getRule(ctx, id);
+  });
+
+  app.put('/api/v1/sworn-translators/:id/numbering', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ scheme: z.enum(SCHEMES), config: NumberingConfig }), request.body);
+    return services.translatorNumbering.setRule(ctx, id, body);
+  });
+
+  // Planilha CSV lida pelo navegador e enviada como texto (até 5 MB).
+  app.post('/api/v1/sworn-translators/:id/numbering/stock', { bodyLimit: 6 * 1024 * 1024 }, async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        fileName: z.string().trim().min(1).max(255),
+        text: z
+          .string()
+          .min(1)
+          .max(5 * 1024 * 1024),
+        language: z.string().trim().max(40).optional(),
+        free: z.boolean().optional(),
+      }),
+      request.body,
+    );
+    return reply.code(201).send(await services.translatorNumbering.importStock(ctx, id, defined(body)));
+  });
+
+  app.get('/api/v1/sworn-translators/:id/numbering/stock', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const query = parse(
+      z.strictObject({
+        status: z.enum(['available', 'reserved', 'blocked']).optional(),
+        usage: z.enum(['unused', 'used', 'exhausted']).optional(),
+        language: z.string().trim().max(40).optional(),
+        free: flag.optional(),
+        q: z.string().trim().max(40).optional(),
+        limit: z.coerce.number().int().min(1).max(500).default(100),
+        offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
+      }),
+      request.query,
+    );
+    return services.translatorNumbering.listStock(ctx, id, defined({ ...query, q: query.q || undefined }));
+  });
+
+  app.patch('/api/v1/numbering-stock/:id', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        status: z.enum(['available', 'reserved', 'blocked']).optional(),
+        reservedFor: uuid.nullable().optional(),
+        notifyOnUse: z.boolean().optional(),
+        note: z.string().trim().max(500).nullable().optional(),
+      }),
+      request.body,
+    );
+    return services.translatorNumbering.updateStock(ctx, id, defined(body));
+  });
+
+  app.delete('/api/v1/numbering-stock/:id', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    await services.translatorNumbering.deleteStock(ctx, id);
+    return reply.code(204).send();
+  });
+
+  app.get('/api/v1/sworn-translators/:id/numbering/books', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translatorNumbering.listBooks(ctx, id);
+  });
+
+  app.post('/api/v1/sworn-translators/:id/numbering/books', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        book: z.string().trim().min(1).max(40),
+        nextNumber: z.number().int().min(1).max(100_000_000),
+        nextSheet: z.number().int().min(1).max(100_000).optional(),
+      }),
+      request.body,
+    );
+    return reply.code(201).send(await services.translatorNumbering.addBook(ctx, id, defined(body)));
+  });
+
+  app.delete('/api/v1/numbering-books/:id', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    await services.translatorNumbering.removeBook(ctx, id);
+    return reply.code(204).send();
+  });
+
+  app.get('/api/v1/numbering/translators', async (request) => services.translatorNumbering.dashboard(auth(request)));
+
+  app.get('/api/v1/translations/:id/numbering', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const query = parse(z.strictObject({ translatorId: uuid.optional() }), request.query);
+    return services.translatorNumbering.getEntry(ctx, id, query.translatorId);
+  });
+
+  app.put('/api/v1/translations/:id/numbering', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(entryBody, request.body);
+    return services.translatorNumbering.saveEntry(ctx, id, defined(body));
+  });
+
+  app.post('/api/v1/translations/:id/numbering/authorize-zero-protocol', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translatorNumbering.authorizeZeroProtocol(ctx, id);
+  });
+
+  app.get('/api/v1/sworn-translators/:id', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return { translator: await services.translators.get(ctx, id) };
+  });
+
+  app.patch('/api/v1/sworn-translators/:id', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ ...translatorBody, active: z.boolean() }).partial(), request.body);
+    return { translator: await services.translators.update(ctx, id, defined(body)) };
+  });
+
+  const sendFile = (reply: FastifyReply, file: { stream: Readable; name: string; contentType: string }) =>
+    reply
+      .header('content-type', file.contentType)
+      .header('content-disposition', contentDisposition(file.name))
+      .header('x-content-type-options', 'nosniff')
+      .send(file.stream);
+
+  // Edição da máscara em uso, uma edição específica e o PDF de referência (Supervisor e Diretor).
+  app.get('/api/v1/sworn-translators/:id/mask', async (request, reply) => {
+    const { id } = parse(idParams, request.params);
+    return sendFile(reply, await services.translators.openFile(auth(request), id, 'mask'));
+  });
+  const maskParams = z.strictObject({ id: uuid, maskId: uuid });
+  app.get('/api/v1/sworn-translators/:id/masks/:maskId', async (request, reply) => {
+    const { id, maskId } = parse(maskParams, request.params);
+    return sendFile(reply, await services.translators.openFile(auth(request), id, 'mask', maskId));
+  });
+  app.get('/api/v1/sworn-translators/:id/reference-pdf', async (request, reply) => {
+    const { id } = parse(idParams, request.params);
+    return sendFile(reply, await services.translators.openFile(auth(request), id, 'pdf'));
+  });
+
+  // Voltar a usar uma edição da máscara nas próximas conclusões (Supervisor).
+  app.post('/api/v1/sworn-translators/:id/masks/:maskId/use', async (request) => {
+    const ctx = auth(request);
+    const { id, maskId } = parse(maskParams, request.params);
+    return { translator: await services.translators.useMask(ctx, id, maskId) };
+  });
+
+  // Máscara (Word) e PDF de referência chegam como binário; o nome do arquivo vem no cabeçalho X-File-Name.
+  void app.register(async (scope) => {
+    scope.addContentTypeParser(
+      ['application/octet-stream', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      { parseAs: 'buffer', bodyLimit: MAX_MASK_BYTES },
+      (_request, payload, done) => done(null, payload),
+    );
+    const fileName = (request: FastifyRequest, fallback: string) => {
+      const raw = request.headers['x-file-name'];
+      const name = typeof raw === 'string' ? decodeURIComponent(raw).trim() : '';
+      return name && name.length <= 255 && !/[\\/\u0000-\u001f]/.test(name) ? name : fallback;
+    };
+    // Cada envio é uma nova edição numerada da máscara do tradutor.
+    scope.post('/api/v1/sworn-translators/:id/masks', async (request, reply) => {
+      const ctx = auth(request);
+      const { id } = parse(idParams, request.params);
+      if (!Buffer.isBuffer(request.body)) throw new AppError(400, 'VALIDATION_FAILED', 'Envie o arquivo Word da máscara');
+      const rawNotes = request.headers['x-notes'];
+      const notes = typeof rawNotes === 'string' ? decodeURIComponent(rawNotes).trim().slice(0, 500) || null : null;
+      return reply.code(201).send(await services.translators.uploadMask(ctx, id, request.body, fileName(request, 'mascara.docx'), notes));
+    });
+    scope.put('/api/v1/sworn-translators/:id/reference-pdf', async (request) => {
+      const ctx = auth(request);
+      const { id } = parse(idParams, request.params);
+      if (!Buffer.isBuffer(request.body)) throw new AppError(400, 'VALIDATION_FAILED', 'Envie o PDF do tradutor');
+      return { translator: await services.translators.uploadReferencePdf(ctx, id, request.body, fileName(request, 'referencia.pdf')) };
+    });
+  });
+
+  // ---------- Notificações (da própria pessoa) ----------
+  app.get('/api/v1/notifications', async (request) => {
+    const ctx = auth(request);
+    const query = parse(
+      z.strictObject({ unread: flag.optional(), kind: csv(z.string().regex(/^[a-z_]{1,64}$/)).optional(), ...pageQuery }),
+      request.query,
+    );
+    return services.notifications.list(ctx, defined(query));
+  });
+
+  app.get('/api/v1/notifications/unread-count', async (request) => services.notifications.unreadCount(auth(request)));
+
+  app.post('/api/v1/notifications/read', async (request) => {
+    const ctx = auth(request);
+    const body = parse(
+      z.strictObject({
+        ids: z
+          .array(z.string().regex(/^\d{1,18}$/))
+          .max(200)
+          .optional(),
+      }),
+      request.body,
+    );
+    return services.notifications.markRead(ctx, body.ids);
+  });
+
+  app.get('/api/v1/glossary', async (request) => {
+    const ctx = auth(request);
+    const query = parse(
+      z.strictObject({
+        sourceLanguage: language.optional(),
+        targetLanguage: language.optional(),
+        teamId: uuid.optional(),
+        q: z.string().trim().max(100).optional(),
+      }),
+      request.query,
+    );
+    return {
+      items: await services.translations.listGlossary(ctx, {
+        ...(query.sourceLanguage ? { sourceLanguage: query.sourceLanguage } : {}),
+        ...(query.targetLanguage ? { targetLanguage: query.targetLanguage } : {}),
+        ...(query.teamId ? { teamId: query.teamId } : {}),
+        ...(query.q ? { q: query.q } : {}),
+      }),
+    };
+  });
+
+  app.post('/api/v1/glossary', async (request, reply) => {
+    const ctx = auth(request);
+    const body = parse(
+      z.strictObject({
+        sourceLanguage: language,
+        targetLanguage: language,
+        sourceTerm: z.string().trim().min(1).max(200),
+        targetTerm: z.string().trim().min(1).max(200),
+        note: z.string().trim().max(500).optional(),
+        teamId: uuid.optional(),
+      }),
+      request.body,
+    );
+    return reply.code(201).send(
+      await services.translations.addGlossary(ctx, {
+        sourceLanguage: body.sourceLanguage,
+        targetLanguage: body.targetLanguage,
+        sourceTerm: body.sourceTerm,
+        targetTerm: body.targetTerm,
+        ...(body.note ? { note: body.note } : {}),
+        ...(body.teamId ? { teamId: body.teamId } : {}),
+      }),
+    );
+  });
+
+  app.delete('/api/v1/glossary/:id', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    await services.translations.removeGlossary(ctx, id);
+    return reply.code(204).send();
   });
 }

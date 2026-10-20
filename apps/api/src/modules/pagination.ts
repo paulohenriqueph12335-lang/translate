@@ -15,3 +15,6 @@ export function decodeCursor(cursor: string | undefined, validate: (parts: strin
   if (!validate(parts)) throw new AppError(400, 'VALIDATION_FAILED', 'Cursor inválido');
   return parts;
 }
+
+/** Padrão `ILIKE` de "contém", escapando os curingas digitados pelo usuário. */
+export const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;

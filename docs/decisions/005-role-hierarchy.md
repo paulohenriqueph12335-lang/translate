@@ -20,16 +20,20 @@ O produto prevê Diretor, Líder, Operador e cadastro pendente, com autorizaçã
 | Criar/renomear equipe | ✔ | ✘ | ✘ | ✘ |
 | Ver equipe | ✔ | ✔ | ✔ | 404 |
 | Listar membros | ✔ | ✔ | ✘ (403) | 404 |
-| Adicionar membro | qualquer função | somente `operator`, usuário ativo não Diretor | ✘ | 404 |
-| Remover membro | qualquer | somente operadores (nunca líderes nem a si) | ✘ | 404 |
-| Alterar função do membro | ✔ | ✘ | ✘ | 404 |
+| Listar candidatos (pessoas ativas fora da equipe) | não Diretores, sem a si, com as equipes de cada pessoa | não Diretores, sem a si, só com a contagem de equipes | ✘ (403) | 404 |
+| Adicionar membro | qualquer função, a outra pessoa ativa não Diretora | somente `operator`, nas mesmas condições | ✘ | 404 |
+| Remover membro | qualquer outra pessoa | somente operadores (nunca líderes nem a si) | ✘ | 404 |
+| Alterar função do membro | de outra pessoa | ✘ | ✘ | 404 |
 
 - Recursos fora do escopo respondem `404` para não revelar existência; recurso visível com ação proibida responde `403`.
 - Campos privilegiados (`role`, `status`, `orgRole`) nunca são aceitos no cadastro: os esquemas são estritos e rejeitam campos extras.
+- **Ninguém altera o próprio cargo**: não se adiciona a equipes, não se remove delas, não muda a própria função, o próprio status nem o próprio papel na organização. Mudanças de cargo sempre vêm de um superior.
+- **Diretor não ocupa cargo de equipe**: ele já administra todas as equipes, e ser Líder/Operador seria um rebaixamento. Ao ser promovida a Diretor, a pessoa perde as associações de equipe (cada remoção é auditada com `reason: promoted_to_director`). A migração `0004` aplica a regra também no banco, com triggers que recusam associação de Diretor e promoção de quem ainda tem associação.
+- Revisado em 2026-10-17: antes o Diretor podia ser adicionado a equipes, inclusive por si mesmo.
 
 ## Consequências
 
-- O Líder localiza pessoas por e-mail exato ao adicionar operador; isso revela a existência de contas ativas ao Líder, aceito para a fase.
+- Para facilitar a gestão, o Líder vê a lista paginada e filtrável de pessoas ativas não Diretoras (nome e e-mail) para adicionar à própria equipe. Ele não vê contas pendentes, suspensas ou rejeitadas, nem em quais equipes cada pessoa está, apenas quantas. Revisado em 2026-10-17: antes o Líder só localizava pessoas por e-mail exato, que continua disponível para casos específicos.
 - Quando houver várias organizações, `org_role` migra para uma associação usuário–organização.
 
 ## Alternativas consideradas

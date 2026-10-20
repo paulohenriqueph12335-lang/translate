@@ -3,6 +3,8 @@ services:
     ports: !reset []
   object-storage:
     ports: !reset []
+  translator:
+    ports: !reset []
   api:
     ports: !reset []
   web:

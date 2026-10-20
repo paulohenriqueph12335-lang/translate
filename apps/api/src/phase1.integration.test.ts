@@ -218,7 +218,11 @@ describe('equipes e hierarquia', () => {
       403,
     );
     assert.equal((await leaderA.post(`/api/v1/users/${ids['operador-a@exemplo.test']}/suspend`)).status, 403);
-    assert.equal((await leaderA.get('/api/v1/audit-events')).status, 403);
+    // Supervisor vê só a auditoria das equipes que supervisiona (plano de hierarquia); Operador não vê.
+    const audit = await leaderA.get('/api/v1/audit-events');
+    assert.equal(audit.status, 200);
+    assert.ok(audit.body.items.every((event: { team: { id: string } | null }) => event.team?.id === ids.teamA));
+    assert.equal((await operatorA.get('/api/v1/audit-events')).status, 403);
   });
 
   it('líder remove operador da própria equipe', async () => {
@@ -368,5 +372,139 @@ describe('auditoria', () => {
   it('eventos de auditoria não podem ser alterados nem removidos', async () => {
     await assert.rejects(pool.query(`UPDATE audit_events SET action = 'x.y'`), /somente inserção/);
     await assert.rejects(pool.query('DELETE FROM audit_events'), /somente inserção/);
+  });
+});
+
+describe('candidatos para equipes', () => {
+  let leaderA: TestClient;
+  let operatorA: TestClient;
+  const names = (response: { body: { items: Array<{ email: string }> } }) => response.body.items.map((item) => item.email).sort();
+  const candidates = (c: TestClient, query = '') => c.get(`/api/v1/teams/${ids.teamA}/candidates${query}`);
+
+  before(async () => {
+    leaderA = await login('lider-a@exemplo.test');
+    operatorA = await login('operador-a@exemplo.test');
+  });
+
+  it('Diretor vê pessoas ativas fora da equipe (sem Diretores), com as equipes de cada uma', async () => {
+    const response = await candidates(director);
+    assert.equal(response.status, 200);
+    assert.deepEqual(names(response), ['lider-b@exemplo.test', 'livre@exemplo.test', 'pendente@exemplo.test']);
+    const liderB = response.body.items.find((item: { email: string }) => item.email === 'lider-b@exemplo.test');
+    assert.deepEqual([liderB.teamCount, liderB.teams], [1, ['Equipe B']]);
+  });
+
+  it('Líder não vê Diretores nem as equipes das pessoas', async () => {
+    const response = await candidates(leaderA);
+    assert.equal(response.status, 200);
+    assert.deepEqual(names(response), ['lider-b@exemplo.test', 'livre@exemplo.test', 'pendente@exemplo.test']);
+    assert.ok(response.body.items.every((item: object) => !('teams' in item)));
+  });
+
+  it('filtra por busca e por pertencer a equipes', async () => {
+    assert.deepEqual(names(await candidates(leaderA, '?q=LIVRE')), ['livre@exemplo.test']);
+    assert.deepEqual(names(await candidates(leaderA, '?assignment=unassigned')), ['livre@exemplo.test', 'pendente@exemplo.test']);
+    assert.deepEqual(names(await candidates(leaderA, '?assignment=assigned')), ['lider-b@exemplo.test']);
+    assert.deepEqual(names(await candidates(leaderA, '?q=%25')), []);
+    assert.equal((await candidates(leaderA, '?assignment=x')).status, 400);
+  });
+
+  it('pagina sem repetir pessoas', async () => {
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const page: Awaited<ReturnType<typeof candidates>> = await candidates(director, `?limit=1${cursor ? `&cursor=${cursor}` : ''}`);
+      seen.push(...page.body.items.map((item: { email: string }) => item.email));
+      cursor = page.body.nextCursor;
+    } while (cursor);
+    assert.equal(seen.length, 3);
+    assert.equal(new Set(seen).size, 3);
+  });
+
+  it('Operador e Líder de outra equipe não listam candidatos', async () => {
+    assert.equal((await candidates(operatorA)).status, 403);
+    assert.equal((await leaderA.get(`/api/v1/teams/${ids.teamB}/candidates`)).status, 404);
+  });
+
+  it('adição pela lista usa o ID, com as mesmas regras', async () => {
+    const add = (userId: string) => leaderA.post(`/api/v1/teams/${ids.teamA}/members`, { userId, role: 'operator' });
+    assert.equal((await add(await userId('diretor@exemplo.test'))).status, 403);
+    assert.equal((await add(await userId('ainda-pendente@exemplo.test'))).status, 404);
+    assert.equal((await add(ids['livre@exemplo.test']!)).status, 201);
+    assert.ok(!names(await candidates(leaderA)).includes('livre@exemplo.test'));
+    const both = await leaderA.post(`/api/v1/teams/${ids.teamA}/members`, {
+      userId: ids['livre@exemplo.test'],
+      email: 'livre@exemplo.test',
+      role: 'operator',
+    });
+    assert.equal(both.status, 400);
+  });
+});
+
+describe('busca de candidatos', () => {
+  it('ignora acentos no nome', async () => {
+    await signup('fabio@exemplo.test', 'Fábio Nunes');
+    const id = await userId('fabio@exemplo.test');
+    assert.equal((await director.post(`/api/v1/users/${id}/approve`)).status, 200);
+    const response = await director.get(`/api/v1/teams/${ids.teamA}/candidates?q=fabio%20nu`);
+    assert.deepEqual(
+      response.body.items.map((item: { email: string }) => item.email),
+      ['fabio@exemplo.test'],
+    );
+  });
+});
+
+describe('ninguém se atribui cargos', () => {
+  it('Diretor não entra em equipe, nem por e-mail nem por ID', async () => {
+    const self = await userId('diretor@exemplo.test');
+    const byId = await director.post(`/api/v1/teams/${ids.teamA}/members`, { userId: self, role: 'operator' });
+    assert.equal(byId.status, 403);
+    assert.match(byId.body.error.message, /próprio cargo/);
+    const byEmail = await director.post(`/api/v1/teams/${ids.teamA}/members`, { email: 'diretor@exemplo.test', role: 'leader' });
+    assert.equal(byEmail.status, 403);
+  });
+
+  it('Diretor não muda a própria função nem se remove de equipe', async () => {
+    const self = await userId('diretor@exemplo.test');
+    assert.equal((await director.request('PATCH', `/api/v1/teams/${ids.teamA}/members/${self}`, { role: 'operator' })).status, 403);
+    assert.equal((await director.request('DELETE', `/api/v1/teams/${ids.teamA}/members/${self}`)).status, 403);
+  });
+
+  it('Líder não muda a própria função', async () => {
+    const leaderA = await login('lider-a@exemplo.test');
+    const self = ids['lider-a@exemplo.test']!;
+    assert.equal((await leaderA.request('PATCH', `/api/v1/teams/${ids.teamA}/members/${self}`, { role: 'operator' })).status, 403);
+    assert.equal((await leaderA.request('DELETE', `/api/v1/teams/${ids.teamA}/members/${self}`)).status, 403);
+  });
+
+  it('promoção a Diretor remove as associações de equipe, com auditoria', async () => {
+    const target = ids['outro-lider-a@exemplo.test']!;
+    const promoted = await director.request('PUT', `/api/v1/users/${target}/org-role`, { orgRole: 'director' });
+    assert.equal(promoted.status, 200);
+    const memberships = await pool.query('SELECT 1 FROM team_memberships WHERE user_id = $1', [target]);
+    assert.equal(memberships.rowCount, 0);
+    const audit = await pool.query(
+      `SELECT 1 FROM audit_events WHERE action = 'team.member_removed' AND target_id = $1 AND metadata->>'reason' = 'promoted_to_director'`,
+      [target],
+    );
+    assert.equal(audit.rowCount, 1);
+    const asMember = await director.post(`/api/v1/teams/${ids.teamA}/members`, { userId: target, role: 'leader' });
+    assert.equal(asMember.status, 403);
+    assert.match(asMember.body.error.message, /Diretores/);
+  });
+
+  it('o banco recusa Diretor em equipe mesmo fora da API', async () => {
+    const target = ids['outro-lider-a@exemplo.test']!;
+    const creator = await userId('diretor@exemplo.test');
+    await assert.rejects(
+      pool.query(`INSERT INTO team_memberships (team_id, user_id, role, created_by) VALUES ($1, $2, 'operator', $3)`, [
+        ids.teamA,
+        target,
+        creator,
+      ]),
+      /Diretor não pode ocupar cargo de equipe/,
+    );
+    const operator = ids['operador-a@exemplo.test']!;
+    await assert.rejects(pool.query(`UPDATE users SET org_role = 'director' WHERE id = $1`, [operator]), /Remova as associações/);
   });
 });

@@ -5,9 +5,18 @@ import type { Pool } from 'pg';
 import type { Config } from './config.js';
 import type { Actor } from './modules/access/policy.js';
 import { createAuditService } from './modules/audit/service.js';
+import { createNotificationService } from './modules/notifications/service.js';
+import { createNumberingService } from './modules/numbering/service.js';
+import { createTranslatorNumberingService } from './modules/numbering/translator-numbering.js';
+import { createProfileService } from './modules/translations/profiles.js';
+import { createTranslatorService } from './modules/translators/service.js';
+import { createDashboardService } from './modules/dashboards/service.js';
+import { createDocumentService } from './modules/documents/service.js';
+import { createTranslationService } from './modules/translations/service.js';
 import { createIdentityService, type PublicUser } from './modules/identity/service.js';
 import { createTeamService } from './modules/teams/service.js';
 import { createUserAdminService } from './modules/users/service.js';
+import { createS3Storage, type ObjectStorage } from '@tradutor/core/storage';
 import { AppError } from './http/errors.js';
 import { createRateLimiter } from './http/rate-limit.js';
 import { registerRoutes, SESSION_COOKIE } from './http/routes.js';
@@ -28,6 +37,8 @@ export interface AppDeps {
   logger?: FastifyServerOptions['logger'];
   now?: () => Date;
   rateLimits?: { login: RateLimitOptions; signup: RateLimitOptions };
+  /** Armazenamento de objetos; padrão é o S3 configurado. Testes injetam falhas por aqui. */
+  storage?: ObjectStorage;
 }
 
 interface RateLimitOptions {
@@ -37,7 +48,7 @@ interface RateLimitOptions {
 
 const defaultRateLimits = { login: { limit: 10, windowMs: 15 * 60_000 }, signup: { limit: 5, windowMs: 60 * 60_000 } };
 
-export async function buildApp({ config, pool, logger, now, rateLimits = defaultRateLimits }: AppDeps) {
+export async function buildApp({ config, pool, logger, now, rateLimits = defaultRateLimits, storage = createS3Storage(config) }: AppDeps) {
   const app = Fastify({
     logger: logger ?? {
       level: config.LOG_LEVEL,
@@ -52,11 +63,21 @@ export async function buildApp({ config, pool, logger, now, rateLimits = default
   });
 
   const deps = { pool, config, ...(now ? { now } : {}) };
+  const translators = createTranslatorService({ ...deps, storage });
+  const translatorNumbering = createTranslatorNumberingService(deps);
   const services = {
     identity: createIdentityService(deps),
     users: createUserAdminService(deps),
     teams: createTeamService(deps),
     audit: createAuditService(deps),
+    documents: createDocumentService({ ...deps, storage }),
+    translations: createTranslationService({ ...deps, storage, masks: translators.maskFor, numbering: translatorNumbering }),
+    translatorNumbering,
+    profiles: createProfileService(deps),
+    translators,
+    notifications: createNotificationService(deps),
+    numbering: createNumberingService({ ...deps, storage, masks: translators.maskFor }),
+    dashboards: createDashboardService(deps),
   };
 
   await app.register(cookie);
@@ -76,7 +97,14 @@ export async function buildApp({ config, pool, logger, now, rateLimits = default
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
-      return reply.code(error.status).send({ error: { code: error.code, message: error.message, correlationId: request.id } });
+      return reply.code(error.status).send({
+        error: {
+          code: error.code,
+          message: error.message,
+          correlationId: request.id,
+          ...(error.details ? { details: error.details } : {}),
+        },
+      });
     }
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) {
@@ -92,12 +120,15 @@ export async function buildApp({ config, pool, logger, now, rateLimits = default
 
   app.get('/health/live', async () => ({ status: 'ok' }));
   app.get('/health/ready', async (_request, reply) => {
-    try {
-      await pool.query('SELECT 1');
-      return { status: 'ok', dependencies: { database: 'ok' } };
-    } catch {
-      return reply.code(503).send({ status: 'unavailable', dependencies: { database: 'unavailable' } });
-    }
+    const [database, objects] = await Promise.all([
+      pool.query('SELECT 1').then(
+        () => 'ok' as const,
+        () => 'unavailable' as const,
+      ),
+      storage.isReady().then((ready) => (ready ? ('ok' as const) : ('unavailable' as const))),
+    ]);
+    const ok = database === 'ok' && objects === 'ok';
+    return reply.code(ok ? 200 : 503).send({ status: ok ? 'ok' : 'unavailable', dependencies: { database, storage: objects } });
   });
 
   registerRoutes(app, {

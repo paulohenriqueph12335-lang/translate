@@ -12,9 +12,10 @@ import {
   type UserStatus,
 } from '../access/policy.js';
 import { recordAudit } from '../audit/audit.js';
-import { withTransaction } from '../../db/pool.js';
+import { withTransaction } from '@tradutor/core/db';
 import { conflict, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
+import { decodeCursor, encodeCursor, likePattern } from '../pagination.js';
 
 interface TeamRow {
   id: string;
@@ -32,6 +33,20 @@ const toTeam = (row: TeamRow, myRole: TeamRole | null) => ({
 });
 
 const TEAM_SELECT = `SELECT t.id, t.name, t.created_at, (SELECT count(*) FROM team_memberships m WHERE m.team_id = t.id) AS member_count FROM teams t`;
+
+export type Assignment = 'any' | 'unassigned' | 'assigned';
+
+export interface CandidateQuery {
+  q?: string;
+  assignment: Assignment;
+  limit: number;
+  cursor?: string;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const SELF_ROLE_MESSAGE = 'Ninguém pode alterar o próprio cargo; peça a um superior.';
+export const DIRECTOR_NO_TEAM_ROLE_MESSAGE = 'Diretores já administram todas as equipes e não ocupam cargo de Líder ou Operador.';
 
 const isUniqueViolation = (error: unknown) => (error as { code?: string }).code === '23505';
 
@@ -133,18 +148,78 @@ export function createTeamService({ pool }: ServiceDeps) {
     }));
   }
 
-  async function addMember(ctx: AuthenticatedContext, teamId: string, input: { email: string; role: TeamRole }) {
+  /**
+   * Pessoas que podem ser adicionadas à equipe: ativas, fora dela, sem ser Diretor nem quem está agindo.
+   * O Líder não vê em quais equipes cada pessoa está, só quantas (ADR-005).
+   */
+  async function listCandidates(ctx: AuthenticatedContext, teamId: string, query: CandidateQuery) {
+    if (!canViewTeam(ctx.actor, teamId)) throw notFound('Equipe não encontrada');
+    if (!canListMembers(ctx.actor, teamId)) throw forbidden();
+    const director = isDirector(ctx.actor);
+    // O cursor guarda id e nome; o nome pode conter "|", por isso é remontado.
+    const after = decodeCursor(query.cursor, ([id, ...name]) => !!id && UUID.test(id) && name.length > 0);
+    const result = await pool.query<{
+      id: string;
+      email: string;
+      display_name: string;
+      team_names: string[];
+    }>(
+      `SELECT u.id, u.email, u.display_name,
+              coalesce(array_agg(t.name::text ORDER BY t.name) FILTER (WHERE t.id IS NOT NULL), '{}'::text[]) AS team_names
+         FROM users u
+         LEFT JOIN team_memberships m ON m.user_id = u.id
+         LEFT JOIN teams t ON t.id = m.team_id
+        WHERE u.status = 'active'
+          AND NOT EXISTS (SELECT 1 FROM team_memberships own WHERE own.team_id = $1 AND own.user_id = u.id)
+          AND u.org_role = 'member' AND u.id <> $2
+          AND ($3::text IS NULL OR unaccent(u.display_name) ILIKE unaccent($3) OR u.email::text ILIKE $3)
+          AND ($5::text IS NULL OR (u.display_name, u.id) > ($5, $4::uuid))
+        GROUP BY u.id
+       HAVING ($6 = 'any' OR ($6 = 'unassigned') = (count(m.team_id) = 0))
+        ORDER BY u.display_name, u.id
+        LIMIT $7`,
+      [
+        teamId,
+        ctx.actor.id,
+        query.q ? likePattern(query.q) : null,
+        after?.[0] ?? null,
+        after ? after.slice(1).join('|') : null,
+        query.assignment,
+        query.limit + 1,
+      ],
+    );
+    const rows = result.rows.slice(0, query.limit);
+    const last = rows.at(-1);
+    return {
+      items: rows.map((row) => ({
+        userId: row.id,
+        email: row.email,
+        displayName: row.display_name,
+        teamCount: row.team_names.length,
+        ...(director ? { teams: row.team_names } : {}),
+      })),
+      nextCursor: result.rows.length > query.limit && last ? encodeCursor(last.id, last.display_name) : null,
+    };
+  }
+
+  async function addMember(
+    ctx: AuthenticatedContext,
+    teamId: string,
+    input: ({ email: string } | { userId: string }) & { role: TeamRole },
+  ) {
     if (!canViewTeam(ctx.actor, teamId)) throw notFound('Equipe não encontrada');
     if (!canListMembers(ctx.actor, teamId)) throw forbidden();
     return withTransaction(pool, async (db) => {
       await assertTeamExists(db, teamId);
       const found = await db.query<{ id: string; status: UserStatus; org_role: OrgRole }>(
-        'SELECT id, status, org_role FROM users WHERE email = $1',
-        [input.email],
+        `SELECT id, status, org_role FROM users WHERE ${'email' in input ? 'email' : 'id'} = $1`,
+        ['email' in input ? input.email : input.userId],
       );
       const target = found.rows[0];
       // Contas inexistentes e não ativas recebem a mesma resposta.
       if (!target || target.status !== 'active') throw notFound('Usuário não encontrado ou indisponível');
+      if (target.id === ctx.actor.id) throw forbidden(SELF_ROLE_MESSAGE);
+      if (target.org_role === 'director') throw forbidden(DIRECTOR_NO_TEAM_ROLE_MESSAGE);
       if (!canAddMember(ctx.actor, teamId, input.role, { id: target.id, status: target.status, orgRole: target.org_role }))
         throw forbidden();
       const inserted = await db.query(
@@ -179,6 +254,7 @@ export function createTeamService({ pool }: ServiceDeps) {
   async function removeMember(ctx: AuthenticatedContext, teamId: string, userId: string) {
     if (!canViewTeam(ctx.actor, teamId)) throw notFound('Equipe não encontrada');
     if (!canListMembers(ctx.actor, teamId)) throw forbidden();
+    if (userId === ctx.actor.id) throw forbidden(SELF_ROLE_MESSAGE);
     await withTransaction(pool, async (db) => {
       const membership = await lockMembership(db, teamId, userId);
       if (!canRemoveMember(ctx.actor, teamId, { userId, role: membership.role })) throw forbidden();
@@ -197,7 +273,8 @@ export function createTeamService({ pool }: ServiceDeps) {
 
   async function changeMemberRole(ctx: AuthenticatedContext, teamId: string, userId: string, role: TeamRole) {
     if (!canViewTeam(ctx.actor, teamId)) throw notFound('Equipe não encontrada');
-    if (!canChangeMemberRole(ctx.actor)) throw forbidden();
+    if (userId === ctx.actor.id) throw forbidden(SELF_ROLE_MESSAGE);
+    if (!canChangeMemberRole(ctx.actor, { userId })) throw forbidden();
     return withTransaction(pool, async (db) => {
       const membership = await lockMembership(db, teamId, userId);
       if (membership.role !== role) {
@@ -216,7 +293,7 @@ export function createTeamService({ pool }: ServiceDeps) {
     });
   }
 
-  return { list, get, create, rename, listMembers, addMember, removeMember, changeMemberRole };
+  return { list, get, create, rename, listMembers, listCandidates, addMember, removeMember, changeMemberRole };
 }
 
 export type TeamService = ReturnType<typeof createTeamService>;

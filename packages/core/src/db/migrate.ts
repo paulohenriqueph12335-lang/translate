@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Pool } from 'pg';
 
-export const defaultMigrationsDir = fileURLToPath(new URL('../../../../packages/database/migrations', import.meta.url));
+export const defaultMigrationsDir = fileURLToPath(new URL('../../../database/migrations', import.meta.url));
 
 const MIGRATION_LOCK = 724_001;
 

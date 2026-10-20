@@ -1,7 +1,7 @@
 import type { Actor, OrgRole, TeamRole, UserStatus } from '../access/policy.js';
 import { canRevokeSessionsOf } from '../access/policy.js';
 import { recordAudit } from '../audit/audit.js';
-import { withTransaction } from '../../db/pool.js';
+import { withTransaction } from '@tradutor/core/db';
 import { AppError, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, RequestContext, ServiceDeps } from '../context.js';
 import { getDummyHash, hashPassword, verifyPassword } from './passwords.js';

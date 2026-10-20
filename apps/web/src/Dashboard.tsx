@@ -1,83 +1,86 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import {
-  api,
-  ApiError,
-  roleLabel,
-  statusLabel,
-  type AuditEvent,
-  type Me,
-  type Page,
-  type Session,
-  type Team,
-  type TeamMember,
-  type TeamRole,
-  type User,
-  type UserStatus,
-  setUnauthorizedHandler,
-} from './api';
+import { useEffect, useState } from 'react';
+import { api, statusLabel, type Me, type Page, type Session, type User, type UserStatus, setUnauthorizedHandler } from './api';
+import { Audit } from './Audit';
+import { AutoTranslationNotice } from './AutoTranslationNotice';
+import { Documents } from './Documents';
+import { Downloads } from './Downloads';
+import { Notifications, useUnreadCount } from './Notifications';
+import { Numbering } from './Numbering';
+import { OrganizationPanel, TeamPanel } from './Panels';
+import { History, Workspace } from './Workspace';
+import { TranslationRulesEditor } from './Modes';
+import { Glossary, TranslationSettingsView } from './TranslationAdmin';
+import { Translations } from './Translations';
+import { Teams } from './Teams';
+import { Translators } from './Translators';
+import { dateTime, Feedback, message, Section, useLoad } from './ui';
 
-type View = 'teams' | 'approvals' | 'users' | 'audit' | 'sessions';
-
-const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-const message = (error: unknown) => (error instanceof ApiError ? error.message : 'Falha inesperada');
-
-/** Carrega dados e expõe recarga; erros viram mensagem exibível. */
-function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(() => {
-    setError(null);
-    load()
-      .then(setData)
-      .catch((caught: unknown) => setError(message(caught)));
-  }, deps);
-  useEffect(reload, [reload]);
-  return { data, error, reload };
-}
-
-function Feedback({ error, ok }: { error?: string | null; ok?: string | null }) {
-  if (error)
-    return (
-      <div className="alert error" role="alert">
-        {error}
-      </div>
-    );
-  if (ok)
-    return (
-      <div className="alert success" role="status">
-        {ok}
-      </div>
-    );
-  return null;
-}
-
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return (
-    <section className="section">
-      <header>
-        <h2>{title}</h2>
-        {subtitle && <p className="muted">{subtitle}</p>}
-      </header>
-      {children}
-    </section>
-  );
-}
+type View =
+  | 'panel'
+  | 'teamPanel'
+  | 'workspace'
+  | 'history'
+  | 'numbering'
+  | 'translators'
+  | 'translations'
+  | 'documents'
+  | 'downloads'
+  | 'notifications'
+  | 'glossary'
+  | 'rules'
+  | 'teams'
+  | 'approvals'
+  | 'users'
+  | 'settings'
+  | 'audit'
+  | 'sessions';
 
 export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: () => void; onUnauthorized: () => void }) {
   const isDirector = me.user.orgRole === 'director';
-  const [view, setView] = useState<View>(isDirector ? 'approvals' : 'teams');
+  const supervises = me.memberships.some((m) => m.role === 'leader');
+  // Tela inicial de cada papel (plano de hierarquia): Diretor → painel; Supervisor → painel da equipe; Usuário → workspace.
+  const [view, setView] = useState<View>(isDirector ? 'panel' : supervises ? 'teamPanel' : 'workspace');
+  const [panelTeam, setPanelTeam] = useState<string | null>(null);
+  const [openTranslation, setOpenTranslation] = useState<string | null>(null);
+  const [notificationsVersion, setNotificationsVersion] = useState(0);
+  const unread = useUnreadCount(notificationsVersion);
+  const pending = useLoad(
+    () => (isDirector ? api<Page<User>>('GET', '/users?status=pending&limit=100') : Promise.resolve(null)),
+    [isDirector, view],
+  );
+  const goToTranslation = (id: string) => {
+    setOpenTranslation(id);
+    setView('translations');
+  };
+  const go = (next: View) => {
+    if (next === 'translations') setOpenTranslation(null);
+    setView(next);
+  };
   const leads = me.memberships.filter((m) => m.role === 'leader').length;
-  const role = isDirector ? 'Diretor' : leads ? 'Líder' : me.memberships.length ? 'Operador' : 'Sem equipe';
+  const role = isDirector ? 'Diretor' : leads ? 'Supervisor' : me.memberships.length ? 'Usuário' : 'Sem equipe';
 
   // Sessão revogada/expirada em qualquer chamada leva de volta ao login.
   useEffect(() => setUnauthorizedHandler(onUnauthorized), [onUnauthorized]);
 
-  const nav: Array<[View, string, boolean]> = [
-    ['approvals', 'Aprovações', isDirector],
-    ['users', 'Usuários', isDirector],
-    ['teams', 'Equipes', true],
-    ['audit', 'Auditoria', isDirector],
-    ['sessions', 'Minhas sessões', true],
+  const pendingCount = pending.data?.items.length ?? 0;
+  const nav: Array<{ key: View; label: string; visible: boolean; count?: number; group?: string }> = [
+    { key: 'panel', label: 'Painel', visible: isDirector },
+    { key: 'teamPanel', label: isDirector ? 'Painel das equipes' : 'Painel da equipe', visible: isDirector || supervises },
+    { key: 'workspace', label: 'Meu workspace', visible: true },
+    { key: 'translations', label: 'Traduções', visible: true },
+    { key: 'documents', label: 'Envios', visible: true },
+    { key: 'history', label: 'Histórico', visible: true },
+    { key: 'downloads', label: 'Downloads', visible: true },
+    { key: 'notifications', label: 'Notificações', visible: true, count: unread },
+    { key: 'numbering', label: 'Numeração', visible: true, group: 'Controle' },
+    { key: 'translators', label: 'Tradutores juramentados', visible: isDirector || supervises },
+    { key: 'audit', label: 'Auditoria', visible: isDirector || supervises },
+    { key: 'glossary', label: 'Glossário', visible: true },
+    { key: 'rules', label: 'Regras de tradução', visible: true },
+    { key: 'teams', label: 'Equipes', visible: true },
+    { key: 'approvals', label: 'Cadastros pendentes', visible: isDirector, count: pendingCount, group: 'Administração' },
+    { key: 'users', label: 'Usuários', visible: isDirector },
+    { key: 'settings', label: 'Configurações', visible: isDirector },
   ];
 
   return (
@@ -91,29 +94,75 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
         </div>
         <nav>
           {nav
-            .filter(([, , visible]) => visible)
-            .map(([key, label]) => (
-              <button key={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>
-                {label}
-              </button>
+            .filter((item) => item.visible)
+            .map((item) => (
+              <div key={item.key} className="nav-item">
+                {item.group && <span className="nav-group">{item.group}</span>}
+                <button className={view === item.key ? 'active' : ''} onClick={() => go(item.key)}>
+                  {item.label}
+                  {!!item.count && <span className="nav-count">{item.count}</span>}
+                </button>
+              </div>
             ))}
         </nav>
-        <button className="ghost" onClick={onLogout}>
-          Sair
-        </button>
+        <div className="sidebar-foot">
+          <button className={`ghost small ${view === 'sessions' ? 'active' : ''}`} onClick={() => go('sessions')}>
+            Minhas sessões
+          </button>
+          <button className="ghost" onClick={onLogout}>
+            Sair
+          </button>
+        </div>
       </aside>
       <main className="content">
-        {view === 'approvals' && <Approvals />}
-        {view === 'users' && <Users selfId={me.user.id} />}
+        {(view === 'translations' || view === 'documents') && !openTranslation && (
+          <AutoTranslationNotice isDirector={isDirector} canManageTranslators={supervises} onGoTranslators={() => go('translators')} />
+        )}
+        {view === 'panel' && (
+          <OrganizationPanel
+            onOpenTeam={(teamId) => {
+              setPanelTeam(teamId);
+              go('teamPanel');
+            }}
+          />
+        )}
+        {view === 'teamPanel' && <TeamPanel key={panelTeam ?? 'default'} me={me} initialTeamId={panelTeam} />}
+        {view === 'workspace' && (
+          <Workspace onOpenTranslation={goToTranslation} onUpload={() => go('documents')} onNotifications={() => go('notifications')} />
+        )}
+        {view === 'history' && <History onOpenTranslation={goToTranslation} />}
+        {view === 'numbering' && <Numbering me={me} onOpenTranslation={goToTranslation} />}
+        {view === 'translators' && <Translators canManage={supervises} />}
+        {view === 'translations' && (
+          <Translations me={me} openId={openTranslation} onOpen={setOpenTranslation} onGoTranslators={() => go('translators')} />
+        )}
+        {view === 'documents' && <Documents me={me} onOpenTranslation={goToTranslation} />}
+        {view === 'downloads' && <Downloads me={me} onOpenTranslation={goToTranslation} />}
+        {view === 'notifications' && (
+          <Notifications
+            onOpenTranslation={goToTranslation}
+            onOpenDocuments={() => go('documents')}
+            onChange={() => setNotificationsVersion((current) => current + 1)}
+          />
+        )}
+        {view === 'glossary' && <Glossary me={me} />}
+        {view === 'rules' && (
+          <Section title="Regras de tradução" subtitle="Etapas e regras de cada modalidade, por idioma de destino.">
+            <TranslationRulesEditor />
+          </Section>
+        )}
         {view === 'teams' && <Teams isDirector={isDirector} selfId={me.user.id} />}
-        {view === 'audit' && <Audit />}
+        {view === 'approvals' && <Approvals onChange={pending.reload} />}
+        {view === 'users' && <Users selfId={me.user.id} />}
+        {view === 'settings' && <TranslationSettingsView />}
+        {view === 'audit' && <Audit me={me} />}
         {view === 'sessions' && <Sessions />}
       </main>
     </div>
   );
 }
 
-function Approvals() {
+function Approvals({ onChange }: { onChange: () => void }) {
   const { data, error, reload } = useLoad(() => api<Page<User>>('GET', '/users?status=pending&limit=100'), []);
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
 
@@ -122,13 +171,14 @@ function Approvals() {
       await api('POST', `/users/${user.id}/${action}`);
       setFeedback({ ok: `Cadastro de ${user.displayName} ${action === 'approve' ? 'aprovado' : 'rejeitado'}.` });
       reload();
+      onChange();
     } catch (caught) {
       setFeedback({ error: message(caught) });
     }
   }
 
   return (
-    <Section title="Aprovações pendentes" subtitle="Cadastros públicos não acessam nada até serem aprovados.">
+    <Section title="Cadastros pendentes" subtitle="Cadastros públicos não acessam nada até serem aprovados.">
       <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
       {data && data.items.length === 0 && <p className="empty">Nenhum cadastro aguardando aprovação.</p>}
       <ul className="list">
@@ -203,11 +253,21 @@ function Users({ selfId }: { selfId: string }) {
                     <>
                       <button
                         className="small"
-                        onClick={() =>
-                          run('Papel atualizado.', () =>
-                            api('PUT', `/users/${user.id}/org-role`, { orgRole: user.orgRole === 'director' ? 'member' : 'director' }),
+                        onClick={() => {
+                          const promote = user.orgRole !== 'director';
+                          // Diretor não ocupa cargo de equipe: a promoção remove as associações (ADR-005).
+                          if (
+                            promote &&
+                            !window.confirm(
+                              `Tornar ${user.displayName} Diretor(a)? A pessoa sairá de todas as equipes em que é Supervisor ou Usuário.`,
+                            )
                           )
-                        }
+                            return;
+                          void run(
+                            promote ? 'Promovido(a) a Diretor(a); associações de equipe removidas.' : 'Papel de Diretor removido.',
+                            () => api('PUT', `/users/${user.id}/org-role`, { orgRole: promote ? 'director' : 'member' }),
+                          );
+                        }}
                       >
                         {user.orgRole === 'director' ? 'Remover Diretor' : 'Tornar Diretor'}
                       </button>
@@ -239,216 +299,6 @@ function Users({ selfId }: { selfId: string }) {
           );
         })}
       </ul>
-    </Section>
-  );
-}
-
-function Teams({ isDirector, selfId }: { isDirector: boolean; selfId: string }) {
-  const { data, error, reload } = useLoad(() => api<{ items: Team[] }>('GET', '/teams'), []);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
-  const team = data?.items.find((item) => item.id === selected) ?? null;
-
-  async function create(event: FormEvent) {
-    event.preventDefault();
-    try {
-      const created = await api<{ team: Team }>('POST', '/teams', { name });
-      setName('');
-      setFeedback({ ok: `Equipe "${created.team.name}" criada.` });
-      setSelected(created.team.id);
-      reload();
-    } catch (caught) {
-      setFeedback({ error: message(caught) });
-    }
-  }
-
-  return (
-    <Section title="Equipes" subtitle={isDirector ? 'Você administra todas as equipes.' : 'Equipes das quais você participa.'}>
-      {isDirector && (
-        <form className="toolbar" onSubmit={create}>
-          <input
-            placeholder="Nome da nova equipe"
-            required
-            minLength={2}
-            maxLength={80}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button className="primary">Criar equipe</button>
-        </form>
-      )}
-      <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
-      {data && data.items.length === 0 && (
-        <p className="empty">{isDirector ? 'Nenhuma equipe criada ainda.' : 'Você ainda não participa de equipes.'}</p>
-      )}
-      <div className="split">
-        <ul className="list selectable">
-          {data?.items.map((item) => (
-            <li key={item.id} className={item.id === selected ? 'selected' : ''} onClick={() => setSelected(item.id)}>
-              <div>
-                <strong>{item.name}</strong>
-                <span className="muted">
-                  {item.memberCount} membro(s){item.myRole ? ` · você é ${roleLabel[item.myRole]}` : ''}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {team && <TeamDetail key={team.id} team={team} isDirector={isDirector} selfId={selfId} onChange={reload} />}
-      </div>
-    </Section>
-  );
-}
-
-function TeamDetail({ team, isDirector, selfId, onChange }: { team: Team; isDirector: boolean; selfId: string; onChange: () => void }) {
-  const canManage = isDirector || team.myRole === 'leader';
-  const { data, error, reload } = useLoad(
-    () => (canManage ? api<{ items: TeamMember[] }>('GET', `/teams/${team.id}/members`) : Promise.resolve({ items: [] })),
-    [team.id, canManage],
-  );
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<TeamRole>('operator');
-  const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
-
-  async function run(label: string, call: () => Promise<unknown>) {
-    try {
-      await call();
-      setFeedback({ ok: label });
-      reload();
-      onChange();
-    } catch (caught) {
-      setFeedback({ error: message(caught) });
-    }
-  }
-
-  if (!canManage) {
-    return (
-      <div className="card detail">
-        <h3>{team.name}</h3>
-        <p className="muted">Você participa como Operador. A gestão de membros cabe ao Líder da equipe.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="card detail">
-      <h3>{team.name}</h3>
-      <form
-        className="toolbar"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void run('Membro adicionado.', async () => {
-            await api('POST', `/teams/${team.id}/members`, { email, role: isDirector ? role : 'operator' });
-            setEmail('');
-          });
-        }}
-      >
-        <input type="email" placeholder="E-mail de usuário ativo" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        {isDirector && (
-          <select value={role} onChange={(e) => setRole(e.target.value as TeamRole)}>
-            <option value="operator">Operador</option>
-            <option value="leader">Líder</option>
-          </select>
-        )}
-        <button className="primary">Adicionar</button>
-      </form>
-      <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
-      <ul className="list compact">
-        {data?.items.map((member) => {
-          const removable = isDirector || (member.role === 'operator' && member.userId !== selfId);
-          return (
-            <li key={member.userId}>
-              <div>
-                <strong>{member.displayName}</strong>
-                <span className="muted">
-                  {member.email} · {roleLabel[member.role]}
-                  {member.status !== 'active' ? ` · ${statusLabel[member.status]}` : ''}
-                </span>
-              </div>
-              <div className="actions">
-                {isDirector && (
-                  <button
-                    className="small"
-                    onClick={() =>
-                      run('Função alterada.', () =>
-                        api('PATCH', `/teams/${team.id}/members/${member.userId}`, {
-                          role: member.role === 'leader' ? 'operator' : 'leader',
-                        }),
-                      )
-                    }
-                  >
-                    {member.role === 'leader' ? 'Tornar Operador' : 'Tornar Líder'}
-                  </button>
-                )}
-                {removable && (
-                  <button
-                    className="danger small"
-                    onClick={() => run('Membro removido.', () => api('DELETE', `/teams/${team.id}/members/${member.userId}`))}
-                  >
-                    Remover
-                  </button>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-function Audit() {
-  const [events, setEvents] = useState<AuditEvent[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async (from: string | null) => {
-    try {
-      const page = await api<Page<AuditEvent>>('GET', `/audit-events?limit=50${from ? `&cursor=${encodeURIComponent(from)}` : ''}`);
-      setEvents((current) => (from ? [...current, ...page.items] : page.items));
-      setCursor(page.nextCursor);
-    } catch (caught) {
-      setError(message(caught));
-    }
-  }, []);
-
-  useEffect(() => {
-    void load(null);
-  }, [load]);
-
-  return (
-    <Section title="Auditoria" subtitle="Registro somente inserção de ações de acesso e administração.">
-      <Feedback error={error} />
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Quando</th>
-              <th>Quem</th>
-              <th>Ação</th>
-              <th>Alvo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.map((event) => (
-              <tr key={event.id}>
-                <td>{dateTime(event.occurredAt)}</td>
-                <td>{event.actor?.displayName ?? '—'}</td>
-                <td>
-                  <code>{event.action}</code>
-                </td>
-                <td className="muted">{event.targetType ? `${event.targetType} ${event.targetId?.slice(0, 8) ?? ''}` : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {cursor && (
-        <button className="ghost" onClick={() => void load(cursor)}>
-          Carregar mais
-        </button>
-      )}
     </Section>
   );
 }

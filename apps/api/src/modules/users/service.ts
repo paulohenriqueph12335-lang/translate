@@ -9,7 +9,7 @@ import {
   type UserStatus,
 } from '../access/policy.js';
 import { recordAudit } from '../audit/audit.js';
-import { withTransaction } from '../../db/pool.js';
+import { withTransaction } from '@tradutor/core/db';
 import { conflict, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
 import { USER_COLUMNS, toPublicUser, type UserRow } from '../identity/service.js';
@@ -87,6 +87,24 @@ export function createUserAdminService({ pool }: ServiceDeps) {
         throw forbidden('Somente outra conta ativa pode ter o papel alterado');
       }
       if (target.org_role === orgRole) return toPublicUser(target);
+      if (orgRole === 'director') {
+        // Diretor não ocupa cargo de equipe (ADR-005): as associações saem junto com a promoção.
+        const removed = await db.query<{ team_id: string; role: string }>(
+          'DELETE FROM team_memberships WHERE user_id = $1 RETURNING team_id, role',
+          [userId],
+        );
+        for (const membership of removed.rows) {
+          await recordAudit(db, {
+            actorUserId: ctx.actor.id,
+            action: 'team.member_removed',
+            targetType: 'user',
+            targetId: userId,
+            teamId: membership.team_id,
+            correlationId: ctx.correlationId,
+            metadata: { role: membership.role, reason: 'promoted_to_director' },
+          });
+        }
+      }
       const updated = await db.query<UserRow>(
         `UPDATE users u SET org_role = $2, updated_at = now() WHERE u.id = $1 RETURNING ${USER_COLUMNS}`,
         [userId, orgRole],

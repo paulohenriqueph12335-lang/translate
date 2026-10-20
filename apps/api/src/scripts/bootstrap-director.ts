@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
-import { createPool } from '../db/pool.js';
+import { createPool } from '@tradutor/core/db';
 import { bootstrapDirector, BootstrapRefused } from '../modules/identity/bootstrap.js';
 
 const fail = (message: string): never => {

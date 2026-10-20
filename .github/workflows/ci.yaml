@@ -28,8 +28,17 @@ jobs:
       POSTGRES_USER: tradutor
       POSTGRES_PASSWORD: ci-only-password
       POSTGRES_PORT: 5432
+      S3_ACCESS_KEY: ci-access-key
+      S3_SECRET_KEY: ci-only-secret
     steps:
       - uses: actions/checkout@v4
+      # Serviços do GitHub Actions não aceitam argumentos de comando; o SeaweedFS sobe via docker run.
+      - name: Start S3 (SeaweedFS)
+        run: |
+          docker run -d --name s3 -p 8333:8333 \
+            -e AWS_ACCESS_KEY_ID=$S3_ACCESS_KEY -e AWS_SECRET_ACCESS_KEY=$S3_SECRET_KEY \
+            chrislusf/seaweedfs:4.48 server -s3
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8333 && break; sleep 2; done
       - uses: pnpm/action-setup@v4
         with:
           version: 10.18.3

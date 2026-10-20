@@ -6,9 +6,9 @@ Construir uma aplicação web em que pessoas autorizadas possam enviar documento
 
 ## Usuários e acesso previstos
 
-- **Diretor:** administra a organização, aprova cadastros e atribui funções.
-- **Líder:** administra somente equipes, pessoas e recursos delegados.
-- **Operador:** envia documentos e acompanha o trabalho conforme suas permissões.
+- **Diretor:** administra a organização, aprova cadastros, atribui funções e direciona para as equipes os lotes que envia.
+- **Líder:** administra somente equipes, pessoas e recursos delegados; os lotes que envia vão direto para a própria equipe.
+- **Operador:** trabalha com todos os documentos da sua equipe (ver, baixar e, nas próximas fases, traduzir); não cria lotes.
 - **Cadastro pendente:** não tem acesso interno até aprovação.
 
 O servidor deverá verificar permissões por ação e por objeto, sempre considerando proprietário e equipe. Essa hierarquia é requisito de produto, não funcionalidade já implementada.

@@ -6,13 +6,15 @@ O código atual é uma fundação de monólito modular em um monorepositório; a
 
 | Componente | Implementado agora | Direção planejada |
 | --- | --- | --- |
-| `apps/web` | React + TypeScript/Vite; login, cadastro e painéis de aprovação, usuários, equipes, auditoria e sessões; proxy `/api` | Painéis, autenticação, equipes, upload e resultados |
-| `apps/api` | Fastify + TypeScript; saúde, identidade, sessões, equipes, políticas de acesso e auditoria (`src/modules/*`) | Autenticação, autorização, lotes, arquivos e histórico |
-| `apps/worker` | Processo Node, log estruturado simples e conexão/verificação PostgreSQL | Fila, extração, tradução, reconstrução, retentativas e checkpoints |
-| PostgreSQL | `schema_migrations`, `users`, `sessions`, `teams`, `team_memberships`, `audit_events` (somente inserção) | Usuários, equipes, documentos, tarefas, eventos e auditoria |
-| Armazenamento S3 | SeaweedFS local, compatível com S3 | Adaptador de objetos privados com políticas e retenção |
+| `apps/web` | React + TypeScript/Vite; login, cadastro, documentos (novo lote, envio com progresso, histórico), aprovações, usuários, equipes, auditoria e sessões; proxy `/api` | Painéis, autenticação, equipes, upload e resultados |
+| `apps/api` | Fastify + TypeScript; saúde, identidade, sessões, equipes, políticas de acesso, auditoria, lotes, upload validado e download (`src/modules/*`) | Autenticação, autorização, lotes, arquivos e histórico |
+| `apps/worker` | Consome a fila de traduções (`@tradutor/core/processing`): extrai o texto, lê o layout, traduz trecho a trecho e deixa o rascunho para revisão, notificando a equipe | OCR, outros formatos, checkpoints por etapa |
+| `packages/core` | Banco (pool, migrações, auditoria), armazenamento S3, rascunho, checagens, extração de PDF, leitura do layout, tradução automática, gerador do DOCX juramentado, notificações e processamento | Contratos compartilhados entre API e worker |
+| LibreTranslate | Serviço `translator` (modelos PT/EN), tradução automática gratuita e local (ADR-008); a estrutura do original vem da leitura do layout no worker (ADR-009) | Outros pares de idiomas conforme a demanda |
+| PostgreSQL | Identidade, equipes, `audit_events` (somente inserção), `batches`, `documents` e `document_versions` (imutável) | Usuários, equipes, documentos, tarefas, eventos e auditoria |
+| Armazenamento S3 | SeaweedFS local; a API grava os originais por uma interface `ObjectStorage` em bucket privado criado ao iniciar | Adaptador de objetos privados com políticas e retenção |
 | Migrações | Serviço `migrate` roda `pnpm --filter @tradutor/api migrate`: arquivos em ordem, uma vez cada, com lock e transação | Migrações ordenadas e rastreadas com validação de versão |
-| Worker documental | Imagem inclui Tesseract (por/eng) e LibreOffice Writer | Adaptadores DOCX, PDF, imagem/OCR e PPTX |
+| Worker documental | PDF digital via pdf.js, DOCX/PPTX via leitura do XML; imagens aguardam o OCR; imagem inclui Tesseract (por/eng) e LibreOffice Writer | OCR local, adaptadores DOCX e PPTX |
 
 ## Limites entre módulos
 
@@ -31,7 +33,7 @@ PostgreSQL/fila → worker → extração/OCR → provedor de tradução
                                   └────→ reconstrução → S3
 ```
 
-O projeto ainda não tem consumidor de fila, nem adaptador S3 integrado na API/worker. Não anunciar processamento assíncrono ou recuperação como existente até os critérios da fase correspondente passarem.
+A fila de traduções vive no PostgreSQL (`translation_jobs`, `FOR UPDATE SKIP LOCKED` e lease com prazo). O DOCX final é gerado pela API no momento da aprovação. Não anunciar processamento assíncrono ou recuperação como existente até os critérios da fase correspondente passarem.
 
 ## Serviços locais e portas
 

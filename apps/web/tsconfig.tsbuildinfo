@@ -1,1 +1,1 @@
-{"root":["./src/authscreen.tsx","./src/dashboard.tsx","./src/api.ts","./src/main.tsx","./vite.config.ts"],"version":"5.9.3"}
+{"root":["./src/authscreen.tsx","./src/autotranslationnotice.tsx","./src/dashboard.tsx","./src/documents.tsx","./src/teams.tsx","./src/translationadmin.tsx","./src/translations.tsx","./src/api.ts","./src/main.tsx","./src/ui.tsx","./vite.config.ts"],"version":"5.9.3"}

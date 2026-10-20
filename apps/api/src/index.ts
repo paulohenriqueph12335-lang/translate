@@ -1,10 +1,26 @@
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { createPool } from './db/pool.js';
+import { createPool } from '@tradutor/core/db';
+import { createS3Storage } from '@tradutor/core/storage';
 
 const config = loadConfig();
 const database = createPool(config.DATABASE_URL);
-const app = await buildApp({ config, pool: database });
+const storage = createS3Storage(config);
+const app = await buildApp({ config, pool: database, storage });
+
+// O armazenamento pode subir depois da API no Compose: tenta criar/verificar o bucket algumas vezes.
+for (let attempt = 1; ; attempt += 1) {
+  try {
+    await storage.ensureReady();
+    break;
+  } catch (error) {
+    if (attempt >= 10) {
+      app.log.error({ err: error }, 'Armazenamento indisponível; a API seguirá sem prontidão');
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+}
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'Encerrando API');

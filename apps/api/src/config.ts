@@ -13,6 +13,17 @@ const schema = z.object({
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
   SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(43200).default(120),
   TRUST_PROXY: booleanFlag,
+  // Armazenamento S3 (ADR-002/ADR-006). Credenciais sem valor padrão.
+  S3_ENDPOINT: z.url(),
+  S3_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]{2,62}$/),
+  S3_ACCESS_KEY: z.string().min(1),
+  S3_SECRET_KEY: z.string().min(1),
+  S3_REGION: z.string().min(1).default('us-east-1'),
+  // Limites de upload (ADR-006). O teto de 100 arquivos por lote é requisito do produto.
+  UPLOAD_MAX_FILE_MB: z.coerce.number().int().min(1).max(1024).default(50),
+  UPLOAD_MAX_BATCH_FILES: z.coerce.number().int().min(1).max(100).default(100),
+  UPLOAD_MAX_BATCH_MB: z.coerce.number().int().min(1).max(10_240).default(1024),
+  UPLOAD_TMP_DIR: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof schema>;

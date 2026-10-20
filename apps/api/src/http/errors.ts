@@ -9,6 +9,11 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'RATE_LIMITED'
+  | 'PAYLOAD_TOO_LARGE'
+  | 'DOCUMENT_REJECTED'
+  | 'FILE_INVALID'
+  | 'UPLOAD_FAILED'
+  | 'DEPENDENCY_UNAVAILABLE'
   | 'INTERNAL';
 
 /** Erro de domínio com mensagem segura para o cliente. */
@@ -17,6 +22,8 @@ export class AppError extends Error {
     readonly status: number,
     readonly code: ErrorCode,
     message: string,
+    /** Dados adicionais seguros para o cliente (sem caminhos internos ou conteúdo). */
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }
