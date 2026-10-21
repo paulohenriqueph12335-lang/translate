@@ -11,6 +11,7 @@ import { checklistOf, loadRules, type Mode } from '../translation/profiles.js';
 import type { MachineProviderName, MachineProviderSetting, MachineTranslator } from '../translation/machine/providers.js';
 import { draftFromFile, extractFile } from './analyze.js';
 import { loadLayoutKnowledge } from './knowledge.js';
+import { proposeLayoutInBackground, type AiFactory } from '../ai/store.js';
 
 /** Dependências do processamento. */
 export interface ProcessingDeps {
@@ -18,6 +19,8 @@ export interface ProcessingDeps {
   storage: ObjectStorage;
   /** Provedores gratuitos configurados no ambiente (ADR-008). */
   machine?: Partial<Record<MachineProviderName, MachineTranslator>>;
+  /** IA de apoio (ADR-021): propõe diagramação em segundo plano quando o sistema trava; sem ela, nada muda. */
+  ai?: AiFactory;
   workerId: string;
   /** Duração do lease de um trabalho em processamento. */
   leaseMs?: number;
@@ -364,6 +367,10 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
     }
   });
   deps.log?.('info', 'Rascunho pronto para revisão', { jobId: job.id, origin, patternKnown });
+  // O sistema travou na diagramação (tipo novo sem documento parecido, ou tabela que não fecha): a IA propõe uma
+  // combinação em segundo plano, sem segurar a tradução, que já está na prévia.
+  const stuck = (result.bodyModel === 'generic' && !result.composedFrom.length) || issues.some((issue) => issue.code === 'structure');
+  if (stuck && deps.ai) void proposeLayoutInBackground(pool, deps.ai, job.id, doc.assignee_id ?? doc.owner_id);
 }
 
 /** Avisa a equipe (ou os Diretores) e quem enviou que o processamento falhou de vez. */

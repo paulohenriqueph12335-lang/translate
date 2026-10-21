@@ -4,6 +4,7 @@ import Fastify, { type FastifyServerOptions } from 'fastify';
 import type { Pool } from 'pg';
 import type { Config } from './config.js';
 import type { Actor } from './modules/access/policy.js';
+import { createAiService } from './modules/ai/service.js';
 import { createAuditService } from './modules/audit/service.js';
 import { createNotificationService } from './modules/notifications/service.js';
 import { createNumberingService } from './modules/numbering/service.js';
@@ -17,6 +18,7 @@ import { createTranslationService } from './modules/translations/service.js';
 import { createIdentityService, type PublicUser } from './modules/identity/service.js';
 import { createTeamService } from './modules/teams/service.js';
 import { createUserAdminService } from './modules/users/service.js';
+import { createGemini, type AiFactory } from '@tradutor/core/ai';
 import { createS3Storage, type ObjectStorage } from '@tradutor/core/storage';
 import { machineTranslatorsFromEnv, type MachineProviderName, type MachineTranslator } from '@tradutor/core/translation';
 import { AppError } from './http/errors.js';
@@ -43,6 +45,8 @@ export interface AppDeps {
   storage?: ObjectStorage;
   /** Provedores gratuitos para a revisão automática; padrão é o do ambiente. Testes injetam um falso. */
   machine?: Partial<Record<MachineProviderName, MachineTranslator>>;
+  /** Gemini do Gerenciamento AI (ADR-021); padrão é o da chave GEMINI_API_KEY. Testes injetam um falso. */
+  ai?: AiFactory;
 }
 
 interface RateLimitOptions {
@@ -64,6 +68,7 @@ export async function buildApp({
     ...(config.LIBRETRANSLATE_API_KEY ? { LIBRETRANSLATE_API_KEY: config.LIBRETRANSLATE_API_KEY } : {}),
     ...(config.DEEPL_API_KEY ? { DEEPL_API_KEY: config.DEEPL_API_KEY } : {}),
   }),
+  ai = config.GEMINI_API_KEY ? (model) => createGemini(config.GEMINI_API_KEY!, model) : null,
 }: AppDeps) {
   const app = Fastify({
     logger: logger ?? {
@@ -95,6 +100,7 @@ export async function buildApp({
     notifications: createNotificationService(deps),
     numbering: createNumberingService({ ...deps, storage, masks: translators.maskFor }),
     dashboards: createDashboardService(deps),
+    ai: createAiService({ ...deps, ai }),
   };
 
   await app.register(cookie);

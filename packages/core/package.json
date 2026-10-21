@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./ai": "./src/ai/index.ts",
     "./db": "./src/db/index.ts",
     "./fixtures": "./src/translation/fixtures.ts",
     "./processing": "./src/processing/index.ts",

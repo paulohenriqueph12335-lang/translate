@@ -21,6 +21,7 @@ import {
   modeLabel,
   type TranslationMode,
 } from './api';
+import { AiAssist } from './AiManagement';
 import { DocumentPreview } from './DocumentPreview';
 import { FlowTracker, NewTranslation, WordPanel } from './Flow';
 import { ModeBadge, StagesPanel } from './Modes';
@@ -609,6 +610,8 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           </ul>
         </details>
       )}
+
+      {data.draft && !editing && <AiAssist translationId={id} status={t.status} onApplied={reload} />}
 
       {editing && (
         <p className="muted small-text">

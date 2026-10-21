@@ -43,7 +43,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 type Align = 'left' | 'center' | 'right' | 'justify';
-interface RoleStyle {
+export interface RoleStyle {
   align: Align;
   bold: boolean;
   size: 'normal' | 'small' | 'tiny';
@@ -153,7 +153,7 @@ function stylesOf(draft: Draft, roles: Role[]) {
   return styles;
 }
 
-function shapeOf(roles: Role[]) {
+export function shapeOf(roles: Role[]) {
   const total = Math.max(1, roles.length);
   return ROLES.map((role) => roles.filter((item) => item === role).length / total);
 }
@@ -240,10 +240,16 @@ function joinWrappedLines(draft: Draft) {
   return joined;
 }
 
-export function composeLayout(input: Draft, knowledge: LayoutSample[], options: { neighbors?: number } = {}): ComposeResult {
+export function composeLayout(
+  input: Draft,
+  knowledge: LayoutSample[],
+  /** `force`: aplica o estilo de cada papel mesmo com formatação no original (combinação aprovada pela pessoa). */
+  options: { neighbors?: number; force?: boolean } = {},
+): ComposeResult {
   const draft: Draft = structuredClone(input);
-  const unknownLayout = layoutIsUnknown(draft);
-  const joined = unknownLayout && knowledge.length ? joinWrappedLines(draft) : 0;
+  const unknownLayout = layoutIsUnknown(draft) || !!options.force;
+  // Juntar linhas só quando o original veio sem formatação (OCR); uma combinação aprovada não mexe na quebra de linhas.
+  const joined = layoutIsUnknown(draft) && knowledge.length ? joinWrappedLines(draft) : 0;
   const roles = rolesOf(draft);
   const shape = shapeOf(roles);
   const ranked = knowledge

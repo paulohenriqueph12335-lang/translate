@@ -42,6 +42,8 @@ Os modelos de diagramação (ADR-019) têm testes unitários em `packages/core/s
 
 A diagramação construída (ADR-020) tem testes unitários em `packages/core/src/translation/layout-composer.test.ts`: papéis de cada parte, documento desconhecido composto de dois conhecidos de tipos diferentes (campos em tabela na largura aprendida, centralização, título e tipo, sem mudar texto), OCR com linhas partidas e rótulo alongado pela tradução, formatação do original que prevalece e nada muda sem conhecimento. Exemplos reais de tipos novos (PDF e imagem) em `docs/exemplos-simulados/novos-tipos`.
 
+O Gerenciamento AI (ADR-021) tem testes unitários em `packages/core/src/ai/governance.test.ts` (ordem do prompt, sem chave, resposta com campo a mais ou fora do escopo barrada, glossário sem texto completo, diagramação sem mudar texto) e de integração com um Gemini falso em `apps/api/src/ai.integration.test.ts`: só Líder e Diretor configuram, só o Diretor liga, o Líder limita só a própria equipe, pessoa limitada é negada, IA fora do ar não trava, combinação só vale aprovada na prévia, sem mudar o texto, e entra no conhecimento; sem chave, a IA fica indisponível e o resto segue.
+
 ### Simulação e carga no sistema local
 
 Com o Compose no ar e as contas de teste em `docs/exemplos-simulados/.credenciais-simulacao.json` (fora do Git):

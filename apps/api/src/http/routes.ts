@@ -3,6 +3,7 @@ import type { Readable } from 'node:stream';
 import { z } from 'zod';
 import type { Config } from '../config.js';
 import type { AuthenticatedContext, RequestContext } from '../modules/context.js';
+import type { AiService } from '../modules/ai/service.js';
 import type { AuditService } from '../modules/audit/service.js';
 import { ALLOWED_EXTENSIONS } from '../modules/documents/format.js';
 import type { DocumentService } from '../modules/documents/service.js';
@@ -42,6 +43,7 @@ export interface Services {
   patterns: PatternService;
   dashboards: DashboardService;
   translators: TranslatorService;
+  ai: AiService;
 }
 
 const email = z
@@ -1197,5 +1199,110 @@ export function registerRoutes(
     const { id } = parse(idParams, request.params);
     await services.translations.removeGlossary(ctx, id);
     return reply.code(204).send();
+  });
+
+  // ---------- Gerenciamento AI (ADR-021) ----------
+  app.get('/api/v1/ai/status', async (request) => services.ai.status(auth(request)));
+  app.get('/api/v1/ai/settings', async (request) => services.ai.settings(auth(request)));
+
+  app.patch('/api/v1/ai/settings', async (request) => {
+    const ctx = auth(request);
+    const body = parse(
+      z.strictObject({
+        enabled: z.boolean().optional(),
+        model: z
+          .string()
+          .trim()
+          .regex(/^gemini-[a-z0-9.-]{1,60}$/, 'Use um modelo Gemini (ex.: gemini-2.5-flash)')
+          .optional(),
+        // null volta ao prompt de governança padrão.
+        governancePrompt: z.string().trim().min(20).max(8000).nullable().optional(),
+      }),
+      request.body,
+    );
+    return services.ai.updateSettings(ctx, defined(body));
+  });
+
+  const skillBody = z.strictObject({
+    name: z.string().trim().min(2).max(80),
+    content: z.string().trim().min(5).max(12_000),
+    active: z.boolean().default(true),
+  });
+  app.post('/api/v1/ai/skills', async (request, reply) => {
+    const ctx = auth(request);
+    return reply.code(201).send(await services.ai.saveSkill(ctx, parse(skillBody, request.body)));
+  });
+  app.put('/api/v1/ai/skills/:id', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.ai.saveSkill(ctx, { id, ...parse(skillBody, request.body) });
+  });
+  app.delete('/api/v1/ai/skills/:id', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.ai.removeSkill(ctx, id);
+  });
+
+  app.get('/api/v1/ai/access', async (request) => services.ai.access(auth(request)));
+  app.put('/api/v1/ai/access/:id', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ allowed: z.boolean() }), request.body);
+    return services.ai.setAccess(ctx, id, body.allowed);
+  });
+  app.get('/api/v1/ai/requests', async (request) => services.ai.requests(auth(request)));
+
+  app.post('/api/v1/ai/ask', async (request) => {
+    const ctx = auth(request);
+    const body = parse(z.strictObject({ question: z.string().trim().min(3).max(1000), translationId: uuid.optional() }), request.body);
+    return services.ai.ask(ctx, defined(body));
+  });
+
+  app.post('/api/v1/translations/:id/ai/glossary-check', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.ai.glossaryCheck(ctx, id);
+  });
+  app.post('/api/v1/translations/:id/ai/layout', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.ai.proposeLayout(ctx, id);
+  });
+  app.get('/api/v1/translations/:id/ai/layout', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.ai.pendingFor(ctx, id);
+  });
+
+  // Prévia da combinação proposta: o mesmo Word/PDF da tradução, com a combinação aplicada e nada gravado.
+  app.get('/api/v1/ai/layout-combinations/:id/preview', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const query = parse(z.strictObject({ format: z.enum(['docx', 'pdf']).optional() }), request.query);
+    const { job, draft } = await services.ai.proposedDraft(ctx, id);
+    const file = await services.translations.preview(ctx, job.id, undefined, undefined, draft);
+    if (query.format === 'pdf') {
+      const pdf = await docxToPdf(config.CONVERTER_URL, file.docx, file.name);
+      return reply
+        .header('content-type', 'application/pdf')
+        .header('content-disposition', contentDisposition(pdfName(file.name), 'inline'))
+        .header('x-content-type-options', 'nosniff')
+        .send(pdf);
+    }
+    return reply
+      .header('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      .header('content-disposition', contentDisposition(file.name))
+      .header('x-content-type-options', 'nosniff')
+      .send(file.docx);
+  });
+  app.post('/api/v1/ai/layout-combinations/:id/approve', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.ai.decide(ctx, id, true);
+  });
+  app.post('/api/v1/ai/layout-combinations/:id/reject', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.ai.decide(ctx, id, false);
   });
 }

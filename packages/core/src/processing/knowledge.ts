@@ -23,6 +23,11 @@ export async function loadLayoutKnowledge(db: Queryable, fresh = false): Promise
     const parsed = Draft.safeParse(row.content);
     if (parsed.success && parsed.data.blocks.length >= 3) samples.push(learnLayout(parsed.data));
   }
+  // Combinações de diagramação da IA aprovadas na prévia (ADR-021): o sistema se molda às novas soluções.
+  const combinations = await db
+    .query<{ sample: LayoutSample }>(`SELECT sample FROM ai_layout_combinations WHERE status = 'approved' ORDER BY decided_at DESC LIMIT 100`)
+    .catch(() => ({ rows: [] as Array<{ sample: LayoutSample }> }));
+  for (const row of combinations.rows) if (Array.isArray(row.sample?.shape)) samples.push(row.sample);
   cache = { at: Date.now(), samples };
   return samples;
 }

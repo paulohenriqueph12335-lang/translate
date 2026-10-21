@@ -42,6 +42,11 @@ const schema = z.object({
     .string()
     .optional()
     .transform((value) => value || undefined),
+  // Gerenciamento AI (ADR-021): sem chave, a IA fica indisponível e o sistema segue normalmente.
+  GEMINI_API_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
 });
 
 export type Config = z.infer<typeof schema>;

@@ -89,6 +89,7 @@ services:
       # Revisão automática (ADR-016): retraduz trechos no idioma errado com o mesmo provedor do worker.
       LIBRETRANSLATE_URL: http://translator:5000
       DEEPL_API_KEY: ${DEEPL_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       # Word → PDF para ver e baixar a prévia e a tradução em PDF (ADR-017).
       CONVERTER_URL: http://converter:3000
     ports:
@@ -120,6 +121,7 @@ services:
       # Tradução automática gratuita (ADR-008): LibreTranslate local; DeepL Free opcional (chave terminada em ":fx").
       LIBRETRANSLATE_URL: http://translator:5000
       DEEPL_API_KEY: ${DEEPL_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

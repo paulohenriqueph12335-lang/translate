@@ -822,3 +822,73 @@ export interface PatternTest {
   durationMs: number;
   previewDocx: string | null;
 }
+
+// ---------- Gerenciamento AI (ADR-021) ----------
+export type AiTask = 'glossary_check' | 'layout_combination' | 'process_help';
+export type AiOutcomeStatus = 'ok' | 'blocked' | 'failed' | 'unavailable' | 'denied';
+
+export interface AiStatus {
+  configured: boolean;
+  enabled: boolean;
+  model: string;
+  allowed: boolean;
+  available: boolean;
+  canManage: boolean;
+  canToggle: boolean;
+}
+
+export interface AiSkillItem {
+  id: string;
+  name: string;
+  content: string;
+  active: boolean;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface AiSettings extends AiStatus {
+  governancePrompt: string;
+  defaultGovernancePrompt: string;
+  skills: AiSkillItem[];
+}
+
+export interface AiAccessItem {
+  userId: string;
+  name: string;
+  email: string;
+  teams: string[];
+  allowed: boolean;
+  setBy: string | null;
+}
+
+export interface AiRequestItem {
+  id: string;
+  task: AiTask;
+  taskLabel: string;
+  status: AiOutcomeStatus;
+  reason: string | null;
+  durationMs: number | null;
+  at: string;
+  user: string | null;
+  document: string | null;
+  translationId: string | null;
+}
+
+export interface AiCombination {
+  id: string;
+  translationId: string;
+  status: 'proposed' | 'approved' | 'rejected';
+  rationale: string | null;
+  createdAt: string;
+  styles: Array<{ role: string; label: string; align: Align; bold: boolean; size: 'normal' | 'small' | 'tiny'; heading: boolean }>;
+  fieldsAsTable: boolean;
+  labelWidth: number | null;
+}
+
+export const aiStatusLabel: Record<AiOutcomeStatus, string> = {
+  ok: 'Respondeu',
+  blocked: 'Barrada',
+  failed: 'Falhou',
+  unavailable: 'Indisponível',
+  denied: 'Acesso negado',
+};

@@ -1843,3 +1843,11 @@ h4 {
 .frame-preview {
   height: min(70vh, 760px);
 }
+
+/* Gerenciamento AI (ADR-021) */
+.ai-answer {
+  white-space: pre-wrap;
+  border-left: 3px solid var(--green);
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0 0;
+}

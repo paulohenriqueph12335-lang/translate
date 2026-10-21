@@ -3,6 +3,7 @@ import { createPool } from '@tradutor/core/db';
 import { processNextJob, recordHeartbeat } from '@tradutor/core/processing';
 import { createS3Storage } from '@tradutor/core/storage';
 import { machineTranslatorsFromEnv } from '@tradutor/core/translation';
+import { createGemini } from '@tradutor/core/ai';
 import { z } from 'zod';
 
 const config = z
@@ -25,6 +26,11 @@ const config = z
       .optional()
       .transform((value) => value || undefined),
     WORKER_POLL_MS: z.coerce.number().int().min(200).max(60_000).default(2000),
+    /** IA de apoio (ADR-021): sem chave, o sistema segue sem ela. */
+    GEMINI_API_KEY: z
+      .string()
+      .optional()
+      .transform((value) => value || undefined),
   })
   .parse(process.env);
 
@@ -43,6 +49,7 @@ const deps = {
     ...(config.LIBRETRANSLATE_API_KEY ? { LIBRETRANSLATE_API_KEY: config.LIBRETRANSLATE_API_KEY } : {}),
     ...(config.DEEPL_API_KEY ? { DEEPL_API_KEY: config.DEEPL_API_KEY } : {}),
   }),
+  ai: config.GEMINI_API_KEY ? (model: string) => createGemini(config.GEMINI_API_KEY!, model) : null,
   workerId: `${os.hostname()}:${process.pid}`,
   log,
 };

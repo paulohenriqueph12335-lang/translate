@@ -1117,9 +1117,17 @@ export function createTranslationService({
   }
 
   /** Prévia em DOCX: na máscara do tradutor escolhido ou, sem escolha, no modelo de máscara do sistema. */
-  async function preview(ctx: AuthenticatedContext, jobId: string, revisionNumber?: number, translatorId?: string) {
+  async function preview(
+    ctx: AuthenticatedContext,
+    jobId: string,
+    revisionNumber?: number,
+    translatorId?: string,
+    /** Conteúdo proposto (combinação da IA ainda não aprovada), mostrado sem gravar nada (ADR-021). */
+    proposed?: Draft,
+  ) {
     const row = await loadJob(pool, ctx, jobId);
-    const draft = await currentDraft(pool, jobId, revisionNumber ?? row.current_revision);
+    const stored = proposed ? null : await currentDraft(pool, jobId, revisionNumber ?? row.current_revision);
+    const draft = proposed ? { content: proposed } : stored;
     if (!draft) throw notFound('Rascunho não encontrado');
     const rules = await loadRules(pool, row.translation_mode, row.target_language);
     if (!withMask(row)) {
