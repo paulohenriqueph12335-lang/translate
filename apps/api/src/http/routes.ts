@@ -734,6 +734,12 @@ export function registerRoutes(
     return services.dashboards.organization(ctx, defined(parse(z.strictObject(period), request.query)));
   });
 
+  // Protocolos com IA × sem IA (ADR-022): Diretor e Supervisores.
+  app.get('/api/v1/dashboards/ai-comparison', async (request) => {
+    const ctx = auth(request);
+    return services.dashboards.aiComparison(ctx, defined(parse(z.strictObject(period), request.query)));
+  });
+
   app.get('/api/v1/dashboards/team', async (request) => {
     const ctx = auth(request);
     return services.dashboards.team(ctx, defined(parse(z.strictObject(period), request.query)));
@@ -1203,6 +1209,12 @@ export function registerRoutes(
 
   // ---------- Gerenciamento AI (ADR-021) ----------
   app.get('/api/v1/ai/status', async (request) => services.ai.status(auth(request)));
+  // Escolha da pessoa: trabalhar com ou sem IA (ADR-022); vai para a auditoria.
+  app.put('/api/v1/ai/choice', async (request) => {
+    const ctx = auth(request);
+    const body = parse(z.strictObject({ useAi: z.boolean() }), request.body);
+    return services.ai.setChoice(ctx, body.useAi);
+  });
   app.get('/api/v1/ai/settings', async (request) => services.ai.settings(auth(request)));
 
   app.patch('/api/v1/ai/settings', async (request) => {

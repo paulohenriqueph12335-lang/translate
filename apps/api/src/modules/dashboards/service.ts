@@ -10,6 +10,14 @@ export interface Period {
 
 const minutes = (value: number | null) => (value === null ? null : Math.round(value));
 
+interface WeekPoint {
+  received: number;
+  approved: number;
+  firstTime: number;
+  avgMinutes: number | null;
+}
+const emptyWeek = (): WeekPoint => ({ received: 0, approved: 0, firstTime: 0, avgMinutes: null });
+
 /**
  * Painéis do plano de hierarquia. Acerto de primeira = concluída sem "refazer" e sem justificativa de exceção;
  * erro = teve "refazer" ou foi concluída com justificativa (D5). Tempos em minutos.
@@ -257,7 +265,104 @@ export function createDashboardService({ pool, now = () => new Date() }: Service
     };
   }
 
-  return { organization, team };
+  /**
+   * Protocolos com IA × sem IA (ADR-022): o Diretor vê a organização ou uma equipe; o Supervisor, as equipes que
+   * supervisiona (ou uma delas). O modo de cada protocolo é o que valia quando ele foi criado.
+   */
+  async function aiComparison(ctx: AuthenticatedContext, input: Period & { teamId?: string }) {
+    const director = canViewOrganizationDashboard(ctx.actor);
+    const led = ledTeams(ctx.actor);
+    if (!director && !led.length) throw forbidden();
+    if (input.teamId && !canViewTeamDashboard(ctx.actor, input.teamId)) throw forbidden();
+    const teams = input.teamId ? [input.teamId] : director ? null : led;
+    const { from, to } = range(input);
+    // $1 início, $2 fim, $3 equipes (nulo = todas).
+    const params = [from, to, teams];
+    const base = `FROM translation_jobs j JOIN documents d ON d.id = j.document_id JOIN batches b ON b.id = d.batch_id
+                  WHERE ($3::uuid[] IS NULL OR b.team_id = ANY($3::uuid[]))`;
+    const createdIn = `j.created_at >= $1::date AND j.created_at < $2::date + 1`;
+    const approvedIn = `j.approved_at >= $1::date AND j.approved_at < $2::date + 1`;
+    const [totals, weeks, calls] = await Promise.all([
+      pool.query<{
+        mode: 'with_ai' | 'without_ai';
+        received: number;
+        approved: number;
+        in_progress: number;
+        first_time: number;
+        redone: number;
+        avg_minutes: number | null;
+      }>(
+        `SELECT j.ai_mode AS mode,
+                count(*) FILTER (WHERE ${createdIn})::int AS received,
+                count(*) FILTER (WHERE ${approvedIn})::int AS approved,
+                count(*) FILTER (WHERE ${createdIn} AND j.status IN ('queued', 'processing', 'in_review', 'awaiting_approval'))::int AS in_progress,
+                count(*) FILTER (WHERE ${approvedIn} AND j.redo_count = 0 AND j.approval_override_reason IS NULL)::int AS first_time,
+                count(*) FILTER (WHERE ${approvedIn} AND j.redo_count > 0)::int AS redone,
+                avg(extract(epoch FROM j.approved_at - j.created_at) / 60) FILTER (WHERE ${approvedIn}) AS avg_minutes
+           ${base} GROUP BY 1`,
+        params,
+      ),
+      pool.query<{ week: string; mode: 'with_ai' | 'without_ai'; received: number; approved: number; first_time: number; avg_minutes: number | null }>(
+        `WITH w AS (
+           SELECT j.ai_mode AS mode, date_trunc('week', j.created_at) AS created_week, date_trunc('week', j.approved_at) AS approved_week,
+                  j.approved_at, j.created_at, j.redo_count, j.approval_override_reason
+             ${base} AND (${createdIn} OR ${approvedIn})
+         ), weeks AS (
+           SELECT generate_series(date_trunc('week', $1::date), date_trunc('week', $2::date), interval '1 week') AS week
+         )
+         SELECT to_char(k.week, 'YYYY-MM-DD') AS week, m.mode,
+                (SELECT count(*) FROM w WHERE w.mode = m.mode AND w.created_week = k.week AND w.created_at >= $1::date AND w.created_at < $2::date + 1)::int AS received,
+                (SELECT count(*) FROM w WHERE w.mode = m.mode AND w.approved_week = k.week AND w.approved_at >= $1::date AND w.approved_at < $2::date + 1)::int AS approved,
+                (SELECT count(*) FROM w WHERE w.mode = m.mode AND w.approved_week = k.week AND w.approved_at >= $1::date AND w.approved_at < $2::date + 1
+                    AND w.redo_count = 0 AND w.approval_override_reason IS NULL)::int AS first_time,
+                (SELECT avg(extract(epoch FROM w.approved_at - w.created_at) / 60) FROM w
+                  WHERE w.mode = m.mode AND w.approved_week = k.week AND w.approved_at >= $1::date AND w.approved_at < $2::date + 1) AS avg_minutes
+           FROM weeks k CROSS JOIN (VALUES ('with_ai'), ('without_ai')) AS m (mode)
+          ORDER BY k.week, m.mode`,
+        params,
+      ),
+      pool.query<{ status: string; total: number }>(
+        `SELECT r.status, count(*)::int AS total
+           FROM ai_requests r JOIN translation_jobs j ON j.id = r.translation_id JOIN documents d ON d.id = j.document_id
+           JOIN batches b ON b.id = d.batch_id
+          WHERE ($3::uuid[] IS NULL OR b.team_id = ANY($3::uuid[])) AND r.created_at >= $1::date AND r.created_at < $2::date + 1
+          GROUP BY 1`,
+        params,
+      ),
+    ]);
+    const summary = (mode: 'with_ai' | 'without_ai') => {
+      const row = totals.rows.find((item) => item.mode === mode);
+      return {
+        received: row?.received ?? 0,
+        approved: row?.approved ?? 0,
+        inProgress: row?.in_progress ?? 0,
+        firstTime: row?.first_time ?? 0,
+        redone: row?.redone ?? 0,
+        avgMinutes: minutes(row?.avg_minutes ?? null),
+      };
+    };
+    const byWeek = new Map<string, { week: string; withAi: WeekPoint; withoutAi: WeekPoint }>();
+    for (const row of weeks.rows) {
+      const entry = byWeek.get(row.week) ?? { week: row.week, withAi: emptyWeek(), withoutAi: emptyWeek() };
+      entry[row.mode === 'with_ai' ? 'withAi' : 'withoutAi'] = {
+        received: row.received,
+        approved: row.approved,
+        firstTime: row.first_time,
+        avgMinutes: minutes(row.avg_minutes),
+      };
+      byWeek.set(row.week, entry);
+    }
+    return {
+      period: { from, to },
+      scope: input.teamId ? 'team' : director ? 'organization' : 'led_teams',
+      withAi: summary('with_ai'),
+      withoutAi: summary('without_ai'),
+      weeks: [...byWeek.values()],
+      aiCalls: Object.fromEntries(calls.rows.map((row) => [row.status, row.total])),
+    };
+  }
+
+  return { organization, team, aiComparison };
 }
 
 export type DashboardService = ReturnType<typeof createDashboardService>;

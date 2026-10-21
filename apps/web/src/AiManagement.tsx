@@ -337,7 +337,16 @@ export function AiAssist({ translationId, status, onApplied }: { translationId: 
     return (
       <p className="muted small-text">
         Auxílio da IA indisponível
-        {!ai.data.configured ? ' (sem chave no servidor)' : !ai.data.enabled ? ' (desligada)' : !ai.data.allowed ? ' (acesso limitado pela liderança)' : ''}.
+        {!ai.data.useAi
+          ? ': você escolheu trabalhar sem IA (troque em Meu workspace)'
+          : !ai.data.configured
+            ? ' (sem chave no servidor)'
+            : !ai.data.enabled
+              ? ' (desligada)'
+              : !ai.data.allowed
+                ? ' (acesso limitado pela liderança)'
+                : ''}
+        .
       </p>
     );
   }

@@ -755,6 +755,13 @@ export const auditActionLabel: Record<string, string> = {
   'translation.machine_provider_set': 'Provedor de tradução alterado',
   'glossary.added': 'Termo adicionado ao glossário',
   'glossary.removed': 'Termo removido do glossário',
+  'ai.choice_set': 'Escolha com IA / sem IA alterada',
+  'ai.settings_updated': 'Configuração da IA alterada',
+  'ai.skill_saved': 'Habilidade da IA salva',
+  'ai.skill_removed': 'Habilidade da IA removida',
+  'ai.access_set': 'Acesso à IA alterado',
+  'ai.layout_approved': 'Diagramação da IA aprovada',
+  'ai.layout_rejected': 'Diagramação da IA descartada',
 };
 
 export const auditCategoryLabel: Record<string, string> = {
@@ -769,6 +776,7 @@ export const auditCategoryLabel: Record<string, string> = {
   translator: 'Tradutores',
   session: 'Sessões',
   director: 'Diretoria',
+  ai: 'Inteligência artificial',
 };
 
 export const failureLabel: Record<string, string> = {
@@ -832,6 +840,8 @@ export interface AiStatus {
   enabled: boolean;
   model: string;
   allowed: boolean;
+  /** Escolha da pessoa: trabalhar com IA ou sem IA (ADR-022). */
+  useAi: boolean;
   available: boolean;
   canManage: boolean;
   canToggle: boolean;
@@ -892,3 +902,24 @@ export const aiStatusLabel: Record<AiOutcomeStatus, string> = {
   unavailable: 'Indisponível',
   denied: 'Acesso negado',
 };
+
+export interface AiComparisonPoint {
+  received: number;
+  approved: number;
+  firstTime: number;
+  avgMinutes: number | null;
+}
+
+export interface AiComparisonSummary extends AiComparisonPoint {
+  inProgress: number;
+  redone: number;
+}
+
+export interface AiComparison {
+  period: { from: string; to: string };
+  scope: 'organization' | 'team' | 'led_teams';
+  withAi: AiComparisonSummary;
+  withoutAi: AiComparisonSummary;
+  weeks: Array<{ week: string; withAi: AiComparisonPoint; withoutAi: AiComparisonPoint }>;
+  aiCalls: Partial<Record<AiOutcomeStatus, number>>;
+}

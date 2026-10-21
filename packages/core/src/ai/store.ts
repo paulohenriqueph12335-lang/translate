@@ -35,6 +35,13 @@ export async function aiAllowedFor(db: Queryable, userId: string | null) {
   return row?.allowed ?? true;
 }
 
+/** A pessoa escolheu trabalhar com IA (ADR-022): sem escolha registrada, com IA. */
+export async function aiChosenBy(db: Queryable, userId: string | null) {
+  if (!userId) return true;
+  const row = (await db.query<{ use_ai: boolean }>('SELECT use_ai FROM ai_user_choice WHERE user_id = $1', [userId])).rows[0];
+  return row?.use_ai ?? true;
+}
+
 export async function logAiRequest(
   db: Queryable,
   entry: { userId: string | null; translationId: string | null; task: AiTask; status: string; reason?: string | null; durationMs?: number },
@@ -59,6 +66,8 @@ export async function proposeLayoutCombination(
   if (!config.enabled || !factory) {
     return { status: 'unavailable', reason: !factory ? 'IA não configurada (chave GEMINI_API_KEY ausente)' : 'IA desligada em Gerenciamento AI' };
   }
+  // Quem escolheu trabalhar sem IA não recebe sugestões (nem em segundo plano); não é bloqueio, não vai ao registro.
+  if (!(await aiChosenBy(db, userId))) return { status: 'unavailable', reason: 'Você escolheu trabalhar sem IA' };
   if (!(await aiAllowedFor(db, userId))) {
     await logAiRequest(db, { userId, translationId: jobId, task: 'layout_combination', status: 'denied', reason: 'Acesso à IA bloqueado para a pessoa' });
     return { status: 'denied', reason: 'Seu acesso à IA foi limitado pela liderança' };

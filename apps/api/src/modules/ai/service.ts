@@ -2,6 +2,7 @@ import { recordAudit, withTransaction } from '@tradutor/core/db';
 import {
   AI_TASK_LABEL,
   aiAllowedFor,
+  aiChosenBy,
   applyLayoutCombination,
   askProcessHelp,
   checkGlossaryWithAi,
@@ -62,15 +63,17 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
 
   async function status(ctx: AuthenticatedContext) {
     const config = await loadAiConfig(pool);
-    const allowed = await aiAllowedFor(pool, ctx.actor.id);
+    const [allowed, useAi] = await Promise.all([aiAllowedFor(pool, ctx.actor.id), aiChosenBy(pool, ctx.actor.id)]);
     return {
       /** Chave GEMINI_API_KEY presente no servidor. */
       configured: !!ai,
       enabled: config.enabled,
       model: config.model,
       allowed,
+      /** Escolha da pessoa: trabalhar com IA (padrão) ou sem IA (ADR-022). */
+      useAi,
       /** A pessoa pode pedir auxílio agora. */
-      available: !!ai && config.enabled && allowed,
+      available: !!ai && config.enabled && allowed && useAi,
       canManage: canManage(ctx),
       canToggle: isDirector(ctx.actor),
     };
@@ -288,7 +291,35 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
   }
 
   /** Liberada, configurada e permitida para a pessoa; senão, registra e responde por quê (sem travar nada). */
+  /**
+   * Escolha da pessoa entre trabalhar com ou sem IA (ADR-022). Vale para ela daqui em diante e para os protocolos que
+   * ela criar a partir de agora; cada troca vai para a auditoria.
+   */
+  async function setChoice(ctx: AuthenticatedContext, useAi: boolean) {
+    const previous = await aiChosenBy(pool, ctx.actor.id);
+    await withTransaction(pool, async (db) => {
+      await db.query(
+        `INSERT INTO ai_user_choice (user_id, use_ai) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET use_ai = EXCLUDED.use_ai, chosen_at = now()`,
+        [ctx.actor.id, useAi],
+      );
+      await recordAudit(db, {
+        actorUserId: ctx.actor.id,
+        action: 'ai.choice_set',
+        targetType: 'user',
+        targetId: ctx.actor.id,
+        correlationId: ctx.correlationId,
+        metadata: { escolha: useAi ? 'com IA' : 'sem IA', antes: previous ? 'com IA' : 'sem IA' },
+      });
+    });
+    return status(ctx);
+  }
+
   async function gate(ctx: AuthenticatedContext, task: AiTask, translationId: string | null) {
+    // Quem escolheu trabalhar sem IA: a escolha é dela, então não é bloqueio nem vai ao registro de chamadas.
+    if (!(await aiChosenBy(pool, ctx.actor.id))) {
+      throw new AppError(409, 'CONFLICT', 'Você escolheu trabalhar sem IA. Troque em Meu workspace para usar o auxílio.', { reason: 'ai_not_chosen' });
+    }
     const config = await loadAiConfig(pool);
     const reason = !ai
       ? 'IA não configurada no servidor (GEMINI_API_KEY)'
@@ -474,7 +505,7 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
       : { status: outcome.status, answer: null, reason: outcome.reason };
   }
 
-  return { status, settings, updateSettings, saveSkill, removeSkill, access, setAccess, requests, glossaryCheck, proposeLayout, pendingFor, proposedDraft, decide, ask };
+  return { status, setChoice, settings, updateSettings, saveSkill, removeSkill, access, setAccess, requests, glossaryCheck, proposeLayout, pendingFor, proposedDraft, decide, ask };
 }
 
 export type AiService = ReturnType<typeof createAiService>;

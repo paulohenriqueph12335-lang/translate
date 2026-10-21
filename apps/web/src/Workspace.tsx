@@ -4,12 +4,14 @@ import {
   notificationKindLabel,
   pairLabel,
   queryString,
+  type Me,
   type NotificationItem,
   type NumberingOverview,
   type Page,
   type TranslationSummary,
   LANGUAGE_PAIRS,
 } from './api';
+import { AiChoice, AiComparisonPanel } from './AiComparison';
 import { Meter } from './Charts';
 import { StatusBadge } from './Translations';
 import { dateTime, DateRange, Feedback, message, PagedFooter, SearchInput, Section, TagList, useDebounced, useLoad, usePaged } from './ui';
@@ -21,10 +23,12 @@ const ACTIVE = 'queued,processing,in_review,awaiting_approval';
  * minha cota de numeração e as notificações novas.
  */
 export function Workspace({
+  me,
   onOpenTranslation,
   onUpload,
   onNotifications,
 }: {
+  me: Me;
   onOpenTranslation: (id: string) => void;
   onUpload: () => void;
   onNotifications: () => void;
@@ -71,6 +75,8 @@ export function Workspace({
         </button>
       </div>
       <Feedback error={mine.error ?? open.error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
+      <AiChoice />
+      {(me.user.orgRole === 'director' || me.memberships.some((membership) => membership.role === 'leader')) && <AiComparisonPanel me={me} />}
 
       <h3 className="top-gap">Comigo</h3>
       <WorkList

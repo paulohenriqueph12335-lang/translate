@@ -234,3 +234,72 @@ describe('Gerenciamento AI', () => {
     await plain.close();
   });
 });
+
+describe('com IA × sem IA (ADR-022)', () => {
+  async function newProtocol(client: TestClient, name: string) {
+    const pdf = await fixture('original.pdf');
+    const batch = await client.request('POST', '/api/v1/batches', {
+      mode: 'technical',
+      translation: { sourceLanguage: 'pt', targetLanguage: 'fr' },
+      files: [{ name, size: pdf.length }],
+    });
+    assert.equal(batch.status, 201, JSON.stringify(batch.body));
+    const documentId = batch.body.documents[0].id as string;
+    await client.putContent(`/api/v1/documents/${documentId}/content`, pdf);
+    return (await pool.query<{ id: string; ai_mode: string }>('SELECT id, ai_mode FROM translation_jobs WHERE document_id = $1', [documentId])).rows[0]!;
+  }
+
+  it('a pessoa escolhe sem IA: vai para a auditoria, o auxílio sai das traduções e o protocolo nasce sem IA', async () => {
+    const chosen = await c.op!.request('PUT', '/api/v1/ai/choice', { useAi: false });
+    assert.equal(chosen.status, 200, JSON.stringify(chosen.body));
+    assert.deepEqual({ useAi: chosen.body.useAi, available: chosen.body.available }, { useAi: false, available: false });
+    const audit = await pool.query<{ metadata: Record<string, string> }>(
+      `SELECT metadata FROM audit_events WHERE action = 'ai.choice_set' AND actor_user_id = $1 ORDER BY occurred_at DESC LIMIT 1`,
+      [ids.op],
+    );
+    assert.deepEqual(audit.rows[0]?.metadata, { escolha: 'sem IA', antes: 'com IA' });
+
+    const before = (await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM ai_requests WHERE user_id = $1', [ids.op])).rows[0]!.total;
+    const ask = await c.op!.post('/api/v1/ai/ask', { question: 'O que falta?' });
+    assert.equal(ask.status, 409);
+    assert.equal((await c.op!.post(`/api/v1/translations/${ids.job}/ai/layout`)).status, 409);
+    // A escolha é da pessoa: não é bloqueio e não entra no registro de chamadas.
+    const after = (await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM ai_requests WHERE user_id = $1', [ids.op])).rows[0]!.total;
+    assert.equal(after, before);
+
+    ids.withoutAi = (await newProtocol(c.op!, 'sem-ia.pdf')).ai_mode;
+    assert.equal(ids.withoutAi, 'without_ai');
+  });
+
+  it('volta a com IA: os protocolos novos nascem com IA e os antigos não mudam', async () => {
+    assert.equal((await c.op!.request('PUT', '/api/v1/ai/choice', { useAi: true })).body.useAi, true);
+    const created = await newProtocol(c.op!, 'com-ia.pdf');
+    assert.equal(created.ai_mode, 'with_ai');
+    ids.withAi = created.id;
+    assert.equal((await pool.query<{ ai_mode: string }>('SELECT ai_mode FROM translation_jobs WHERE id = $1', [ids.job])).rows[0]!.ai_mode, 'without_ai');
+
+    // Limitado pela liderança, a escolha "com IA" não basta: o protocolo nasce sem IA.
+    await c.leader!.request('PUT', `/api/v1/ai/access/${ids.op}`, { allowed: false });
+    assert.equal((await newProtocol(c.op!, 'limitado.pdf')).ai_mode, 'without_ai');
+    await c.leader!.request('PUT', `/api/v1/ai/access/${ids.op}`, { allowed: true });
+  });
+
+  it('o painel compara os protocolos para o Supervisor e o Diretor; o Usuário não vê', async () => {
+    const leader = await c.leader!.get('/api/v1/dashboards/ai-comparison');
+    assert.equal(leader.status, 200, JSON.stringify(leader.body));
+    assert.equal(leader.body.scope, 'led_teams');
+    assert.equal(leader.body.withAi.received, 1);
+    assert.equal(leader.body.withoutAi.received, 3);
+    assert.ok(leader.body.weeks.length >= 1);
+    const week = leader.body.weeks.at(-1);
+    assert.equal(week.withAi.received + week.withoutAi.received <= 4, true);
+
+    const director = await c.director!.get(`/api/v1/dashboards/ai-comparison?teamId=${ids.teamA}`);
+    assert.equal(director.body.scope, 'team');
+    assert.equal(director.body.withAi.received + director.body.withoutAi.received, 4);
+    assert.equal((await c.director!.get(`/api/v1/dashboards/ai-comparison?teamId=${ids.teamB}`)).body.withAi.received, 0);
+
+    assert.equal((await c.op!.get('/api/v1/dashboards/ai-comparison')).status, 403);
+    assert.equal((await c.leader!.get(`/api/v1/dashboards/ai-comparison?teamId=${ids.teamB}`)).status, 403);
+  });
+});

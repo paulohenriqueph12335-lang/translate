@@ -247,6 +247,66 @@ export function Columns({ items }: { items: Array<{ label: string; value: number
   );
 }
 
+/**
+ * Colunas lado a lado no tempo (duas séries, ex.: com IA × sem IA), com legenda, dica e tabela. `null` é "sem dado"
+ * (fica vazio, diferente de zero); `format` escreve o valor (%, minutos).
+ */
+export function PairedColumns({
+  items,
+  series,
+  format = number,
+  caption = 'Semana',
+}: {
+  items: Array<{ label: string; values: [number | null, number | null] }>;
+  series: [string, string];
+  format?: (value: number) => string;
+  caption?: string;
+}) {
+  const tip = useTip();
+  const max = Math.max(1, ...items.flatMap((item) => item.values.map((value) => value ?? 0)));
+  if (!items.length) return <p className="empty">Sem dados no período.</p>;
+  return (
+    <div className="chart columns paired" onMouseLeave={tip.hide}>
+      <div className="legend">
+        {series.map((name, index) => (
+          <span key={name}>
+            <i style={{ background: SERIES[index] }} /> {name}
+          </span>
+        ))}
+      </div>
+      <div className="columns-plot">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className="column-slot"
+            onMouseMove={tip.show(
+              `${caption} de ${item.label} · ${series
+                .map((name, index) => `${name}: ${item.values[index] === null ? 'sem dado' : format(item.values[index]!)}`)
+                .join(' · ')}`,
+            )}
+          >
+            <span className="column-pair">
+              {item.values.map((value, index) => (
+                <span
+                  key={index}
+                  className={`bar-v ${value === null ? 'empty-bar' : ''}`}
+                  style={{ height: `${((value ?? 0) / max) * 100}%`, background: SERIES[index] }}
+                />
+              ))}
+            </span>
+            <span className="column-label">{item.label}</span>
+          </div>
+        ))}
+      </div>
+      {tip.view}
+      <TableView
+        head={[caption, ...series]}
+        rows={items.map((item) => [item.label, ...item.values.map((value) => (value === null ? '—' : format(value)))])}
+      />
+    </div>
+  );
+}
+
 /** Uso de cota: barra de progresso com estado textual (nunca só cor). */
 export function Meter({ used, quota }: { used: number; quota: number | null }) {
   if (quota === null) return <span className="muted small-text">{number(used)} usados · sem limite</span>;
