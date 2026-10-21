@@ -29,13 +29,17 @@ const CONTENT_WIDTH = PAGE.width - PAGE.left - PAGE.right;
 let FONT = 'Times New Roman';
 let SIZE = { large: 24, body: 22, small: 20, tiny: 18, letterhead: 16 };
 
-/** Aplica a fonte e o corpo da regra (o restante da escala acompanha o corpo) enquanto o documento é montado. */
+/**
+ * Aplica a fonte e o tamanho da regra enquanto o documento é montado. As skills pedem a mesma fonte e o mesmo tamanho
+ * em todo o documento: títulos, linhas de apoio e tabelas saem no corpo da regra (só tabelas densas, com palavras que
+ * não cabem na coluna, ainda diminuem). O rodapé com o número da página fica um pouco menor.
+ */
 function withLook<T>(look: { font: string; fontSize: number } | undefined, build: () => T): T {
   const saved = { font: FONT, size: SIZE };
   if (look) {
     const body = Math.round(look.fontSize * 2);
     FONT = look.font;
-    SIZE = { large: body + 2, body, small: body - 2, tiny: Math.max(10, body - 4), letterhead: Math.max(10, body - 6) };
+    SIZE = { large: body, body, small: body, tiny: body, letterhead: Math.max(12, body - 4) };
   }
   try {
     return build();

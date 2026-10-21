@@ -316,6 +316,8 @@ const innerOf = (xml: string | undefined, tag: string) => {
 };
 
 interface BaseFormat {
+  /** Mesmo tamanho em todo o conteúdo (regra da modalidade): títulos, linhas de apoio e tabelas no corpo. */
+  uniform: boolean;
   /** Propriedades do parágrafo de {{texto}}, sem numeração de lista e sem quebra de seção. */
   pPr: string;
   /** Propriedades do trecho onde está {{texto}}. */
@@ -371,7 +373,7 @@ const SHADE = { header: 'DFE6F1', summary: 'F1F4F9' } as const;
 function table(block: Extract<DraftBlock, { kind: 'table' }>, base: BaseFormat) {
   const total = block.columns.reduce((sum, width) => sum + width, 0) || 1;
   const widths = block.columns.map((width) => Math.round((width / total) * base.width));
-  const size = Math.max(14, base.size - 4);
+  const size = base.uniform ? base.size : Math.max(14, base.size - 4);
   const cellPPr = '<w:spacing w:before="0" w:after="0"/>';
   // Ocupação da grade: células cobertas por mesclagem vertical viram continuação (vMerge) na linha de baixo.
   const covered = new Map<string, number>();
@@ -441,7 +443,7 @@ function blocksXml(draft: Draft, base: BaseFormat, banner: string | null) {
     switch (block.kind) {
       case 'heading':
         out.push(
-          paragraph(block.text, base, { align: block.align, bold: true, size: block.level === 'title' ? base.size + 2 : base.size }),
+          paragraph(block.text, base, { align: block.align, bold: true, size: block.level === 'title' && !base.uniform ? base.size + 2 : base.size }),
         );
         break;
       case 'paragraph':
@@ -449,7 +451,7 @@ function blocksXml(draft: Draft, base: BaseFormat, banner: string | null) {
           paragraph(block.text, base, {
             align: block.align,
             bold: block.bold,
-            size: block.size === 'small' ? base.size - 2 : block.size === 'tiny' ? base.size - 4 : base.size,
+            size: base.uniform ? base.size : block.size === 'small' ? base.size - 2 : block.size === 'tiny' ? base.size - 4 : base.size,
           }),
         );
         break;
@@ -481,8 +483,14 @@ function contentWidth(documentXml: string) {
   return Math.max(2000, size - left - right);
 }
 
+/** Fonte e tamanho da regra da modalidade e do idioma de destino (ADR-015). */
+export interface MaskLook {
+  font: string;
+  fontSize: number;
+}
+
 /** Troca o parágrafo de {{texto}} pelo documento traduzido. */
-function insertContent(xml: string, draft: Draft, banner: string | null) {
+function insertContent(xml: string, draft: Draft, banner: string | null, look: MaskLook | null) {
   const group = textGroups(xml).find((nodes) => groupMarkers(nodes).some((marker) => marker.name === 'texto'));
   if (!group) throw new Error('A máscara não tem o marcador {{texto}}');
   const first = group[0]!;
@@ -496,10 +504,20 @@ function insertContent(xml: string, draft: Draft, banner: string | null) {
   const runStart = Math.max(xml.lastIndexOf('<w:r>', markerNode.start), xml.lastIndexOf('<w:r ', markerNode.start));
   const rPr = runStart > pStart ? innerOf(/^<w:r(?:\s[^>]*)?>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)?/.exec(xml.slice(runStart))?.[1], 'rPr') : '';
   const section = /<w:sectPr\b[\s\S]*?<\/w:sectPr>/.exec(pPr)?.[0] ?? null;
+  // Com regra: a fonte e o tamanho dela no lugar dos do parágrafo {{texto}} (negrito, cor e o resto ficam).
+  const size = look ? Math.round(look.fontSize * 2) : Number(/<w:sz w:val="(\d+)"/.exec(rPr)?.[1] ?? 22);
+  const font = look ? escape(look.font) : null;
   const base: BaseFormat = {
+    uniform: !!look,
     pPr: setChildren(pPr, PPR_ORDER, { numPr: null, sectPr: null }),
-    rPr,
-    size: Number(/<w:sz w:val="(\d+)"/.exec(rPr)?.[1] ?? 22),
+    rPr: font
+      ? setChildren(rPr, RPR_ORDER, {
+          rFonts: `<w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:cs="${font}" w:eastAsia="${font}"/>`,
+          sz: `<w:sz w:val="${size}"/>`,
+          szCs: `<w:szCs w:val="${size}"/>`,
+        })
+      : rPr,
+    size,
     width: contentWidth(xml),
   };
   // Texto que dividia o parágrafo com {{texto}} fica antes do documento.
@@ -523,7 +541,14 @@ const shortDate = (date: Date, language: Language) =>
  * Preenche a máscara com o rascunho e os dados da conclusão. `values: null` gera a prévia: número, livro e folha
  * ficam em branco ("____") e o documento ganha uma linha de aviso de rascunho antes do texto.
  */
-export async function fillMask(mask: Uint8Array, draft: Draft, values: MaskValues | null, tradutor: string): Promise<Buffer> {
+export async function fillMask(
+  mask: Uint8Array,
+  draft: Draft,
+  values: MaskValues | null,
+  tradutor: string,
+  /** `look`: fonte e tamanho da regra no conteúdo; `draft`: aviso de rascunho mesmo com número previsto na prévia. */
+  options: { look?: MaskLook | null; draft?: boolean } = {},
+): Promise<Buffer> {
   const zip = await JSZip.loadAsync(mask);
   const target = draft.targetLanguage;
   const date = values?.data ?? new Date();
@@ -556,14 +581,14 @@ export async function fillMask(mask: Uint8Array, draft: Draft, values: MaskValue
     }
   };
   const banner =
-    values === null
+    (options.draft ?? values === null)
       ? target === 'en'
         ? 'DRAFT – NOT APPROVED – NOT VALID AS A TRANSLATION'
         : 'RASCUNHO – NÃO APROVADO – SEM VALOR COMO TRADUÇÃO'
       : null;
   for (const name of Object.keys(zip.files).filter((file) => TEXT_PART.test(file))) {
     let xml = await zip.file(name)!.async('string');
-    if (name === 'word/document.xml') xml = insertContent(xml, draft, banner);
+    if (name === 'word/document.xml') xml = insertContent(xml, draft, banner, options.look ?? null);
     xml = replaceMarkers(xml, (marker) => (marker === 'texto' ? null : value(marker)));
     zip.file(name, xml);
   }

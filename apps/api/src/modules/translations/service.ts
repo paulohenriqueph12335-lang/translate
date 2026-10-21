@@ -1024,6 +1024,7 @@ export function createTranslationService({
           content,
           { numero: numberLabel, livro: bookLabel ?? '', folha: sheetLabel ?? '', data: issuedAt, tradutor: mask.name },
           mask.name,
+          { look: rules },
         );
         const key = `batches/${row.batch_id}/documents/${row.document_id}/translations/${row.id}.docx`;
         keyHolder.key = key;
@@ -1146,7 +1147,7 @@ export function createTranslationService({
           tradutor: mask.name,
         }
       : null;
-    const docx = await fillMask(mask.data, Draft.parse(draft.content), values, mask.name);
+    const docx = await fillMask(mask.data, Draft.parse(draft.content), values, mask.name, { look: rules, draft: true });
     return { docx, name: `RASCUNHO - ${outputFileName(row.document_name, rules)}` };
   }
 
@@ -1390,8 +1391,10 @@ export async function reissueFinalDocx(
     document_id: string;
     translator_id: string | null;
     mask_id: string | null;
+    translation_mode: Mode;
+    target_language: Language;
   }>(
-    `SELECT r.content, j.approved_at, d.batch_id, j.document_id, j.translator_id, j.mask_id
+    `SELECT r.content, j.approved_at, d.batch_id, j.document_id, j.translator_id, j.mask_id, j.translation_mode, j.target_language
        FROM translation_jobs j JOIN documents d ON d.id = j.document_id
        JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision
       WHERE j.id = $1`,
@@ -1407,6 +1410,7 @@ export async function reissueFinalDocx(
     Draft.parse(row.content),
     { numero: numbering.number, livro: numbering.book ?? '', folha: numbering.sheet ?? '', data: row.approved_at, tradutor: mask.name },
     mask.name,
+    { look: await loadRules(db, row.translation_mode, row.target_language) },
   );
   const key = `batches/${row.batch_id}/documents/${row.document_id}/translations/${jobId}-${Date.now()}.docx`;
   await uploadBuffer(storage, key, docx);
