@@ -10,6 +10,7 @@ import type { MemoryLookup } from '../translation/machine/machine-draft.js';
 import { checklistOf, loadRules, type Mode } from '../translation/profiles.js';
 import type { MachineProviderName, MachineProviderSetting, MachineTranslator } from '../translation/machine/providers.js';
 import { draftFromFile, extractFile } from './analyze.js';
+import { loadLayoutKnowledge } from './knowledge.js';
 
 /** Dependências do processamento. */
 export interface ProcessingDeps {
@@ -245,6 +246,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
     memory,
     known,
     translator,
+    knowledge: await loadLayoutKnowledge(pool),
     ...(translator
       ? {}
       : {

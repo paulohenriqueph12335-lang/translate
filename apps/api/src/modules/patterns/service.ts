@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { draftFromFile, extractFile } from '@tradutor/core/processing';
+import { draftFromFile, extractFile, loadLayoutKnowledge } from '@tradutor/core/processing';
 import {
   loadRules,
   renderPlainDocx,
@@ -194,6 +194,7 @@ export function createPatternService({
       },
       known: example ? { documentType: example.content.documentType, sourceTitle: example.content.sourceTitle } : null,
       translator,
+      knowledge: await loadLayoutKnowledge(pool),
       ...(translator ? {} : { noTranslatorNotice: 'Sem tradutor automático no ar: o teste mostra só a estrutura do documento.' }),
     });
 
@@ -226,7 +227,12 @@ export function createPatternService({
     }
     if (verdict === 'can')
       reasons.push('Texto lido, estrutura reconhecida, traduzido e revisado sem problemas de checagem: o fluxo segue sozinho até o Word.');
-    if (!example) reasons.push('Tipo novo: ainda não há tradução concluída igual para servir de padrão.');
+    if (!example)
+      reasons.push(
+        result.composedFrom.length
+          ? `Tipo novo: a diagramação foi construída combinando ${result.composedFrom.length} documento(s) conhecido(s) de estrutura parecida.`
+          : 'Tipo novo e sem documento conhecido parecido: a diagramação segue a estrutura do original.',
+      );
 
     return {
       verdict,
@@ -243,6 +249,9 @@ export function createPatternService({
         markers: blocks.filter((block) => block.kind === 'paragraph' && /^\[[^\]]+\]$/.test(block.text.trim())).length,
       },
       known: example ? { title: example.title, approved: example.approved } : null,
+      /** Documentos conhecidos combinados na diagramação (ADR-020). */
+      composedFrom: result.composedFrom,
+      bodyModel: result.bodyModel,
       documentType: result.draft.documentType,
       sourceTitle: result.draft.sourceTitle,
       notice: result.notice,

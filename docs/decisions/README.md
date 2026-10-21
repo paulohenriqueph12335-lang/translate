@@ -21,6 +21,7 @@ Decisões que mudam limites, dependências ou operação ficam registradas como 
 - [ADR-017 — Fluxo automático até o Word, máscara escolhida no envio e padrões de documento](017-automatic-flow-patterns.md)
 - [ADR-018 — OCR local para imagens e PDFs digitalizados, e tradução de documentos longos](018-local-ocr.md)
 - [ADR-019 — Modelos de diagramação juramentada: moldura do tradutor e corpo por tipo de documento](019-sworn-layout-models.md)
+- [ADR-020 — Diagramação construída para documentos desconhecidos, combinando o que o sistema já conhece](020-composed-layout.md)
 
 ## Modelo para novas decisões
 

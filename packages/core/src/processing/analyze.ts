@@ -10,6 +10,7 @@ import { MachineTranslationFailed, type MachineTranslator } from '../translation
 import type { TranslationRules } from '../translation/profiles.js';
 import { autoReview, type Correction } from '../translation/review.js';
 import { applyBodyModel, BODY_MODEL_SPECS, type BodyModel } from '../translation/body-models.js';
+import { composeLayout, layoutIsUnknown, type LayoutSample } from '../translation/layout-composer.js';
 import { ocrDocument } from '../translation/ocr.js';
 import { buildManualDraft } from './manual-draft.js';
 
@@ -66,6 +67,8 @@ export interface DraftInput {
   translator: MachineTranslator | null;
   /** Por que não há tradutor, para o aviso; `undefined` quando há. */
   noTranslatorNotice?: string;
+  /** O que as traduções concluídas ensinam de diagramação (ADR-020), para documentos ainda desconhecidos. */
+  knowledge?: LayoutSample[];
 }
 
 export interface DraftOutput {
@@ -82,6 +85,8 @@ export interface DraftOutput {
   issues: DraftIssue[];
   /** Modelo de corpo aplicado pelo tipo do documento (ADR-019). */
   bodyModel: BodyModel;
+  /** Documentos conhecidos combinados para diagramar um documento novo (ADR-020). */
+  composedFrom: Array<{ title: string; similarity: number }>;
 }
 
 export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
@@ -140,10 +145,28 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
   // Modelo de corpo pelo tipo do documento (ADR-019): tabelas que fecham, rótulo e valor, espaçamento e tipo.
   const body = applyBodyModel(draft, extractedText);
   const layoutChanges: Correction[] = body.changes.map((change) => ({ code: 'layout', ...change }));
+  // Documento sem modelo próprio, sem exemplo do mesmo tipo ou sem formatação no original (OCR): a diagramação é
+  // construída combinando os documentos conhecidos de estrutura mais parecida (ADR-020).
+  let composedFrom: DraftOutput['composedFrom'] = [];
+  let shaped = body.draft;
+  if (input.knowledge?.length && (body.model === 'generic' || !known || layoutIsUnknown(body.draft))) {
+    const composed = composeLayout(body.draft, input.knowledge);
+    shaped = composed.draft;
+    composedFrom = composed.borrowedFrom;
+    layoutChanges.push(...composed.changes.map((change) => ({ code: 'layout' as const, ...change })));
+  }
+  if (!shaped.documentType.trim()) {
+    shaped = { ...shaped, documentType: BODY_MODEL_SPECS.generic.type[shaped.targetLanguage] };
+    layoutChanges.push({ code: 'layout', block: 0, message: 'Tipo do documento genérico: o original não tem título reconhecível', before: '', after: shaped.documentType });
+  }
   // Revisão automática (ADR-016): corrige idioma, números, datas, glossário e marcadores.
-  const review = await autoReview({ draft: body.draft, sourceText: extractedText, glossary, rules, translator: reviewTranslator });
+  const review = await autoReview({ draft: shaped, sourceText: extractedText, glossary, rules, translator: reviewTranslator });
   review.corrections.unshift(...layoutChanges);
   if (body.model !== 'generic') notice = `${notice ?? ''} Diagramação pelo modelo "${BODY_MODEL_SPECS[body.model].label}".`.trim();
+  if (composedFrom.length && layoutChanges.some((change) => change.message.includes('parecidos'))) {
+    const names = composedFrom.slice(0, 3).map((item) => `${item.title} (${item.similarity}%)`).join(', ');
+    notice = `${notice ?? ''} Diagramação construída combinando documentos conhecidos: ${names}.`.trim();
+  }
   if (review.corrections.length) notice = `${notice ?? ''} Revisão automática: ${review.corrections.length} correção(ões) feita(s).`.trim();
   return {
     extractedText,
@@ -157,5 +180,6 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
     unresolved: review.unresolved,
     issues: checkDraft(review.draft, extractedText, glossary, rules),
     bodyModel: body.model,
+    composedFrom,
   };
 }

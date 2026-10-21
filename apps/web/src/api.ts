@@ -809,6 +809,9 @@ export interface PatternTest {
   words: number;
   structure: { tables: number; headings: number; paragraphs: number; signatures: number; markers: number } | null;
   known: { title: string; approved: number } | null;
+  /** Documentos conhecidos combinados na diagramação de um tipo novo (ADR-020). */
+  composedFrom: Array<{ title: string; similarity: number }>;
+  bodyModel: string;
   documentType: string;
   sourceTitle: string;
   notice: string | null;

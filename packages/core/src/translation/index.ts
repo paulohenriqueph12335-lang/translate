@@ -15,4 +15,5 @@ export * from './language-detect.js';
 export * from './review.js';
 export * from './ocr.js';
 export * from './body-models.js';
+export * from './layout-composer.js';
 export * from './mask/frame-models.js';

@@ -83,7 +83,7 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   },
   professional_certificate: {
     label: 'Certidão de conselho profissional',
-    keywords: /CONSELHO (REGIONAL|FEDERAL|FICTICIO) DE|CERTIDAO DE (INSCRICAO|REGULARIDADE)|\bCRM\b|\bOAB\b|\bCREA\b/,
+    keywords: /CONSELHO (REGIONAL|FEDERAL|FICTICIO) DE|CERTIDAO DE (INSCRICAO|REGULARIDADE)/,
     keyValue: true,
     type: {
       en: 'CERTIFICATE OF REGISTRATION',
@@ -121,7 +121,8 @@ const fold = (text: string) =>
 
 /** Tipo do documento pelo título e pelo começo do texto do original. */
 export function classifyDocument(draft: Draft, sourceText: string | null): BodyModel {
-  const head = fold([draft.sourceTitle, ...(sourceText ?? '').split('\n').slice(0, 25)].join('\n'));
+  // Só o título e as primeiras linhas: o corpo cita outros documentos (um atestado traz o CRM do médico).
+  const head = fold([draft.sourceTitle, ...(sourceText ?? '').split('\n').slice(0, 8)].join('\n'));
   // A ordem importa: apostila e conselho citam "certidão" do documento apostilado.
   const order: BodyModel[] = [
     'apostille',
@@ -318,10 +319,10 @@ export function applyBodyModel(input: Draft, sourceText: string | null, model = 
   }
 
   // Tipo do documento: o do modelo (ou o primeiro título) quando o rascunho não tem.
-  if (!draft.documentType.trim()) {
-    const title = draft.blocks.find((block) => block.kind === 'heading' && block.text.trim()) as Extract<DraftBlock, { kind: 'heading' }> | undefined;
-    const fallback =
-      model !== 'generic' ? spec.type[draft.targetLanguage] : (title?.text.replace(/\*\*/g, '').trim().toUpperCase() ?? spec.type[draft.targetLanguage]);
+  // No modelo geral, só com título no original; sem ele, a diagramação construída (ADR-020) reconhece o título.
+  const title = draft.blocks.find((block) => block.kind === 'heading' && block.text.trim()) as Extract<DraftBlock, { kind: 'heading' }> | undefined;
+  if (!draft.documentType.trim() && (model !== 'generic' || title)) {
+    const fallback = model !== 'generic' ? spec.type[draft.targetLanguage] : title!.text.replace(/\*\*/g, '').trim().toUpperCase();
     draft.documentType = fallback.slice(0, 200);
     if (!draft.sourceTitle.trim() && title?.sourceText) draft.sourceTitle = title.sourceText.replace(/\*\*/g, '').trim();
     changes.push({ block: 0, message: `Tipo do documento preenchido pelo modelo "${spec.label}"`, before: '', after: draft.documentType });

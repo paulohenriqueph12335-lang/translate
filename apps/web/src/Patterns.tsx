@@ -195,6 +195,16 @@ function PatternTester() {
               {result.known ? ` · já há ${result.known.approved} tradução(ões) concluída(s) de "${result.known.title}"` : ''}
             </p>
           )}
+          {result.composedFrom.length > 0 && (
+            <p className="small-text">
+              <strong>Diagramação construída</strong> combinando documentos conhecidos de estrutura parecida:{' '}
+              {result.composedFrom
+                .slice(0, 4)
+                .map((item) => `${item.title} (${item.similarity}%)`)
+                .join(', ')}
+              .
+            </p>
+          )}
           {(errors.length > 0 || result.unresolved.length > 0) && (
             <details>
               <summary>O que precisa de conferência</summary>

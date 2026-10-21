@@ -47,6 +47,10 @@ um núcleo). Leituras do dia a dia: lista de traduções, busca, detalhe, gloss�
   **~10 s por documento, ~370 por hora com um worker**, sem falhas. O LibreTranslate usa ~1,5 núcleo nesse ritmo; o
   worker quase nada. Mais vazão: mais workers e mais núcleos para o tradutor (`TRANSLATOR_THREADS`).
 
+## Tipos que o sistema não conhecia (ADR-020)
+
+`novos-tipos/` traz uma declaração de residência e um atestado médico fictícios, em PDF com texto e em imagem (lidos por OCR), e o Word do teste de padrões de cada um. Nenhum dos dois tinha modelo nem tradução concluída do mesmo tipo: a diagramação foi construída combinando certidões e faturas já concluídas.
+
 ## Como refazer
 
 Com o Compose no ar e as contas de teste em `.credenciais-simulacao.json` (arquivo local, fora do Git):

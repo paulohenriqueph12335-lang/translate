@@ -40,6 +40,8 @@ O OCR (ADR-018) tem testes unitários em `packages/core/src/translation/ocr.test
 
 Os modelos de diagramação (ADR-019) têm testes unitários em `packages/core/src/translation/models.test.ts` (tipo do documento, reparo de tabela sem perder texto, rótulo e valor, tipo preenchido, as quatro molduras como máscaras válidas no idioma da tradução, bilíngue) e de integração em `apps/api/src/frame-models.integration.test.ts` (lista e prévia dos modelos, máscara gerada do modelo e tradução em francês concluída com a moldura em francês). A fonte e o tamanho da regra são conferidos em `look.test.ts`.
 
+A diagramação construída (ADR-020) tem testes unitários em `packages/core/src/translation/layout-composer.test.ts`: papéis de cada parte, documento desconhecido composto de dois conhecidos de tipos diferentes (campos em tabela na largura aprendida, centralização, título e tipo, sem mudar texto), OCR com linhas partidas e rótulo alongado pela tradução, formatação do original que prevalece e nada muda sem conhecimento. Exemplos reais de tipos novos (PDF e imagem) em `docs/exemplos-simulados/novos-tipos`.
+
 ### Simulação e carga no sistema local
 
 Com o Compose no ar e as contas de teste em `docs/exemplos-simulados/.credenciais-simulacao.json` (fora do Git):
