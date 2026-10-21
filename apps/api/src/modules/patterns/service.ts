@@ -140,14 +140,13 @@ export function createPatternService({
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-    if (format === 'jpeg' || format === 'png')
-      return refusal('Imagem: o sistema ainda não lê texto de imagens (falta OCR). Envie o PDF com texto ou o DOCX.', format);
-
     const data = new Uint8Array(file.data);
-    const extraction = await extractFile(data, format);
+    const extraction = await extractFile(data, format, input.sourceLanguage);
     if (!extraction?.hasTextLayer) {
       return refusal(
-        'O arquivo não tem texto que o sistema consiga ler (PDF digitalizado ou só imagem): falta OCR. Envie a versão com texto.',
+        format === 'jpeg' || format === 'png' || extraction?.ocr
+          ? 'Não foi possível ler texto na imagem (OCR sem resultado ou indisponível): envie uma imagem mais nítida, o PDF com texto ou o DOCX.'
+          : 'O arquivo não tem texto que o sistema consiga ler (PDF digitalizado sem OCR disponível). Envie a versão com texto.',
         format,
         extraction?.pages ?? null,
       );
@@ -207,7 +206,13 @@ export function createPatternService({
       verdict = 'review';
       reasons.push(result.machineFailure ? `A tradução automática falhou: ${result.machineFailure.message}` : 'Tradutor automático fora do ar no teste.');
     }
-    if (!result.layout?.blocks.length) {
+    if (extraction.ocr) {
+      verdict = 'review';
+      reasons.push(
+        `Texto lido por OCR (confiança média ${extraction.ocr.confidence}%): o fluxo segue, mas nomes, números e datas pedem conferência com o original.`,
+      );
+    }
+    if (!result.layout?.blocks.length && !extraction.ocr) {
       verdict = 'review';
       reasons.push('A estrutura do original (tabelas, títulos) não foi reconhecida; o texto sai em parágrafos.');
     }

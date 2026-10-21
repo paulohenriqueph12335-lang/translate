@@ -43,6 +43,10 @@ Entre em <http://localhost:5173>. Novos cadastros ficam pendentes até um Direto
 - Porta ocupada: ajuste a porta de host no `.env`; não altere a porta interna sem atualizar os endereços de rede Compose.
 - `corepack enable` dá `EPERM` em `C:\Program Files\nodejs`: use `corepack pnpm ...` diretamente no diretório do projeto.
 
+## OCR
+
+O worker e a API têm o Tesseract (por, eng, fra, ita, spa) e o Poppler: imagens e PDFs digitalizados são lidos por OCR antes da tradução (ADR-018). Para outro idioma, instale o pacote `tesseract-ocr-<código>` no Dockerfile.
+
 ## Conversão para PDF
 
 O serviço `converter` (Gotenberg com LibreOffice) converte o Word da prévia e da tradução final em PDF para ver na tela e baixar (ADR-017). Só a API acessa (`CONVERTER_URL`), sem porta publicada. Fora do ar, o PDF responde indisponível e o Word continua liberado.

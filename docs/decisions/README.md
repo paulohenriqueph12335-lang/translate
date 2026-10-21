@@ -19,6 +19,7 @@ Decisões que mudam limites, dependências ou operação ficam registradas como 
 - [ADR-015 — Modalidades de tradução, regras por idioma de destino e glossário das skills](015-translation-modes.md)
 - [ADR-016 — Revisão automática que corrige o documento, nomes próprios protegidos e simulação ponta a ponta](016-automatic-review.md)
 - [ADR-017 — Fluxo automático até o Word, máscara escolhida no envio e padrões de documento](017-automatic-flow-patterns.md)
+- [ADR-018 — OCR local para imagens e PDFs digitalizados, e tradução de documentos longos](018-local-ocr.md)
 
 ## Modelo para novas decisões
 

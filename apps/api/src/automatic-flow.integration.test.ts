@@ -170,6 +170,26 @@ describe('fluxo automático até o Word', () => {
   });
 });
 
+describe('documento sem texto lido', () => {
+  it('sem leitura nem tradução, o checklist não é confirmado pela revisão automática', async () => {
+    // PNG mínimo: sem OCR disponível (ou sem texto reconhecido) não há o que traduzir nem atestar.
+    const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+    const batch = await c.op!.request('POST', '/api/v1/batches', {
+      mode: 'certified',
+      translation: { sourceLanguage: 'pt', targetLanguage: 'en' },
+      files: [{ name: 'foto.png', size: png.length }],
+    });
+    const documentId = batch.body.documents[0].id as string;
+    assert.equal((await c.op!.putContent(`/api/v1/documents/${documentId}/content`, png)).status, 200);
+    const job = (await pool.query<{ id: string }>('SELECT id FROM translation_jobs WHERE document_id = $1', [documentId])).rows[0]!.id;
+    assert.equal(await processNextJob(processing()), true);
+    const detail = await c.op!.get(`/api/v1/translations/${job}`);
+    assert.equal(detail.body.translation.status, 'in_review');
+    assert.ok((detail.body.checklist as Array<{ checked: unknown }>).every((item) => item.checked === null));
+    assert.equal((await c.op!.post(`/api/v1/translations/${job}/submit`)).body.error.details.reason, 'checklist_incomplete');
+  });
+});
+
 describe('padrões de documento', () => {
   it('histórico: o tipo já concluído aparece como "consegue fazer"', async () => {
     const list = await c.lider!.get('/api/v1/document-patterns');

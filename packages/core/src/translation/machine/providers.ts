@@ -25,7 +25,8 @@ export class MachineTranslationFailed extends Error {
   }
 }
 
-const TIMEOUT_MS = 60_000;
+/** Prazo de cada pedido; o LibreTranslate em CPU leva mais no primeiro uso de cada par de idiomas. */
+const TIMEOUT_MS = 120_000;
 
 /** Agrupa trechos em lotes por quantidade e por caracteres. */
 function batches(texts: string[], maxItems: number, maxChars: number) {
@@ -71,22 +72,33 @@ export function createLibreTranslate(baseUrl: string, apiKey?: string): MachineT
     name: 'libretranslate',
     external: false,
     async translate(texts, from, to) {
+      const send = async (group: string[]): Promise<string[]> => {
+        try {
+          const data = (await postJson(`${url}/translate`, {
+            q: group,
+            source: from,
+            target: to,
+            format: 'text',
+            ...(apiKey ? { api_key: apiKey } : {}),
+          })) as { translatedText?: string[] | string };
+          const translated = Array.isArray(data.translatedText) ? data.translatedText : [data.translatedText];
+          if (translated.length !== group.length || translated.some((text) => typeof text !== 'string')) {
+            throw new MachineTranslationFailed('Resposta do LibreTranslate incompleta', false);
+          }
+          return translated as string[];
+        } catch (error) {
+          // Prazo estourado num lote grande (documento longo, tradutor ainda carregando os modelos): divide e tenta
+          // de novo, até o trecho sozinho; só então a falha sobe para o worker tentar mais tarde.
+          if (error instanceof MachineTranslationFailed && error.retryable && group.length > 1) {
+            const half = Math.ceil(group.length / 2);
+            return [...(await send(group.slice(0, half))), ...(await send(group.slice(half)))];
+          }
+          throw error;
+        }
+      };
       const results: string[] = [];
       // Lotes pequenos: o LibreTranslate em CPU demora com textos longos e cada pedido tem prazo (TIMEOUT_MS).
-      for (const group of batches(texts, 25, 4000)) {
-        const data = (await postJson(`${url}/translate`, {
-          q: group,
-          source: from,
-          target: to,
-          format: 'text',
-          ...(apiKey ? { api_key: apiKey } : {}),
-        })) as { translatedText?: string[] | string };
-        const translated = Array.isArray(data.translatedText) ? data.translatedText : [data.translatedText];
-        if (translated.length !== group.length || translated.some((text) => typeof text !== 'string')) {
-          throw new MachineTranslationFailed('Resposta do LibreTranslate incompleta', false);
-        }
-        results.push(...(translated as string[]));
-      }
+      for (const group of batches(texts, 12, 2000)) results.push(...(await send(group)));
       return results;
     },
     async isAvailable() {

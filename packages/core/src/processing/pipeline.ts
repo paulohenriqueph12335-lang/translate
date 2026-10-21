@@ -93,6 +93,18 @@ export async function claimNextJob(deps: ProcessingDeps): Promise<ClaimedJob | n
 export async function processNextJob(deps: ProcessingDeps) {
   const job = await claimNextJob(deps);
   if (!job) return false;
+  // Documento longo (OCR, muitos trechos) passa do lease: renova enquanto processa, para outro worker não assumir.
+  const leaseMs = deps.leaseMs ?? 10 * 60_000;
+  const renewal = setInterval(() => {
+    void deps.pool
+      .query(
+        `UPDATE translation_jobs SET lease_expires_at = now() + make_interval(secs => $3)
+          WHERE id = $1 AND status = 'processing' AND lease_owner = $2`,
+        [job.id, deps.workerId, leaseMs / 1000],
+      )
+      .catch(() => undefined);
+  }, leaseMs / 3);
+  renewal.unref();
   try {
     await processJob(deps, job);
   } catch (error) {
@@ -121,6 +133,8 @@ export async function processNextJob(deps: ProcessingDeps) {
     } else {
       await requeue(deps, job, code);
     }
+  } finally {
+    clearInterval(renewal);
   }
   return true;
 }
@@ -168,7 +182,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
   const format = doc.format;
 
   const data = new Uint8Array(await readAll(await deps.storage.get(doc.object_key)));
-  const extraction = await extractFile(data, format);
+  const extraction = await extractFile(data, format, job.source_language);
   const extractedText = extraction?.hasTextLayer ? extraction.text : null;
   // Memória de tradução (ADR-008): trechos aprovados antes, usados com ou sem provedor.
   const memory: MemoryLookup = async (segments) => {
@@ -258,10 +272,14 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
   const { draft, origin, notice, corrections, issues } = result;
   // Tradução e revisão são automáticas: o checklist das etapas fica confirmado pela revisão automática e a prévia sai
   // direto para quem aprova o Word.
+  // Sem texto lido ou sem tradução automática não há o que a revisão automática atestar: o checklist fica para a pessoa.
   const at = new Date().toISOString();
-  const checks = Object.fromEntries(
-    checklistOf(job.translation_mode ?? 'sworn', rules).map((item) => [item.key, { by: 'system', name: 'Revisão automática', at }]),
-  );
+  const automatic = origin === 'machine' && !!result.extractedText;
+  const checks = automatic
+    ? Object.fromEntries(
+        checklistOf(job.translation_mode ?? 'sworn', rules).map((item) => [item.key, { by: 'system', name: 'Revisão automática', at }]),
+      )
+    : {};
   const extractedForReview = extraction
     ? [
         extraction.text,

@@ -9,6 +9,7 @@ import { buildMachineDraft, type MachineDraftResult, type MemoryLookup } from '.
 import { MachineTranslationFailed, type MachineTranslator } from '../translation/machine/providers.js';
 import type { TranslationRules } from '../translation/profiles.js';
 import { autoReview, type Correction } from '../translation/review.js';
+import { ocrDocument } from '../translation/ocr.js';
 import { buildManualDraft } from './manual-draft.js';
 
 /**
@@ -22,13 +23,32 @@ export interface Extraction {
   pages: number | null;
   hasTextLayer: boolean;
   rotatedText: string[];
+  /** Texto reconhecido por OCR (imagem ou PDF digitalizado), com a confiança média (ADR-018). */
+  ocr?: { confidence: number };
 }
 
-export async function extractFile(data: Uint8Array, format: string): Promise<Extraction | null> {
+/**
+ * Texto do arquivo: a camada de texto do PDF, o conteúdo do DOCX/PPTX e, sem texto (imagem ou PDF digitalizado), o
+ * OCR local. Sem Tesseract instalado, imagens e digitalizados seguem sem texto, como antes.
+ */
+export async function extractFile(data: Uint8Array, format: string, source: Language = 'pt'): Promise<Extraction | null> {
   // O pdf.js toma posse do buffer: cada leitura recebe a sua cópia.
-  if (format === 'pdf') return extractPdfText(data.slice());
-  if (format === 'docx' || format === 'pptx') return { ...(await extractOfficeText(data.slice(), format)), pages: null, rotatedText: [] };
-  return null;
+  const direct =
+    format === 'pdf'
+      ? await extractPdfText(data.slice())
+      : format === 'docx' || format === 'pptx'
+        ? { ...(await extractOfficeText(data.slice(), format)), pages: null, rotatedText: [] }
+        : null;
+  if (direct?.hasTextLayer || (format !== 'pdf' && format !== 'png' && format !== 'jpeg')) return direct;
+  const ocr = await ocrDocument(data.slice(), format, source);
+  if (!ocr) return direct;
+  return {
+    text: ocr.text,
+    pages: direct?.pages ?? ocr.pages,
+    hasTextLayer: ocr.text.replace(/\s/g, '').length > 40,
+    rotatedText: [],
+    ocr: { confidence: ocr.confidence },
+  };
 }
 
 export interface DraftInput {
@@ -66,7 +86,7 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
   const extractedText = extraction?.hasTextLayer ? extraction.text : null;
   // Estrutura do original (ADR-009): tabelas, títulos, assinaturas e notas; a tradução preenche essa estrutura.
   const layout =
-    format === 'pdf' && extractedText
+    format === 'pdf' && extractedText && !extraction?.ocr
       ? await analyzePdfLayout(data.slice()).catch(() => null)
       : format === 'docx'
         ? await analyzeDocxLayout(data.slice()).catch(() => null)
@@ -111,6 +131,9 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
     ? (await buildMachineDraft({ ...base, translator: null })).draft
     : buildManualDraft({ sourceLanguage, targetLanguage, extractedText, glossary });
 
+  if (extraction?.ocr && extractedText) {
+    notice = `Texto lido por OCR (confiança média ${extraction.ocr.confidence}%): confira nomes, números e datas com o original. ${notice ?? ''}`.trim();
+  }
   // Revisão automática (ADR-016): corrige idioma, números, datas, glossário e marcadores.
   const review = await autoReview({ draft, sourceText: extractedText, glossary, rules, translator: reviewTranslator });
   if (review.corrections.length) notice = `${notice ?? ''} Revisão automática: ${review.corrections.length} correção(ões) feita(s).`.trim();

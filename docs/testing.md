@@ -36,6 +36,8 @@ A revisão automática (ADR-016) tem testes unitários em `packages/core/src/tra
 
 O fluxo automático e os padrões de documento (ADR-017) têm teste de integração em `apps/api/src/automatic-flow.integration.test.ts`: envio com máscara e tradutor, checklist automático, prévia com o número previsto em Word e PDF (conversor falso), aprovação do Usuário seguida da conclusão pela liderança, numeração automática com as páginas do original, juramentada sem máscara, histórico de padrões e teste sem gravar (imagem e arquivo desconhecido como "ainda não consegue").
 
+O OCR (ADR-018) tem testes unitários em `packages/core/src/translation/ocr.test.ts` (linhas e colunas a partir do TSV do Tesseract e funcionamento sem Tesseract instalado); o teste de integração do fluxo automático confere que um arquivo sem texto lido não tem o checklist confirmado pela revisão automática. O OCR de verdade é conferido no Docker, onde o Tesseract está instalado.
+
 ### Simulação e carga no sistema local
 
 Com o Compose no ar e as contas de teste em `docs/exemplos-simulados/.credenciais-simulacao.json` (fora do Git):

@@ -1,5 +1,6 @@
-FROM node:22-alpine
-RUN corepack enable
+# OCR local para o teste de padrões de documento (ADR-018), como no worker.
+FROM node:22-bookworm-slim
+RUN corepack enable && apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng tesseract-ocr-fra tesseract-ocr-ita tesseract-ocr-spa poppler-utils && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml ./
 COPY pnpm-lock.yaml ./
