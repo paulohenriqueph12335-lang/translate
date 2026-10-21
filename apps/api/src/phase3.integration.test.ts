@@ -133,7 +133,9 @@ describe('início e rascunho', () => {
     assert.equal(response.body.draft.revision, 1);
     assert.ok(response.body.draft.content.blocks.some((block: { kind: string }) => block.kind === 'table'));
     const codes = response.body.draft.issues.map((issue: { code: string }) => issue.code);
-    assert.ok(codes.includes('missing_document_type') && codes.includes('untranslated'));
+    // O modelo de corpo (ADR-019) preenche o tipo pelo título do original; o texto continua sem tradução.
+    assert.ok(codes.includes('untranslated') && !codes.includes('missing_document_type'));
+    assert.equal(response.body.draft.content.documentType, 'SCHOOL TRANSCRIPT');
     assert.equal(response.body.translation.permissions.approve, false);
     assert.match(response.body.frame.draftMark, /DRAFT/);
     assert.equal(await processNextJob(processing()), false);

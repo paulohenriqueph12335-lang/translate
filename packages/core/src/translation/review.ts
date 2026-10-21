@@ -24,6 +24,7 @@ export type CorrectionCode =
   | 'translator_note'
   | 'spacing'
   | 'content_lost'
+  | 'layout'
   | 'document_type';
 
 export interface Correction {

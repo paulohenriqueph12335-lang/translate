@@ -328,7 +328,7 @@ interface BaseFormat {
   width: number;
 }
 
-type Style = { align?: string; bold?: boolean; italic?: boolean; size?: number };
+type Style = { align?: string; bold?: boolean; italic?: boolean; size?: number; keepNext?: boolean };
 
 function runProps(base: BaseFormat, style: Style) {
   const changes: Record<string, string | null> = {};
@@ -361,7 +361,11 @@ function runs(text: string, base: BaseFormat, style: Style) {
 const JC: Record<string, string> = { left: 'left', center: 'center', right: 'right', justify: 'both' };
 
 function paragraph(text: string, base: BaseFormat, style: Style, pPr = base.pPr) {
-  const props = setChildren(pPr, PPR_ORDER, style.align ? { jc: `<w:jc w:val="${JC[style.align] ?? 'left'}"/>` } : {});
+  const props = setChildren(pPr, PPR_ORDER, {
+    ...(style.align ? { jc: `<w:jc w:val="${JC[style.align] ?? 'left'}"/>` } : {}),
+    // Título, seção e assinatura ficam na mesma página do que vem depois.
+    ...(style.keepNext ? { keepNext: '<w:keepNext/>' } : {}),
+  });
   return `<w:p>${props ? `<w:pPr>${props}</w:pPr>` : ''}${runs(text, base, style)}</w:p>`;
 }
 
@@ -443,7 +447,12 @@ function blocksXml(draft: Draft, base: BaseFormat, banner: string | null) {
     switch (block.kind) {
       case 'heading':
         out.push(
-          paragraph(block.text, base, { align: block.align, bold: true, size: block.level === 'title' && !base.uniform ? base.size + 2 : base.size }),
+          paragraph(block.text, base, {
+            align: block.align,
+            bold: true,
+            size: block.level === 'title' && !base.uniform ? base.size + 2 : base.size,
+            keepNext: true,
+          }),
         );
         break;
       case 'paragraph':
@@ -456,13 +465,13 @@ function blocksXml(draft: Draft, base: BaseFormat, banner: string | null) {
         );
         break;
       case 'section':
-        out.push(paragraph(block.text, base, { align: 'left', bold: true }));
+        out.push(paragraph(block.text, base, { align: 'left', bold: true, keepNext: true }));
         break;
       case 'translator_note':
         out.push(paragraph(frame.translatorNote(block.text), base, { align: 'justify', italic: true }));
         break;
       case 'signature':
-        out.push(paragraph(frame.signatureMark(block.illegible), base, { align: 'left' }));
+        out.push(paragraph(frame.signatureMark(block.illegible), base, { align: 'left', keepNext: true }));
         out.push(paragraph([block.name, block.role].filter(Boolean).join(' – '), base, { align: 'left' }));
         break;
       case 'table':

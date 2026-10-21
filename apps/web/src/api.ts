@@ -441,6 +441,8 @@ export interface MaskEdition {
   /** O que falta para ficar pronta. */
   issues: string[];
   notes: string | null;
+  /** Edição gerada de um modelo de moldura do sistema (ADR-019). */
+  frame: { model: 'classico' | 'quadro' | 'bilingue' | 'compacto'; label: string; city: string; state: string; contact: string | null; title: string | null } | null;
   uploadedBy: string;
   uploadedAt: string;
   translations: number;

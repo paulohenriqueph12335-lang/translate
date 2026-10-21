@@ -9,6 +9,7 @@ import { buildMachineDraft, type MachineDraftResult, type MemoryLookup } from '.
 import { MachineTranslationFailed, type MachineTranslator } from '../translation/machine/providers.js';
 import type { TranslationRules } from '../translation/profiles.js';
 import { autoReview, type Correction } from '../translation/review.js';
+import { applyBodyModel, BODY_MODEL_SPECS, type BodyModel } from '../translation/body-models.js';
 import { ocrDocument } from '../translation/ocr.js';
 import { buildManualDraft } from './manual-draft.js';
 
@@ -79,6 +80,8 @@ export interface DraftOutput {
   corrections: Correction[];
   unresolved: string[];
   issues: DraftIssue[];
+  /** Modelo de corpo aplicado pelo tipo do documento (ADR-019). */
+  bodyModel: BodyModel;
 }
 
 export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
@@ -134,8 +137,13 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
   if (extraction?.ocr && extractedText) {
     notice = `Texto lido por OCR (confiança média ${extraction.ocr.confidence}%): confira nomes, números e datas com o original. ${notice ?? ''}`.trim();
   }
+  // Modelo de corpo pelo tipo do documento (ADR-019): tabelas que fecham, rótulo e valor, espaçamento e tipo.
+  const body = applyBodyModel(draft, extractedText);
+  const layoutChanges: Correction[] = body.changes.map((change) => ({ code: 'layout', ...change }));
   // Revisão automática (ADR-016): corrige idioma, números, datas, glossário e marcadores.
-  const review = await autoReview({ draft, sourceText: extractedText, glossary, rules, translator: reviewTranslator });
+  const review = await autoReview({ draft: body.draft, sourceText: extractedText, glossary, rules, translator: reviewTranslator });
+  review.corrections.unshift(...layoutChanges);
+  if (body.model !== 'generic') notice = `${notice ?? ''} Diagramação pelo modelo "${BODY_MODEL_SPECS[body.model].label}".`.trim();
   if (review.corrections.length) notice = `${notice ?? ''} Revisão automática: ${review.corrections.length} correção(ões) feita(s).`.trim();
   return {
     extractedText,
@@ -148,5 +156,6 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
     corrections: review.corrections,
     unresolved: review.unresolved,
     issues: checkDraft(review.draft, extractedText, glossary, rules),
+    bodyModel: body.model,
   };
 }

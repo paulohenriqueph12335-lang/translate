@@ -237,6 +237,8 @@ const BLANK_PROFILE: TranslatorProfile = {
 export type MaskSource = (
   translatorId: string,
   maskId?: string | null,
+  /** Idioma e regra da tradução, para máscaras geradas de modelo do sistema (ADR-019). */
+  use?: { source: Language; target: Language; look?: { font: string; fontSize: number } | null },
 ) => Promise<{ name: string; active: boolean; maskId: string; edition: number; data: Uint8Array }>;
 
 export interface ApproveInput {
@@ -1011,7 +1013,7 @@ export function createTranslationService({
             ...(input.book ? { book: input.book } : {}),
           },
         );
-        const mask = await masks(issued.translatorId);
+        const mask = await masks(issued.translatorId, null, { source: row.source_language, target: row.target_language, look: rules });
         if (!mask.active) throw conflict(`${mask.name} está inativo; escolha outro tradutor`);
         const numberLabel = issued.number;
         const bookLabel = issued.book ?? input.book ?? null;
@@ -1134,7 +1136,7 @@ export function createTranslationService({
     const entry = await numbering.getEntry(ctx, jobId, translatorId ?? row.preferred_translator_id ?? undefined).catch(() => null);
     const chosen = translatorId ?? entry?.rule?.translatorId ?? row.preferred_translator_id ?? null;
     const mask = chosen
-      ? await masks(chosen)
+      ? await masks(chosen, null, { source: row.source_language, target: row.target_language, look: rules })
       : { name: '[tradutor a escolher]', data: new Uint8Array(await renderMaskTemplate(row.target_language)) };
     // Número, livro e folha previstos pela regra do tradutor; o número só é emitido na conclusão.
     const computed = entry?.check?.computed;
@@ -1392,9 +1394,10 @@ export async function reissueFinalDocx(
     translator_id: string | null;
     mask_id: string | null;
     translation_mode: Mode;
+    source_language: Language;
     target_language: Language;
   }>(
-    `SELECT r.content, j.approved_at, d.batch_id, j.document_id, j.translator_id, j.mask_id, j.translation_mode, j.target_language
+    `SELECT r.content, j.approved_at, d.batch_id, j.document_id, j.translator_id, j.mask_id, j.translation_mode, j.source_language, j.target_language
        FROM translation_jobs j JOIN documents d ON d.id = j.document_id
        JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision
       WHERE j.id = $1`,
@@ -1404,13 +1407,14 @@ export async function reissueFinalDocx(
   if (!row) throw notFound('Tradução não encontrada');
   if (!row.translator_id) throw conflict('Esta tradução foi concluída antes do cadastro de tradutores e não pode ser renumerada');
   // A mesma edição da máscara com que a tradução foi concluída: só a numeração muda.
-  const mask = await masks(row.translator_id, row.mask_id);
+  const look = await loadRules(db, row.translation_mode, row.target_language);
+  const mask = await masks(row.translator_id, row.mask_id, { source: row.source_language, target: row.target_language, look });
   const docx = await fillMask(
     mask.data,
     Draft.parse(row.content),
     { numero: numbering.number, livro: numbering.book ?? '', folha: numbering.sheet ?? '', data: row.approved_at, tradutor: mask.name },
     mask.name,
-    { look: await loadRules(db, row.translation_mode, row.target_language) },
+    { look },
   );
   const key = `batches/${row.batch_id}/documents/${row.document_id}/translations/${jobId}-${Date.now()}.docx`;
   await uploadBuffer(storage, key, docx);

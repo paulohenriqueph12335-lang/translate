@@ -67,6 +67,8 @@ interface TextStyle {
   size?: number;
   color?: string;
   after?: number;
+  /** Fica na mesma página do parágrafo seguinte (títulos, seções, assinatura). */
+  keepNext?: boolean;
 }
 
 /** Converte "texto **negrito** texto" em runs; o negrito do parágrafo inteiro prevalece. */
@@ -92,6 +94,7 @@ const paragraph = (text: string, style: TextStyle = {}, extra: Record<string, ne
   new Paragraph({
     alignment: ALIGN[style.align ?? 'left'],
     spacing: { before: 0, after: style.after ?? 120, line: LINE },
+    ...(style.keepNext ? { keepNext: true } : {}),
     children: runs(text, style),
     ...extra,
   });
@@ -274,7 +277,9 @@ export async function renderPlainDocx(draft: Draft, options: PlainRenderOptions)
 function renderBlock(block: DraftBlock, frame: ReturnType<typeof swornFrame>): Array<Paragraph | Table> {
   switch (block.kind) {
     case 'heading':
-      return [paragraph(block.text, { align: block.align, bold: true, size: block.level === 'title' ? SIZE.large : SIZE.body, after: 0 })];
+      return [
+        paragraph(block.text, { align: block.align, bold: true, size: block.level === 'title' ? SIZE.large : SIZE.body, after: 0, keepNext: true }),
+      ];
     case 'paragraph':
       return [
         paragraph(block.text, {
@@ -285,12 +290,12 @@ function renderBlock(block: DraftBlock, frame: ReturnType<typeof swornFrame>): A
         }),
       ];
     case 'section':
-      return [paragraph(block.text, { bold: true, after: 60 })];
+      return [paragraph(block.text, { bold: true, after: 60, keepNext: true })];
     case 'translator_note':
       return [paragraph(frame.translatorNote(block.text), { align: 'justify', italics: true })];
     case 'signature':
       return [
-        paragraph(frame.signatureMark(block.illegible), { after: 0 }),
+        paragraph(frame.signatureMark(block.illegible), { after: 0, keepNext: true }),
         paragraph([block.name, block.role].filter(Boolean).join(' – ')),
       ];
     case 'table':

@@ -1,5 +1,6 @@
 import { useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { api, ApiError, formatBytes, MASK_MARKERS, type MaskInspection, type SwornTranslator } from './api';
+import { FrameModelPicker } from './FrameModels';
 import { dateTime, Feedback, message, Section, useLoad } from './ui';
 
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -298,6 +299,15 @@ function TranslatorCard({ translator, onChange }: { translator: SwornTranslator;
               </button>
             </div>
           </div>
+        )}
+        {canEdit && (
+          <FrameModelPicker
+            translator={translator}
+            onCreated={(text) => {
+              setFeedback({ ok: text });
+              onChange();
+            }}
+          />
         )}
         {translator.masks.length > 0 && (
           <div className="table-wrap">

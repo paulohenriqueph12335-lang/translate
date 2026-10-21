@@ -98,6 +98,9 @@ O primeiro Diretor é criado pela linha de comando ([ADR-004](decisions/004-dire
 | `GET /api/v1/translations/:id/preview?format=pdf` e `/final?format=pdf` | quem vê a tradução | O mesmo Word em PDF (LibreOffice); `download=true` baixa, sem ele abre na tela |
 | `GET /api/v1/document-patterns` | autenticado | Tipos de documento já processados, com veredito (`can`, `review`, `cannot`) e motivos |
 | `POST /api/v1/document-patterns/test?sourceLanguage=&targetLanguage=&mode=` | autenticado | Corpo: o arquivo (binário). Analisa e traduz só para o teste, sem gravar; devolve veredito, motivos, estrutura e o Word da prévia (base64) |
+| `GET /api/v1/frame-models` | autenticado | Modelos de moldura do tradutor ([ADR-019](decisions/019-sworn-layout-models.md)) |
+| `GET /api/v1/frame-models/:model/preview?name=&registration=&city=&state=&contact=&target=&format=` | autenticado | Exemplo do modelo em PDF ou Word |
+| `POST /api/v1/sworn-translators/:id/masks/model` | Supervisor | `{ model, city, state, contact?, title? }`: gera a máscara do modelo como nova edição; a moldura sai no idioma de cada tradução |
 | `POST /api/v1/translations/:id/auto-review` | quem edita | Revisão automática ([ADR-016](decisions/016-automatic-review.md)): corrige a revisão atual e devolve `{ revision, corrections, unresolved, issues }`; com correções, grava revisão de origem `review`. "Pronta" roda a mesma revisão antes de seguir |
 
 `POST /api/v1/batches` aceita `mode` (`sworn`, `certified`, `technical`, `simple`; padrão `sworn`), `useMask` e `translatorId` (juramentada com a máscara desse tradutor, ADR-017) e qualquer par entre `pt` e `en`, `fr`, `it`, `es`. `GET /api/v1/translations` filtra por `translationMode`.

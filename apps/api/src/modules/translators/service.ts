@@ -4,7 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { recordAudit, withTransaction } from '@tradutor/core/db';
 import type { ObjectStorage } from '@tradutor/core/storage';
-import { inspectMask, type MaskInspection } from '@tradutor/core/translation';
+import {
+  FRAME_MODEL_INFO,
+  inspectMask,
+  renderFrameModel,
+  type FrameModel,
+  type FrameProfile,
+  type Language,
+  type MaskInspection,
+} from '@tradutor/core/translation';
 import { isDirector, ledTeams, type Actor } from '../access/policy.js';
 import { AppError, conflict, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
@@ -45,6 +53,8 @@ interface MaskRow {
   configured: boolean;
   issues: string[];
   notes: string | null;
+  /** Modelo de moldura do sistema (ADR-019): gerado no idioma de cada tradução. */
+  frame: ({ model: FrameModel } & Omit<FrameProfile, 'name' | 'registration'>) | null;
   uploaded_by_name: string;
   uploaded_at: Date;
   translations: number;
@@ -80,6 +90,8 @@ const toMask = (row: MaskRow, current: string | null) => ({
   /** O que falta para ficar pronta. */
   issues: row.issues,
   notes: row.notes,
+  /** Edição gerada de um modelo do sistema: o modelo e os dados usados. */
+  frame: row.frame ? { ...row.frame, label: FRAME_MODEL_INFO[row.frame.model].label } : null,
   uploadedBy: row.uploaded_by_name,
   uploadedAt: row.uploaded_at.toISOString(),
   /** Traduções concluídas com esta edição. */
@@ -208,7 +220,14 @@ export function createTranslatorService({ pool, storage }: ServiceDeps & { stora
    * O Word é guardado mesmo sem os marcadores (fica "aguardando configuração" e não gera traduções até ter {{texto}}).
    * Vira a edição em uso; as anteriores ficam guardadas, e traduções já concluídas mantêm a edição com que foram geradas.
    */
-  async function uploadMask(ctx: AuthenticatedContext, id: string, data: Buffer, fileName: string, notes: string | null = null) {
+  async function uploadMask(
+    ctx: AuthenticatedContext,
+    id: string,
+    data: Buffer,
+    fileName: string,
+    notes: string | null = null,
+    frame: MaskRow['frame'] = null,
+  ) {
     requireManager(ctx);
     await load(id);
     const inspection: MaskInspection = await inspectMask(new Uint8Array(data));
@@ -227,8 +246,8 @@ export function createTranslatorService({ pool, storage }: ServiceDeps & { stora
       ).rows[0]!.next;
       const created = await db.query<{ id: string }>(
         `INSERT INTO sworn_translator_masks (translator_id, edition, object_key, file_name, sha256, size_bytes, markers, configured, issues,
-                                             notes, uploaded_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+                                             notes, uploaded_by, frame)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
         [
           id,
           next,
@@ -241,6 +260,7 @@ export function createTranslatorService({ pool, storage }: ServiceDeps & { stora
           inspection.errors,
           notes,
           ctx.actor.id,
+          frame ? JSON.stringify(frame) : null,
         ],
       );
       await db.query('UPDATE sworn_translators SET current_mask_id = $2, updated_by = $3, updated_at = now() WHERE id = $1', [
@@ -254,11 +274,27 @@ export function createTranslatorService({ pool, storage }: ServiceDeps & { stora
         targetType: 'translator',
         targetId: id,
         correlationId: ctx.correlationId,
-        metadata: { edition: next, name: fileName, size: data.length, markers, configured: inspection.ok },
+        metadata: { edition: next, name: fileName, size: data.length, markers, configured: inspection.ok, ...(frame ? { model: frame.model } : {}) },
       });
       return next;
     });
     return { translator: await get(ctx, id), inspection, edition };
+  }
+
+  /**
+   * Máscara a partir de um modelo de moldura do sistema (ADR-019), com os dados do tradutor. Vira uma nova edição,
+   * como um envio; o Word guardado é um exemplo (português → inglês) e o de cada tradução é gerado no idioma dela.
+   */
+  async function maskFromModel(
+    ctx: AuthenticatedContext,
+    id: string,
+    input: { model: FrameModel; city: string; state: string; contact: string | null; title: string | null },
+  ) {
+    requireManager(ctx);
+    const row = await load(id);
+    const frame = { model: input.model, city: input.city, state: input.state, contact: input.contact, title: input.title };
+    const sample = await renderFrameModel(input.model, frameProfile(row, frame), 'pt', 'en');
+    return uploadMask(ctx, id, sample, `Modelo ${FRAME_MODEL_INFO[input.model].label}.docx`, 'Gerada de um modelo do sistema', frame);
   }
 
   /** Volta a usar uma edição anterior (ou qualquer outra) nas próximas conclusões. */
@@ -315,20 +351,46 @@ export function createTranslatorService({ pool, storage }: ServiceDeps & { stora
     };
   }
 
-  /** Máscara para gerar documentos: a edição indicada ou, sem ela, a em uso. */
-  async function maskFor(translatorId: string, maskId?: string | null) {
+  /**
+   * Máscara para gerar documentos: a edição indicada ou, sem ela, a em uso. Edição de modelo do sistema sai no idioma
+   * da tradução (`use`), com a fonte da regra na moldura.
+   */
+  async function maskFor(translatorId: string, maskId?: string | null, use?: MaskUse) {
     const row = await load(translatorId);
     const mask = (await masksOf(translatorId)).find((item) => item.id === (maskId ?? row.current_mask_id));
     if (!mask) throw conflict(`${row.name} ainda não tem máscara enviada`);
     if (!mask.configured) {
       throw conflict(`A máscara de ${row.name} (edição ${mask.edition}) ainda aguarda configuração: ${mask.issues.join(' ')}`);
     }
+    if (mask.frame && use) {
+      const data = await renderFrameModel(mask.frame.model, frameProfile(row, mask.frame), use.source, use.target, use.look ?? undefined);
+      return { name: row.name, active: row.active, maskId: mask.id, edition: mask.edition, data: new Uint8Array(data) };
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of await storage.get(mask.object_key)) chunks.push(chunk as Buffer);
     return { name: row.name, active: row.active, maskId: mask.id, edition: mask.edition, data: new Uint8Array(Buffer.concat(chunks)) };
   }
 
-  return { list, get, create, update, uploadMask, useMask, uploadReferencePdf, openFile, maskFor };
+  return { list, get, create, update, uploadMask, maskFromModel, useMask, uploadReferencePdf, openFile, maskFor };
 }
 
 export type TranslatorService = ReturnType<typeof createTranslatorService>;
+
+/** Idioma da tradução e regra de aparência, para máscaras de modelo do sistema. */
+export interface MaskUse {
+  source: Language;
+  target: Language;
+  look?: { font: string; fontSize: number } | null;
+}
+
+/** Dados da moldura: o cadastro do tradutor mais o que foi informado ao escolher o modelo. */
+function frameProfile(row: { name: string; registration: string | null }, frame: NonNullable<MaskRow['frame']>): FrameProfile {
+  return {
+    name: row.name,
+    registration: row.registration ?? 'Matrícula a informar',
+    city: frame.city,
+    state: frame.state,
+    contact: frame.contact,
+    title: frame.title ?? null,
+  };
+}

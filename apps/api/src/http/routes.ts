@@ -15,7 +15,7 @@ import type { PatternService } from '../modules/patterns/service.js';
 import type { DashboardService } from '../modules/dashboards/service.js';
 import { MAX_MASK_BYTES, type TranslatorService } from '../modules/translators/service.js';
 import type { TranslationService } from '../modules/translations/service.js';
-import { Draft, LANGUAGES, MODES, TranslationRules } from '@tradutor/core/translation';
+import { Draft, FRAME_MODEL_INFO, FRAME_MODELS, fillMask, LANGUAGES, MODES, renderFrameModel, TranslationRules } from '@tradutor/core/translation';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../modules/identity/passwords.js';
 import type { IdentityService } from '../modules/identity/service.js';
 import { pageQuery } from '../modules/pagination.js';
@@ -1020,6 +1020,75 @@ export function registerRoutes(
       const name = typeof raw === 'string' ? decodeURIComponent(raw).trim().slice(0, 255) : 'documento';
       return services.patterns.test(ctx, { data: request.body, name }, query);
     });
+  });
+
+  // ---------- Modelos de moldura do tradutor (ADR-019) ----------
+  app.get('/api/v1/frame-models', async (request) => {
+    auth(request);
+    return { items: FRAME_MODELS.map((id) => ({ id, ...FRAME_MODEL_INFO[id] })) };
+  });
+
+  // Exemplo do modelo com os dados informados, em Word ou PDF, antes de gerar a máscara.
+  app.get('/api/v1/frame-models/:model/preview', async (request, reply) => {
+    auth(request);
+    const { model } = parse(z.strictObject({ model: z.enum(FRAME_MODELS) }), request.params);
+    const query = parse(
+      z.strictObject({
+        name: z.string().trim().min(3).max(160).default('Nome do Tradutor'),
+        registration: z.string().trim().max(240).default('Matrícula nº 0000'),
+        city: z.string().trim().min(2).max(80).default('Cidade'),
+        state: z.string().trim().min(2).max(40).default('UF'),
+        contact: z.string().trim().max(200).optional(),
+        target: z.enum(LANGUAGES).default('en'),
+        format: z.enum(['docx', 'pdf']).default('pdf'),
+      }),
+      request.query,
+    );
+    const source = query.target === 'pt' ? 'en' : 'pt';
+    const mask = await renderFrameModel(model, { ...query, contact: query.contact ?? null }, source, query.target);
+    const sample = await fillMask(
+      new Uint8Array(mask),
+      {
+        sourceLanguage: source,
+        targetLanguage: query.target,
+        documentType: 'BIRTH CERTIFICATE',
+        sourceTitle: 'CERTIDÃO DE NASCIMENTO',
+        blocks: [
+          { kind: 'heading', text: 'BIRTH CERTIFICATE', align: 'center', level: 'title', sourceText: null, origin: 'rules' },
+          { kind: 'paragraph', text: '[Conteúdo traduzido do documento, no layout do original]', align: 'left', bold: false, size: 'normal', sourceText: null, origin: 'rules' },
+        ],
+      },
+      { numero: '1201', livro: '7', folha: '1', data: new Date(), tradutor: query.name },
+      query.name,
+      { draft: true },
+    );
+    const name = `Modelo ${FRAME_MODEL_INFO[model].label}.docx`;
+    if (query.format === 'pdf') {
+      return reply
+        .header('content-type', 'application/pdf')
+        .header('content-disposition', contentDisposition(pdfName(name), 'inline'))
+        .send(await docxToPdf(config.CONVERTER_URL, sample, name));
+    }
+    return reply
+      .header('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      .header('content-disposition', contentDisposition(name))
+      .send(sample);
+  });
+
+  app.post('/api/v1/sworn-translators/:id/masks/model', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        model: z.enum(FRAME_MODELS),
+        city: z.string().trim().min(2).max(80),
+        state: z.string().trim().min(2).max(40),
+        contact: optionalText(200).optional(),
+        title: optionalText(120).optional(),
+      }),
+      request.body,
+    );
+    return reply.code(201).send(await services.translators.maskFromModel(ctx, id, { ...body, contact: body.contact ?? null, title: body.title ?? null }));
   });
 
   // Máscara (Word) e PDF de referência chegam como binário; o nome do arquivo vem no cabeçalho X-File-Name.
