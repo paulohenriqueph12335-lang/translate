@@ -428,6 +428,8 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       {data.draft && (t.status === 'in_review' || t.status === 'awaiting_approval' || (t.status === 'approved' && t.permissions.download)) && (
         <WordPanel t={t} revision={data.draft.revision} busy={busy || dirty} onAccept={() => void acceptWord()} />
       )}
+      {/* Auxílio da IA (ADR-021) junto da prévia: a sugestão de diagramação pendente aparece aberta. */}
+      {data.draft && !editing && <AiAssist translationId={id} status={t.status} onApplied={reload} />}
       <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
 
       <details className="card manual-tools" open={editing}>
@@ -610,8 +612,6 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           </ul>
         </details>
       )}
-
-      {data.draft && !editing && <AiAssist translationId={id} status={t.status} onApplied={reload} />}
 
       {editing && (
         <p className="muted small-text">

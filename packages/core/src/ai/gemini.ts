@@ -22,31 +22,46 @@ export interface AiProvider {
 }
 
 const TIMEOUT_MS = 45_000;
+/** Modelo padrão: estável e com cota no plano gratuito (o 3.8 ainda responde 503/429 com frequência). */
+export const DEFAULT_AI_MODEL = 'gemini-3.5-flash';
+/** Modelo leve, usado uma vez quando o escolhido está sobrecarregado (503), sem cota (429) ou foi retirado (404). */
+export const FALLBACK_AI_MODEL = 'gemini-3.5-flash-lite';
 
-export function createGemini(apiKey: string, model = 'gemini-2.5-flash'): AiProvider {
+export function createGemini(apiKey: string, model = DEFAULT_AI_MODEL): AiProvider {
+  async function call(name: string, system: string, input: string, schema: Record<string, unknown>) {
+    try {
+      return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(name)}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: 'user', parts: [{ text: input }] }],
+          generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: schema },
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new AiUnavailable(`Gemini inacessível (${(error as Error).name})`, true);
+    }
+  }
+
   return {
     name: 'gemini',
     model,
     async generate({ system, input, schema }) {
-      let response: Response;
-      try {
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: system }] },
-            contents: [{ role: 'user', parts: [{ text: input }] }],
-            generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: schema },
-          }),
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-        });
-      } catch (error) {
-        throw new AiUnavailable(`Gemini inacessível (${(error as Error).name})`, true);
+      let response = await call(model, system, input, schema);
+      // Modelo sobrecarregado, sem cota ou retirado: uma tentativa no modelo leve (cota própria), para não interromper.
+      if ([404, 429, 503].includes(response.status) && model !== FALLBACK_AI_MODEL) {
+        response = await call(FALLBACK_AI_MODEL, system, input, schema);
       }
       if (!response.ok) {
         const retryable = response.status === 429 || response.status >= 500;
         throw new AiUnavailable(
-          response.status === 429 ? 'Cota do Gemini esgotada no momento' : `Gemini respondeu ${response.status}`,
+          response.status === 429
+            ? 'Cota do Gemini esgotada no momento'
+            : response.status === 503
+              ? 'Gemini sobrecarregado no momento'
+              : `Gemini respondeu ${response.status}`,
           retryable,
         );
       }

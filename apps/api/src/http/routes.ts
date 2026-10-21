@@ -1213,7 +1213,7 @@ export function registerRoutes(
         model: z
           .string()
           .trim()
-          .regex(/^gemini-[a-z0-9.-]{1,60}$/, 'Use um modelo Gemini (ex.: gemini-2.5-flash)')
+          .regex(/^gemini-[a-z0-9.-]{1,60}$/, 'Use um modelo Gemini (ex.: gemini-3.5-flash)')
           .optional(),
         // null volta ao prompt de governança padrão.
         governancePrompt: z.string().trim().min(20).max(8000).nullable().optional(),

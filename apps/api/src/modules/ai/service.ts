@@ -5,6 +5,7 @@ import {
   applyLayoutCombination,
   askProcessHelp,
   checkGlossaryWithAi,
+  DEFAULT_AI_MODEL,
   DEFAULT_GOVERNANCE_PROMPT,
   loadAiConfig,
   logAiRequest,
@@ -24,6 +25,18 @@ import type { AuthenticatedContext, ServiceDeps } from '../context.js';
  * prompt, habilidades e o acesso de cada pessoa; o Diretor liga e desliga. Sem chave, desligada ou fora do ar, o
  * sistema segue normalmente: a IA é auxílio, nunca etapa obrigatória.
  */
+
+/** Situação com o nome que a tela usa (o guia do processo fala nesses termos; `approved` é "concluída"). */
+const STATUS_LABEL: Record<string, string> = {
+  queued: 'na fila',
+  processing: 'processando',
+  in_review: 'em revisão (prévia pronta)',
+  awaiting_approval: 'aguardando conclusão',
+  approved: 'concluída (Word final disponível)',
+  failed: 'falhou',
+  cancelled: 'cancelada',
+};
+const MODE_LABEL: Record<string, string> = { sworn: 'juramentada', certified: 'certificada', technical: 'técnica', simple: 'simples' };
 
 interface JobRow {
   id: string;
@@ -92,13 +105,13 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
     if (input.enabled !== undefined && !isDirector(ctx.actor)) throw forbidden('Somente o Diretor liga e desliga a IA');
     await pool.query(
       `INSERT INTO ai_settings (singleton, enabled, model, governance_prompt, updated_by)
-       VALUES (true, coalesce($1, false), coalesce($2, 'gemini-2.5-flash'), $3, $4)
+       VALUES (true, coalesce($1, false), coalesce($2, $6), $3, $4)
        ON CONFLICT (singleton) DO UPDATE SET
          enabled = coalesce($1, ai_settings.enabled),
          model = coalesce($2, ai_settings.model),
          governance_prompt = CASE WHEN $5 THEN $3 ELSE ai_settings.governance_prompt END,
          updated_by = $4, updated_at = now()`,
-      [input.enabled ?? null, input.model ?? null, input.governancePrompt ?? null, ctx.actor.id, input.governancePrompt !== undefined],
+      [input.enabled ?? null, input.model ?? null, input.governancePrompt ?? null, ctx.actor.id, input.governancePrompt !== undefined, DEFAULT_AI_MODEL],
     );
     await recordAudit(pool, {
       actorUserId: ctx.actor.id,
@@ -441,8 +454,8 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
     const context = job
       ? {
           documento: job.document_name,
-          situacao: job.status,
-          modalidade: job.translation_mode,
+          situacao: STATUS_LABEL[job.status] ?? job.status,
+          modalidade: MODE_LABEL[job.translation_mode] ?? job.translation_mode,
           idiomas: `${job.source_language} → ${job.target_language}`,
           problemas_em_aberto: (job.issues ?? []).filter((issue) => issue.severity === 'error').map((issue) => issue.code),
         }

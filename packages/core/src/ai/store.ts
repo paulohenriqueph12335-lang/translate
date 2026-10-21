@@ -1,7 +1,7 @@
 import type { Queryable } from '../db/pool.js';
 import { notify } from '../db/notifications.js';
 import { Draft } from '../translation/draft.js';
-import type { AiProvider } from './gemini.js';
+import { DEFAULT_AI_MODEL, type AiProvider } from './gemini.js';
 import { DEFAULT_GOVERNANCE_PROMPT, proposeLayoutWithAi, type AiOutcome, type AiSkill, type AiTask } from './governance.js';
 
 /** Fábrica do provedor pelo modelo escolhido em Gerenciamento AI; `null` sem chave configurada. */
@@ -22,7 +22,7 @@ export async function loadAiConfig(db: Queryable): Promise<AiConfig> {
   const skills = (await db.query<AiSkill>('SELECT name, content FROM ai_skills WHERE active ORDER BY name')).rows;
   return {
     enabled: settings?.enabled ?? false,
-    model: settings?.model ?? 'gemini-2.5-flash',
+    model: settings?.model ?? DEFAULT_AI_MODEL,
     governance: settings?.governance_prompt ?? DEFAULT_GOVERNANCE_PROMPT,
     skills,
   };

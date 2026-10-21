@@ -58,6 +58,18 @@ A área "Gerenciamento AI" mostra estado, modelo, prompt, habilidades, acesso po
 barradas, negadas e indisponíveis). Na tela da tradução, o painel "Auxílio da IA" fica recolhido e, sem IA, vira uma
 linha de aviso.
 
+### Modelo e reserva
+
+O padrão é `gemini-3.5-flash` (migração 0021): o `gemini-2.5-flash` foi retirado pelo Google para chaves novas (404), e
+o `gemini-3.8-flash` respondia 503/429 com frequência no plano gratuito no teste real (2026-10-21). Quando o modelo
+escolhido responde 404, 429 ou 503, o sistema tenta uma vez o `gemini-3.5-flash-lite` (cota própria, menos de 1 s)
+antes de dar a IA como indisponível. O modelo pode ser trocado em Gerenciamento AI.
+
+As respostas sobre o processo se baseiam num guia escrito pelo sistema (`PROCESS_GUIDE`), enviado com a pergunta, e a
+situação vai com o nome da tela ("concluída", não `approved`). Dúvida sobre o uso do sistema está no escopo mesmo sem
+resposta no guia (a IA orienta procurar o Supervisor); qualquer outro assunto, senha, dado de outra pessoa, acesso ao
+servidor, código ou comando é barrado.
+
 ### Sem IA, tudo segue
 
 Sem `GEMINI_API_KEY`, desligada, sem cota (429) ou fora do ar (tempo limite de 45 s), a resposta é "indisponível" e

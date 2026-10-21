@@ -97,7 +97,7 @@ function ModelPicker({ current, onSave }: { current: string; onSave: (model: str
     <label className="inline">
       <span className="muted small-text">Modelo</span>
       <select value={model} onChange={(e) => setModel(e.target.value)}>
-        {[...new Set([current, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'])].map((option) => (
+        {[...new Set([current, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'])].map((option) => (
           <option key={option} value={option}>
             {option}
           </option>
@@ -482,13 +482,17 @@ function CombinationReview({
       <ul className="list compact small-text">
         {combination.styles.map((style) => (
           <li key={style.role}>
-            <strong>{style.label}</strong>: {ALIGN_LABEL[style.align]}
-            {style.bold ? ', negrito' : ''}
-            {style.size !== 'normal' ? `, tamanho ${SIZE_LABEL[style.size]}` : ''}
+            <span>
+              <strong>{style.label}</strong>: {ALIGN_LABEL[style.align]}
+              {style.bold ? ', negrito' : ''}
+              {style.size !== 'normal' ? `, tamanho ${SIZE_LABEL[style.size]}` : ''}
+            </span>
           </li>
         ))}
         <li>
-          <strong>campos</strong>: {combination.fieldsAsTable ? `em tabela${combination.labelWidth ? ` (rótulo ${combination.labelWidth}%)` : ''}` : 'em linhas'}
+          <span>
+            <strong>campos</strong>: {combination.fieldsAsTable ? `em tabela${combination.labelWidth ? ` (rótulo ${combination.labelWidth}%)` : ''}` : 'em linhas'}
+          </span>
         </li>
       </ul>
       <p className="muted small-text">O texto não muda: só a diagramação. Confira a prévia antes de aprovar.</p>

@@ -72,9 +72,9 @@ before(async () => {
   c.director = await login('diretor@exemplo.test');
   ids.teamA = (await c.director.post('/api/v1/teams', { name: 'Equipe A' })).body.team.id;
   ids.teamB = (await c.director.post('/api/v1/teams', { name: 'Equipe B' })).body.team.id;
-  ids.leader = await member('lider@exemplo.test', ids.teamA, 'leader');
-  ids.op = await member('op@exemplo.test', ids.teamA, 'operator');
-  ids.other = await member('outro@exemplo.test', ids.teamB, 'operator');
+  ids.leader = await member('lider@exemplo.test', ids.teamA!, 'leader');
+  ids.op = await member('op@exemplo.test', ids.teamA!, 'operator');
+  ids.other = await member('outro@exemplo.test', ids.teamB!, 'operator');
   c.leader = await login('lider@exemplo.test');
   c.op = await login('op@exemplo.test');
 
