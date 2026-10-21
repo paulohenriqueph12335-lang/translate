@@ -34,6 +34,8 @@ As modalidades (ADR-015) têm testes unitários em `packages/core/src/translatio
 
 A revisão automática (ADR-016) tem testes unitários em `packages/core/src/translation/review.test.ts` (detecção dos cinco idiomas, retradução do trecho no idioma errado, números e datas devolvidos ao formato, glossário, marcadores, terceiro idioma transcrito) e `machine/proper-names.test.ts` (pessoas, cidades, endereços, "S.A.", maiúsculas e ordinais), e de integração em `apps/api/src/auto-review.integration.test.ts` (no processamento, pelo botão e antes de "Pronta").
 
+O fluxo automático e os padrões de documento (ADR-017) têm teste de integração em `apps/api/src/automatic-flow.integration.test.ts`: envio com máscara e tradutor, checklist automático, prévia com o número previsto em Word e PDF (conversor falso), aprovação do Usuário seguida da conclusão pela liderança, numeração automática com as páginas do original, juramentada sem máscara, histórico de padrões e teste sem gravar (imagem e arquivo desconhecido como "ainda não consegue").
+
 ### Simulação e carga no sistema local
 
 Com o Compose no ar e as contas de teste em `docs/exemplos-simulados/.credenciais-simulacao.json` (fora do Git):

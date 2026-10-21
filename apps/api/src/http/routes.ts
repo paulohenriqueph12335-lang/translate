@@ -11,6 +11,7 @@ import type { NumberingService } from '../modules/numbering/service.js';
 import { NumberingConfig, SCHEMES } from '../modules/numbering/rules.js';
 import type { TranslatorNumberingService } from '../modules/numbering/translator-numbering.js';
 import type { ProfileService } from '../modules/translations/profiles.js';
+import type { PatternService } from '../modules/patterns/service.js';
 import type { DashboardService } from '../modules/dashboards/service.js';
 import { MAX_MASK_BYTES, type TranslatorService } from '../modules/translators/service.js';
 import type { TranslationService } from '../modules/translations/service.js';
@@ -22,6 +23,7 @@ import type { TeamService } from '../modules/teams/service.js';
 import type { UserAdminService } from '../modules/users/service.js';
 import { AppError } from './errors.js';
 import { contentDisposition } from './content-disposition.js';
+import { docxToPdf, pdfName } from './pdf.js';
 import type { RateLimiter } from './rate-limit.js';
 
 export const SESSION_COOKIE = 'sid';
@@ -37,6 +39,7 @@ export interface Services {
   numbering: NumberingService;
   translatorNumbering: TranslatorNumberingService;
   profiles: ProfileService;
+  patterns: PatternService;
   dashboards: DashboardService;
   translators: TranslatorService;
 }
@@ -307,6 +310,9 @@ export function registerRoutes(
         tags: tags.optional(),
         // Juramentada, certificada, técnica ou simples (ADR-015); sem informar, juramentada.
         mode: z.enum(MODES).optional(),
+        // Juramentada com ou sem máscara, e o tradutor da máscara (ADR-017).
+        useMask: z.boolean().optional(),
+        translatorId: uuid.optional(),
         files: z
           .array(
             z.strictObject({
@@ -332,6 +338,8 @@ export function registerRoutes(
         translation: body.translation,
         ...(body.tags ? { tags: body.tags } : {}),
         ...(body.mode ? { mode: body.mode } : {}),
+        ...(body.useMask !== undefined ? { useMask: body.useMask } : {}),
+        ...(body.translatorId ? { translatorId: body.translatorId } : {}),
         ...(body.teamId ? { teamId: body.teamId } : {}),
         ...(body.name ? { name: body.name } : {}),
       },
@@ -594,6 +602,13 @@ export function registerRoutes(
     return services.translations.submit(ctx, id);
   });
 
+  // Aprovar o Word (ADR-017): leva a tradução à próxima fase (pronta para conclusão, ou concluída por quem conclui).
+  app.post('/api/v1/translations/:id/accept', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.translations.accept(ctx, id);
+  });
+
   // Revisão automática (ADR-016): corrige o rascunho atual e devolve o que mudou.
   app.post('/api/v1/translations/:id/auto-review', async (request) => {
     const ctx = auth(request);
@@ -732,10 +747,24 @@ export function registerRoutes(
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
     const query = parse(
-      z.strictObject({ revision: z.coerce.number().int().min(1).optional(), translatorId: uuid.optional() }),
+      z.strictObject({
+        revision: z.coerce.number().int().min(1).optional(),
+        translatorId: uuid.optional(),
+        // PDF do mesmo Word, para ver na tela ou baixar (ADR-017).
+        format: z.enum(['docx', 'pdf']).optional(),
+        download: flag.optional(),
+      }),
       request.query,
     );
     const file = await services.translations.preview(ctx, id, query.revision, query.translatorId);
+    if (query.format === 'pdf') {
+      const pdf = await docxToPdf(config.CONVERTER_URL, file.docx, file.name);
+      return reply
+        .header('content-type', 'application/pdf')
+        .header('content-disposition', contentDisposition(pdfName(file.name), query.download ? 'attachment' : 'inline'))
+        .header('x-content-type-options', 'nosniff')
+        .send(pdf);
+    }
     return reply
       .header('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
       .header('content-disposition', contentDisposition(file.name))
@@ -746,7 +775,18 @@ export function registerRoutes(
   app.get('/api/v1/translations/:id/final', async (request, reply) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
+    const query = parse(z.strictObject({ format: z.enum(['docx', 'pdf']).optional(), download: flag.optional() }), request.query);
     const file = await services.translations.openFinal(ctx, id);
+    if (query.format === 'pdf') {
+      const chunks: Buffer[] = [];
+      for await (const chunk of file.stream as Readable) chunks.push(chunk as Buffer);
+      const pdf = await docxToPdf(config.CONVERTER_URL, Buffer.concat(chunks), file.name);
+      return reply
+        .header('content-type', 'application/pdf')
+        .header('content-disposition', contentDisposition(pdfName(file.name), query.download ? 'attachment' : 'inline'))
+        .header('x-content-type-options', 'nosniff')
+        .send(pdf);
+    }
     return reply
       .header('content-type', file.contentType)
       .header('content-disposition', contentDisposition(file.name))
@@ -957,6 +997,29 @@ export function registerRoutes(
     const ctx = auth(request);
     const { id, maskId } = parse(maskParams, request.params);
     return { translator: await services.translators.useMask(ctx, id, maskId) };
+  });
+
+  // ---------- Padrões de documento (ADR-017) ----------
+  app.get('/api/v1/document-patterns', async (request) => services.patterns.list(auth(request)));
+
+  // Teste de um documento novo: o arquivo chega como binário e não é guardado.
+  void app.register(async (scope) => {
+    scope.addContentTypeParser(
+      ['application/octet-stream', 'application/pdf'],
+      { parseAs: 'buffer', bodyLimit: config.UPLOAD_MAX_FILE_MB * 1024 * 1024 },
+      (_request, payload, done) => done(null, payload),
+    );
+    scope.post('/api/v1/document-patterns/test', async (request) => {
+      const ctx = auth(request);
+      const query = parse(
+        z.strictObject({ sourceLanguage: z.enum(LANGUAGES), targetLanguage: z.enum(LANGUAGES), mode: z.enum(MODES).default('sworn') }),
+        request.query,
+      );
+      if (!Buffer.isBuffer(request.body) || !request.body.length) throw new AppError(400, 'VALIDATION_FAILED', 'Envie o arquivo do documento');
+      const raw = request.headers['x-file-name'];
+      const name = typeof raw === 'string' ? decodeURIComponent(raw).trim().slice(0, 255) : 'documento';
+      return services.patterns.test(ctx, { data: request.body, name }, query);
+    });
   });
 
   // Máscara (Word) e PDF de referência chegam como binário; o nome do arquivo vem no cabeçalho X-File-Name.

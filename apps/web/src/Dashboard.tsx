@@ -9,6 +9,7 @@ import { Numbering } from './Numbering';
 import { OrganizationPanel, TeamPanel } from './Panels';
 import { History, Workspace } from './Workspace';
 import { TranslationRulesEditor } from './Modes';
+import { Patterns } from './Patterns';
 import { Glossary, TranslationSettingsView } from './TranslationAdmin';
 import { Translations } from './Translations';
 import { Teams } from './Teams';
@@ -28,6 +29,7 @@ type View =
   | 'notifications'
   | 'glossary'
   | 'rules'
+  | 'patterns'
   | 'teams'
   | 'approvals'
   | 'users'
@@ -77,6 +79,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
     { key: 'audit', label: 'Auditoria', visible: isDirector || supervises },
     { key: 'glossary', label: 'Glossário', visible: true },
     { key: 'rules', label: 'Regras de tradução', visible: true },
+    { key: 'patterns', label: 'Padrões de documento', visible: true },
     { key: 'teams', label: 'Equipes', visible: true },
     { key: 'approvals', label: 'Cadastros pendentes', visible: isDirector, count: pendingCount, group: 'Administração' },
     { key: 'users', label: 'Usuários', visible: isDirector },
@@ -146,6 +149,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           />
         )}
         {view === 'glossary' && <Glossary me={me} />}
+        {view === 'patterns' && <Patterns />}
         {view === 'rules' && (
           <Section title="Regras de tradução" subtitle="Etapas e regras de cada modalidade, por idioma de destino.">
             <TranslationRulesEditor />

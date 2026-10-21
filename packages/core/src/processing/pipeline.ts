@@ -4,22 +4,12 @@ import { recordAudit } from '../db/audit.js';
 import { notify } from '../db/notifications.js';
 import { withTransaction, type Queryable } from '../db/pool.js';
 import type { ObjectStorage } from '../storage/object-storage.js';
-import { checkDraft, type GlossaryTerm } from '../translation/checks.js';
+import type { GlossaryTerm } from '../translation/checks.js';
 import type { Draft, Language } from '../translation/draft.js';
-import { extractOfficeText } from '../translation/extract-office.js';
-import { extractPdfText } from '../translation/extract-pdf.js';
-import { analyzeDocxLayout } from '../translation/layout/docx-layout.js';
-import { analyzePdfLayout } from '../translation/layout/pdf-layout.js';
-import { buildMachineDraft, type MemoryLookup } from '../translation/machine/machine-draft.js';
-import { loadRules, type Mode } from '../translation/profiles.js';
-import { autoReview } from '../translation/review.js';
-import {
-  MachineTranslationFailed,
-  type MachineProviderName,
-  type MachineProviderSetting,
-  type MachineTranslator,
-} from '../translation/machine/providers.js';
-import { buildManualDraft } from './manual-draft.js';
+import type { MemoryLookup } from '../translation/machine/machine-draft.js';
+import { checklistOf, loadRules, type Mode } from '../translation/profiles.js';
+import type { MachineProviderName, MachineProviderSetting, MachineTranslator } from '../translation/machine/providers.js';
+import { draftFromFile, extractFile } from './analyze.js';
 
 /** Dependências do processamento. */
 export interface ProcessingDeps {
@@ -177,13 +167,8 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
   if (!SUPPORTED_FORMATS.has(doc.format)) throw new PermanentFailure('unsupported_format');
   const format = doc.format;
 
-  const data = await readAll(await deps.storage.get(doc.object_key));
-  const extraction =
-    format === 'pdf'
-      ? await extractPdfText(new Uint8Array(data))
-      : format === 'docx' || format === 'pptx'
-        ? { ...(await extractOfficeText(new Uint8Array(data), format)), rotatedText: [] as string[] }
-        : null;
+  const data = new Uint8Array(await readAll(await deps.storage.get(doc.object_key)));
+  const extraction = await extractFile(data, format);
   const extractedText = extraction?.hasTextLayer ? extraction.text : null;
   // Memória de tradução (ADR-008): trechos aprovados antes, usados com ou sem provedor.
   const memory: MemoryLookup = async (segments) => {
@@ -194,13 +179,6 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
     );
     return new Map(rows.rows.map((row) => [row.source_text, row.target_text]));
   };
-  // Estrutura do original (ADR-009): tabelas, títulos, assinaturas e notas; a tradução preenche essa estrutura.
-  const layout =
-    format === 'pdf' && extractedText
-      ? await analyzePdfLayout(new Uint8Array(data)).catch(() => null)
-      : format === 'docx'
-        ? await analyzeDocxLayout(new Uint8Array(data)).catch(() => null)
-        : null;
 
   // Regras da modalidade e do idioma de destino (ADR-015): datas, números e marcadores de elementos visuais.
   const rules = await loadRules(pool, job.translation_mode ?? 'sworn', job.target_language);
@@ -236,98 +214,54 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
   const known =
     example?.by_title ? { documentType: example.content.documentType, sourceTitle: example.content.sourceTitle } : null;
 
-  let draft: Draft | null = null;
-  let origin: 'machine' | 'manual' = 'manual';
-  let notice: string | null = null;
-  // Provedor também usado pela revisão automática; na tradução manual o sistema não traduz nada.
-  let reviewTranslator: MachineTranslator | null = null;
-
-  // Tradução automática gratuita, trecho a trecho, dentro da estrutura do original (ADR-008, ADR-009).
-  if (job.requested_mode !== 'manual' && extractedText) {
-    const setting =
-      (await pool.query<{ provider: MachineProviderSetting }>('SELECT provider FROM machine_translation_settings')).rows[0]?.provider ??
-      'libretranslate';
-    const translator = setting === 'none' ? null : (deps.machine?.[setting] ?? null);
-    reviewTranslator = translator;
-    if (!translator) {
-      notice =
-        setting === 'none'
-          ? 'Tradução automática desligada nas Configurações: o rascunho traz o texto original para ser traduzido.'
-          : `O tradutor automático ("${setting}") está fora do ar: o rascunho traz o texto original para ser traduzido.`;
-    } else {
-      try {
-        const result = await buildMachineDraft({
-          sourceLanguage: job.source_language,
-          targetLanguage: job.target_language,
-          extractedText,
-          layout,
-          glossary,
-          translator,
-          memory,
-          known,
-          rules,
-        });
-        draft = result.draft;
-        origin = 'machine';
-        notice =
-          `Traduzido automaticamente (${translator.name === 'deepl' ? 'DeepL' : 'LibreTranslate'}): ` +
-          `${result.stats.translated} trecho(s) traduzido(s) e ${result.stats.fromMemory} reaproveitado(s) de traduções concluídas.`;
-        await recordAudit(pool, {
-          actorUserId: null,
-          action: 'translation.machine_translated',
-          targetType: 'translation',
-          targetId: job.id,
-          ...(doc.team_id ? { teamId: doc.team_id } : {}),
-          metadata: { provider: translator.name, external: translator.external, ...result.stats },
-        });
-      } catch (error) {
-        if (!(error instanceof MachineTranslationFailed)) throw error;
-        if (error.retryable && job.attempts < job.max_attempts) {
-          await requeue(deps, job, `machine_${translator.name}`);
-          return;
-        }
-        notice = `A tradução automática falhou (${error.message}): o rascunho traz o texto original para ser traduzido.`;
-        reviewTranslator = null;
-      }
-    }
+  // Tradução automática gratuita (ADR-008); na tradução manual o sistema não traduz nada.
+  const setting =
+    (await pool.query<{ provider: MachineProviderSetting }>('SELECT provider FROM machine_translation_settings')).rows[0]?.provider ??
+    'libretranslate';
+  const manual = job.requested_mode === 'manual';
+  const translator = manual || setting === 'none' ? null : (deps.machine?.[setting] ?? null);
+  const result = await draftFromFile({
+    data,
+    format,
+    extraction,
+    sourceLanguage: job.source_language,
+    targetLanguage: job.target_language,
+    rules,
+    glossary,
+    memory,
+    known,
+    translator,
+    ...(translator
+      ? {}
+      : {
+          noTranslatorNotice: manual
+            ? 'Tradução manual solicitada: o rascunho traz o texto original para ser traduzido.'
+            : setting === 'none'
+              ? 'Tradução automática desligada nas Configurações: o rascunho traz o texto original para ser traduzido.'
+              : `O tradutor automático ("${setting}") está fora do ar: o rascunho traz o texto original para ser traduzido.`,
+        }),
+  });
+  if (result.machineFailure?.retryable && job.attempts < job.max_attempts && translator) {
+    await requeue(deps, job, `machine_${translator.name}`);
+    return;
   }
-
-  // Rascunho sem tradução automática: sempre explica por quê, para não parecer erro.
-  if (!draft && !notice) {
-    notice =
-      job.requested_mode === 'manual'
-        ? 'Tradução manual solicitada: o rascunho traz o texto original para ser traduzido.'
-        : format === 'jpeg' || format === 'png'
-          ? 'Imagem: o sistema ainda não lê texto de imagens; transcreva e traduza a partir do original.'
-          : 'O arquivo não tem texto que o sistema consiga ler; transcreva e traduza a partir do original.';
+  if (result.stats && translator) {
+    await recordAudit(pool, {
+      actorUserId: null,
+      action: 'translation.machine_translated',
+      targetType: 'translation',
+      targetId: job.id,
+      ...(doc.team_id ? { teamId: doc.team_id } : {}),
+      metadata: { provider: translator.name, external: translator.external, ...result.stats },
+    });
   }
-  // Sem tradução automática, o rascunho mantém a estrutura do original (ADR-009) com o texto preparado e a memória.
-  draft ??= layout?.blocks.length
-    ? (
-        await buildMachineDraft({
-          sourceLanguage: job.source_language,
-          targetLanguage: job.target_language,
-          extractedText,
-          layout,
-          glossary,
-          translator: null,
-          memory,
-          known,
-          rules,
-        })
-      ).draft
-    : buildManualDraft({
-        sourceLanguage: job.source_language,
-        targetLanguage: job.target_language,
-        extractedText,
-        glossary,
-      });
-  // Revisão automática (ADR-016): corrige idioma, números, datas, glossário e marcadores antes da revisão humana.
-  const review = await autoReview({ draft, sourceText: extractedText, glossary, rules, translator: reviewTranslator });
-  draft = review.draft;
-  const corrections = review.corrections;
-  if (corrections.length) notice = `${notice ?? ''} Revisão automática: ${corrections.length} correção(ões) feita(s).`.trim();
-  const issues = checkDraft(draft, extractedText, glossary, rules);
+  const { draft, origin, notice, corrections, issues } = result;
+  // Tradução e revisão são automáticas: o checklist das etapas fica confirmado pela revisão automática e a prévia sai
+  // direto para quem aprova o Word.
+  const at = new Date().toISOString();
+  const checks = Object.fromEntries(
+    checklistOf(job.translation_mode ?? 'sworn', rules).map((item) => [item.key, { by: 'system', name: 'Revisão automática', at }]),
+  );
   const extractedForReview = extraction
     ? [
         extraction.text,
@@ -353,9 +287,20 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
     await db.query(
       `UPDATE translation_jobs SET status = 'in_review', current_revision = $2, extracted_text = $3, source_title = nullif($4, ''),
               assist_notice = $5, pattern_known = $6, document_type = nullif($7, ''), failure_code = NULL,
+              page_count = $8, stage_checks = $9::jsonb,
               processed_at = coalesce(processed_at, now()), lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
         WHERE id = $1`,
-      [job.id, revision, extractedForReview, draft!.sourceTitle, notice, patternKnown, draft!.documentType.slice(0, 200)],
+      [
+        job.id,
+        revision,
+        extractedForReview,
+        draft.sourceTitle,
+        notice,
+        patternKnown,
+        draft.documentType.slice(0, 200),
+        extraction?.pages ?? null,
+        JSON.stringify(checks),
+      ],
     );
     await recordAudit(db, {
       actorUserId: null,

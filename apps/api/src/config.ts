@@ -37,6 +37,11 @@ const schema = z.object({
     .string()
     .optional()
     .transform((value) => value || undefined),
+  // Conversor Word → PDF (Gotenberg/LibreOffice) para baixar a prévia e a tradução em PDF (ADR-017).
+  CONVERTER_URL: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
 });
 
 export type Config = z.infer<typeof schema>;

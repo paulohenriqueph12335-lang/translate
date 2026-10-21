@@ -63,6 +63,9 @@ interface BatchRow {
   source_language: Language | null;
   target_language: Language | null;
   translation_mode: Mode;
+  use_mask: boolean;
+  preferred_translator_id: string | null;
+  preferred_translator_name: string | null;
   owner_id: string;
   owner_name: string;
   name: string | null;
@@ -110,6 +113,9 @@ const toBatch = (row: BatchRow) => {
       row.source_language && row.target_language ? { sourceLanguage: row.source_language, targetLanguage: row.target_language } : null,
     /** Modalidade de tradução do lote (ADR-015). */
     mode: row.translation_mode,
+    /** Juramentada com a máscara do tradutor escolhido no envio, ou sem máscara (ADR-017). */
+    useMask: row.use_mask,
+    translator: row.preferred_translator_id ? { id: row.preferred_translator_id, name: row.preferred_translator_name ?? '' } : null,
     owner: { id: row.owner_id, displayName: row.owner_name },
     declaredBytes: Number(row.declared_bytes),
     createdAt: row.created_at.toISOString(),
@@ -119,7 +125,8 @@ const toBatch = (row: BatchRow) => {
 };
 
 const BATCH_SELECT = `
-  SELECT b.id, b.team_id, t.name::text AS team_name, b.assigned_at, b.owner_id, b.source_language, b.target_language, b.translation_mode, u.display_name AS owner_name, b.name, b.declared_bytes, b.created_at,
+  SELECT b.id, b.team_id, t.name::text AS team_name, b.assigned_at, b.owner_id, b.source_language, b.target_language, b.translation_mode, b.use_mask, b.preferred_translator_id,
+         (SELECT name FROM sworn_translators WHERE id = b.preferred_translator_id) AS preferred_translator_name, u.display_name AS owner_name, b.name, b.declared_bytes, b.created_at,
          to_char(b.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
          count(d.id) AS total,
          count(d.id) FILTER (WHERE d.status = 'stored') AS stored,
@@ -160,6 +167,10 @@ export interface CreateBatchInput {
   translation: { sourceLanguage: Language; targetLanguage: Language };
   /** Juramentada, certificada, técnica ou simples (ADR-015). */
   mode?: Mode;
+  /** Juramentada: com a máscara do tradutor (padrão) ou sem máscara (ADR-017). */
+  useMask?: boolean;
+  /** Tradutor juramentado escolhido no envio: a prévia já sai na máscara dele e a numeração segue a regra dele. */
+  translatorId?: string;
   /** Etiquetas aplicadas a todos os documentos do lote, para classificar antes de processar. */
   tags?: string[];
 }
@@ -174,11 +185,12 @@ const TRANSLATABLE_FORMATS = ['pdf', 'jpeg', 'png', 'docx', 'pptx'];
  */
 async function enqueueTranslations(db: Pick<PoolClient, 'query'>, filter: { documentId?: string; batchId?: string }, requestedBy: string) {
   const queued = await db.query<{ id: string; team_id: string | null }>(
-    `INSERT INTO translation_jobs (document_id, source_language, target_language, requested_mode, requested_by, assignee_id, translation_mode)
+    `INSERT INTO translation_jobs (document_id, source_language, target_language, requested_mode, requested_by, assignee_id, translation_mode,
+                                   use_mask, preferred_translator_id)
      SELECT d.id, b.source_language, b.target_language, 'auto', $3,
             -- Quem enviou é o responsável; o lote do Diretor fica sem responsável até alguém da equipe assumir.
             CASE WHEN u.org_role = 'director' THEN NULL ELSE b.owner_id END,
-            b.translation_mode
+            b.translation_mode, b.use_mask, b.preferred_translator_id
        FROM documents d JOIN batches b ON b.id = d.batch_id JOIN users u ON u.id = b.owner_id
       WHERE d.status = 'stored' AND d.detected_format = ANY($4::text[])
         AND b.target_language IS NOT NULL
@@ -325,9 +337,15 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
           const team = await db.query('SELECT 1 FROM teams WHERE id = $1 FOR SHARE', [teamId]);
           if (!team.rowCount) throw notFound('Equipe não encontrada');
         }
+        if (input.translatorId) {
+          const translator = await db.query('SELECT 1 FROM sworn_translators WHERE id = $1 AND active', [input.translatorId]);
+          if (!translator.rowCount) throw notFound('Tradutor juramentado não encontrado ou inativo');
+        }
         const created = await db.query<{ id: string }>(
-          `INSERT INTO batches (team_id, owner_id, name, idempotency_key, declared_bytes, assigned_at, assigned_by, source_language, target_language, translation_mode)
-           VALUES ($1, $2, $3, $4, $5, CASE WHEN $1::uuid IS NULL THEN NULL ELSE now() END, CASE WHEN $1::uuid IS NULL THEN NULL ELSE $2::uuid END, $6, $7, $8)
+          `INSERT INTO batches (team_id, owner_id, name, idempotency_key, declared_bytes, assigned_at, assigned_by, source_language, target_language, translation_mode,
+                                use_mask, preferred_translator_id)
+           VALUES ($1, $2, $3, $4, $5, CASE WHEN $1::uuid IS NULL THEN NULL ELSE now() END, CASE WHEN $1::uuid IS NULL THEN NULL ELSE $2::uuid END, $6, $7, $8,
+                   $9, $10)
            RETURNING id`,
           [
             teamId,
@@ -338,6 +356,8 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
             input.translation.sourceLanguage,
             input.translation.targetLanguage,
             input.mode ?? 'sworn',
+            input.useMask ?? true,
+            (input.mode ?? 'sworn') === 'sworn' && input.useMask !== false ? (input.translatorId ?? null) : null,
           ],
         );
         const id = created.rows[0]!.id;

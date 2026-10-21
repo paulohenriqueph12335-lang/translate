@@ -803,11 +803,17 @@ export function NumberingPanel({
   editable,
   canAuthorize,
   onSaved,
+  defaultTranslatorId = null,
+  defaultPages = null,
 }: {
   translationId: string;
   editable: boolean;
   canAuthorize: boolean;
   onSaved?: () => void;
+  /** Tradutor escolhido no envio (ADR-017): a numeração já abre com a regra dele. */
+  defaultTranslatorId?: string | null;
+  /** Páginas do original, para a regra por folhas. */
+  defaultPages?: number | null;
 }) {
   const translators = useLoad(() => api<{ items: SwornTranslator[] }>('GET', '/sworn-translators?active=true'), []);
   const ready = (translators.data?.items ?? []).filter((item) => item.ready);
@@ -827,19 +833,35 @@ export function NumberingPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = (chosen?: string) =>
+  const load = (chosen?: string): Promise<void> =>
     api<{ entry: Entry | null; rule: Rule | null; check: Check | null }>(
       'GET',
       `/translations/${translationId}/numbering${chosen ? `?translatorId=${chosen}` : ''}`,
     )
       .then((result) => {
+        if (!result.rule && !chosen && defaultTranslatorId) {
+          void load(defaultTranslatorId);
+          return;
+        }
+        // Aberta com o tradutor do envio e sem nada gravado: grava as páginas do original para a conferência valer já.
+        if (!result.entry && chosen && chosen === defaultTranslatorId && defaultPages && editable) {
+          void api<{ entry: Entry; rule: Rule; check: Check }>('PUT', `/translations/${translationId}/numbering`, {
+            translatorId: chosen,
+            pages: defaultPages,
+          })
+            .then((saved) => {
+              setState(saved);
+              setForm((current) => ({ ...current, pages: String(defaultPages) }));
+            })
+            .catch(() => undefined);
+        }
         setState(result);
         const entry = result.entry && (!chosen || result.entry.translatorId === chosen) ? result.entry : null;
         if (result.rule) setTranslatorId(result.rule.translatorId);
         setForm({
           number: entry?.number ?? '',
           book: entry?.book ?? '',
-          pages: entry?.pages ? String(entry.pages) : '',
+          pages: entry?.pages ? String(entry.pages) : defaultPages ? String(defaultPages) : '',
           protocol: entry?.protocol ?? '',
           medium: entry?.medium ?? '',
           language: entry?.language ?? '',

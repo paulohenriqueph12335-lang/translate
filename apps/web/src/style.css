@@ -1729,3 +1729,101 @@ h4 {
   color: var(--green);
   text-decoration: none;
 }
+
+/* Fluxo automático até o Word e padrões de documento (ADR-017) */
+.new-translation {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.flow-track {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.flow-track li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+}
+.flow-track li.done {
+  border-color: var(--green);
+  background: #f3f8f4;
+  color: inherit;
+}
+.flow-track li.current {
+  border-color: #2a4f8a;
+  box-shadow: inset 0 0 0 1px #2a4f8a;
+  background: #f2f6fd;
+  color: inherit;
+}
+.flow-track li.failed {
+  border-color: var(--danger);
+  background: #fdf3f2;
+  color: inherit;
+}
+.word-panel {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+.word-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.word-head h3 {
+  margin: 0;
+}
+.word-frame {
+  width: 100%;
+  height: min(80vh, 900px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f4f4f4;
+}
+.manual-tools {
+  margin-top: 12px;
+}
+.manual-tools > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.pattern-test {
+  display: grid;
+  gap: 10px;
+}
+.pattern-result {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 10px;
+}
+.pattern-result.can {
+  border-left-color: var(--green);
+}
+.pattern-result.review {
+  border-left-color: #d9a441;
+}
+.pattern-result.cannot {
+  border-left-color: var(--danger);
+}
+.reasons {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.badge.verdict:not(.warn):not(.danger) {
+  background: #e9f2ec;
+  color: #2f5e3e;
+}

@@ -49,6 +49,12 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  # Conversão Word → PDF com o LibreOffice (ADR-017); só a API acessa, sem porta publicada.
+  converter:
+    image: gotenberg/gotenberg:8.12.0
+    command: ["gotenberg", "--api-timeout=90s"]
+    restart: unless-stopped
+
   migrate:
     build:
       context: .
@@ -83,6 +89,8 @@ services:
       # Revisão automática (ADR-016): retraduz trechos no idioma errado com o mesmo provedor do worker.
       LIBRETRANSLATE_URL: http://translator:5000
       DEEPL_API_KEY: ${DEEPL_API_KEY:-}
+      # Word → PDF para ver e baixar a prévia e a tradução em PDF (ADR-017).
+      CONVERTER_URL: http://converter:3000
     ports:
       - "127.0.0.1:${API_PORT:-3000}:3000"
     depends_on:

@@ -94,9 +94,13 @@ O primeiro Diretor é criado pela linha de comando ([ADR-004](decisions/004-dire
 | `GET /api/v1/translation-profiles` | autenticado | Modalidades, etapas e regras efetivas por idioma de destino ([ADR-015](decisions/015-translation-modes.md)) |
 | `PUT /api/v1/translation-profiles/:mode/:target` | Supervisor, Diretor | `{ rules \| null }`; `null` volta ao padrão das skills |
 | `PUT /api/v1/translations/:id/checks` | quem edita ou conclui | `{ keys, checked }`: checklist de correção, diagramação e revisão; "Pronta" exige todos (`checklist_incomplete`) |
+| `POST /api/v1/translations/:id/accept` | responsável, Supervisor, Diretor | Aprovar o Word ([ADR-017](decisions/017-automatic-flow-patterns.md)): confirma o checklist, marca como pronta e, para quem conclui, conclui (com o tradutor e as páginas do envio) |
+| `GET /api/v1/translations/:id/preview?format=pdf` e `/final?format=pdf` | quem vê a tradução | O mesmo Word em PDF (LibreOffice); `download=true` baixa, sem ele abre na tela |
+| `GET /api/v1/document-patterns` | autenticado | Tipos de documento já processados, com veredito (`can`, `review`, `cannot`) e motivos |
+| `POST /api/v1/document-patterns/test?sourceLanguage=&targetLanguage=&mode=` | autenticado | Corpo: o arquivo (binário). Analisa e traduz só para o teste, sem gravar; devolve veredito, motivos, estrutura e o Word da prévia (base64) |
 | `POST /api/v1/translations/:id/auto-review` | quem edita | Revisão automática ([ADR-016](decisions/016-automatic-review.md)): corrige a revisão atual e devolve `{ revision, corrections, unresolved, issues }`; com correções, grava revisão de origem `review`. "Pronta" roda a mesma revisão antes de seguir |
 
-`POST /api/v1/batches` aceita `mode` (`sworn`, `certified`, `technical`, `simple`; padrão `sworn`) e qualquer par entre `pt` e `en`, `fr`, `it`, `es`. `GET /api/v1/translations` filtra por `translationMode`.
+`POST /api/v1/batches` aceita `mode` (`sworn`, `certified`, `technical`, `simple`; padrão `sworn`), `useMask` e `translatorId` (juramentada com a máscara desse tradutor, ADR-017) e qualquer par entre `pt` e `en`, `fr`, `it`, `es`. `GET /api/v1/translations` filtra por `translationMode`.
 
 Erros de documento trazem `error.details` com `reason` (por exemplo `extension_mismatch`, `duplicate`) e, quando cabe, `retryable: true`.
 

@@ -43,6 +43,10 @@ Entre em <http://localhost:5173>. Novos cadastros ficam pendentes até um Direto
 - Porta ocupada: ajuste a porta de host no `.env`; não altere a porta interna sem atualizar os endereços de rede Compose.
 - `corepack enable` dá `EPERM` em `C:\Program Files\nodejs`: use `corepack pnpm ...` diretamente no diretório do projeto.
 
+## Conversão para PDF
+
+O serviço `converter` (Gotenberg com LibreOffice) converte o Word da prévia e da tradução final em PDF para ver na tela e baixar (ADR-017). Só a API acessa (`CONVERTER_URL`), sem porta publicada. Fora do ar, o PDF responde indisponível e o Word continua liberado.
+
 ## Capacidade
 
 Medida no teste de carga de 20/10/2026 ([resultados](exemplos-simulados/README.md#teste-de-carga-20102026-máquina-de-desenvolvimento-docker-desktop)): uma instância da API responde ~75 requisições/s com p95 de 44 ms antes de ocupar um núcleo inteiro; um worker traduz ~370 documentos simples por hora (~10 s cada), com o LibreTranslate usando ~1,5 núcleo. Para crescer: mais instâncias da API atrás de um balanceador, mais workers (a fila usa `SKIP LOCKED`) e mais núcleos para o tradutor (`TRANSLATOR_THREADS`).

@@ -2,7 +2,7 @@
  * Cabeçalho `Content-Disposition: attachment` seguro: fallback ASCII sem aspas, barras ou controles,
  * e nome completo em UTF-8 pela forma `filename*` (RFC 6266/5987).
  */
-export function contentDisposition(name: string) {
+export function contentDisposition(name: string, kind: 'attachment' | 'inline' = 'attachment') {
   const ascii =
     name
       .normalize('NFD')
@@ -10,5 +10,5 @@ export function contentDisposition(name: string) {
       .replace(/[^\x20-\x7e]|["\\/;]/g, '_')
       .trim() || 'documento';
   const encoded = encodeURIComponent(name).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }

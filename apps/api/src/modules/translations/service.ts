@@ -45,7 +45,7 @@ import {
 import { AppError, conflict, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
 import { exhausted, notifyQuotaMilestones, quotaLabel, quotaLevels } from '../numbering/quota.js';
-import type { TranslatorNumberingService } from '../numbering/translator-numbering.js';
+import { sheetText, type TranslatorNumberingService } from '../numbering/translator-numbering.js';
 import { decodeCursor, encodeCursor, likePattern } from '../pagination.js';
 
 export type TranslationStatus = 'queued' | 'processing' | 'in_review' | 'awaiting_approval' | 'approved' | 'failed' | 'cancelled';
@@ -58,6 +58,13 @@ interface JobRow {
   id: string;
   /** Modalidade (ADR-015): juramentada, certificada, técnica ou simples. */
   translation_mode: Mode;
+  /** Juramentada com a máscara do tradutor (padrão) ou sem máscara (ADR-017). */
+  use_mask: boolean;
+  /** Tradutor escolhido no envio: a prévia sai na máscara dele e a conclusão usa a regra de numeração dele. */
+  preferred_translator_id: string | null;
+  preferred_translator_name: string | null;
+  /** Páginas do original (PDF), para a numeração por folhas. */
+  page_count: number | null;
   /** Itens de checklist confirmados: chave → quem e quando. */
   stage_checks: Record<string, { by: string; name: string; at: string }>;
   document_id: string;
@@ -125,6 +132,7 @@ const JOB_SELECT = `
          (SELECT display_name FROM users WHERE id = j.approved_by) AS approved_by_name,
          (SELECT display_name FROM users WHERE id = j.assignee_id) AS assignee_name,
          (SELECT name FROM sworn_translators WHERE id = j.translator_id) AS translator_name,
+         (SELECT name FROM sworn_translators WHERE id = j.preferred_translator_id) AS preferred_translator_name,
          (SELECT edition FROM sworn_translator_masks WHERE id = j.mask_id) AS mask_edition,
          (SELECT nr.id FROM numbering_requests nr WHERE nr.job_id = j.id AND nr.status = 'pending') AS pending_request_id,
          to_char(j.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
@@ -140,18 +148,24 @@ const numberText = (row: Pick<JobRow, 'number_label' | 'book_label' | 'sheet_lab
     .filter(Boolean)
     .join(' – ');
 
+/** Juramentada na máscara do tradutor, com número: as demais saem sem moldura nem numeração (ADR-015, ADR-017). */
+const withMask = (row: Pick<JobRow, 'translation_mode' | 'use_mask'>) => row.translation_mode === 'sworn' && row.use_mask;
+
 function summary(row: JobRow, actor: Actor) {
   const batch = { teamId: row.team_id, ownerId: row.owner_id };
   const canApprove = canApproveTranslation(actor, batch);
   const canEdit = canEditTranslation(actor, batch, row.assignee_id);
   const open = !['approved', 'cancelled', 'failed'].includes(row.status);
-  const sworn = row.translation_mode === 'sworn';
+  const sworn = withMask(row);
   const issued = row.status === 'approved' && (!sworn || row.number_label !== null);
   return {
     id: row.id,
     translationMode: row.translation_mode,
     modeLabel: modeLabel[row.translation_mode],
     stages: MODE_STAGES[row.translation_mode],
+    useMask: sworn,
+    preferredTranslator: row.preferred_translator_id ? { id: row.preferred_translator_id, name: row.preferred_translator_name ?? '' } : null,
+    pageCount: row.page_count,
     document: { id: row.document_id, name: row.document_name, tags: row.tags },
     batch: { id: row.batch_id, name: row.batch_name },
     team: row.team_id ? { id: row.team_id, name: row.team_name ?? '' } : null,
@@ -188,6 +202,8 @@ function summary(row: JobRow, actor: Actor) {
       claim: open && canClaimTranslation(actor, batch, row.assignee_id),
       reassign: open && canReassignTranslation(actor, batch),
       approve: (row.status === 'in_review' || row.status === 'awaiting_approval') && canApprove,
+      /** Aprovar o Word (ADR-017): leva à próxima fase — pronta para conclusão, ou concluída por quem pode concluir. */
+      accept: (row.status === 'in_review' && (canEdit || canApprove)) || (row.status === 'awaiting_approval' && canApprove),
       returnForChanges: row.status === 'awaiting_approval' && canApprove,
       cancel: !['approved', 'cancelled', 'failed'].includes(row.status) && canApprove,
       reprocess: ['in_review', 'awaiting_approval', 'failed'].includes(row.status) && canApprove,
@@ -611,6 +627,42 @@ export function createTranslationService({
     });
   }
 
+  /**
+   * Aprovar o Word (ADR-017): tradução e revisão já foram automáticas; quem aprova leva o documento à próxima fase.
+   * O responsável (ou o Supervisor) confirma o que faltar do checklist e marca como pronta; quem pode concluir conclui
+   * na hora, com o tradutor e a numeração escolhidos. Um Usuário aprova e a liderança conclui.
+   */
+  async function accept(ctx: AuthenticatedContext, jobId: string) {
+    const row = await loadJob(pool, ctx, jobId);
+    const batch = { teamId: row.team_id, ownerId: row.owner_id };
+    const canApprove = canApproveTranslation(ctx.actor, batch);
+    const canEdit = canEditTranslation(ctx.actor, batch, row.assignee_id);
+    if (row.status === 'in_review') {
+      if (!canEdit && !canApprove) throw forbidden('Somente o responsável ou a liderança da equipe aprova esta tradução');
+      const rules = await loadRules(pool, row.translation_mode, row.target_language);
+      const pending = checklistFor(row, rules)
+        .filter((item) => !item.checked)
+        .map((item) => item.key);
+      if (pending.length && canEdit) await setChecks(ctx, jobId, { keys: pending, checked: true });
+      // Com máscara e tradutor escolhido no envio, a numeração sai da regra dele com as páginas do original, se
+      // ninguém preencheu; regras que pedem número digitado continuam pedindo.
+      if (withMask(row) && row.preferred_translator_id) {
+        const current = await numbering.getEntry(ctx, jobId);
+        if (!current.entry) {
+          await numbering.saveEntry(ctx, jobId, {
+            translatorId: row.preferred_translator_id,
+            ...(row.page_count ? { pages: row.page_count } : {}),
+          });
+        }
+      }
+      if (canEdit) await submit(ctx, jobId);
+    } else if (row.status !== 'awaiting_approval') {
+      throw conflict(`Ação não permitida no estado "${row.status}"`);
+    }
+    if (!canApprove) return get(ctx, jobId);
+    return approve(ctx, jobId, {});
+  }
+
   /** O trabalho de cada usuário é dele: edita e marca como pronta só o responsável ou o Supervisor da equipe. */
   function requireEditor(ctx: AuthenticatedContext, row: JobRow) {
     if (!canEditTranslation(ctx.actor, { teamId: row.team_id, ownerId: row.owner_id }, row.assignee_id)) {
@@ -897,9 +949,9 @@ export function createTranslationService({
         }
         // O número sai da cota do responsável; sem responsável, de quem marcou como pronta ou de quem conclui.
         const assigneeId = row.assignee_id ?? row.submitted_by ?? ctx.actor.id;
-        if (row.translation_mode !== 'sworn') {
-          // Certificada, técnica ou simples (ADR-015): o documento no layout do original, com a fonte da regra e, na
-          // certificada, a declaração do tradutor; sem número de Tradução Pública.
+        if (!withMask(row)) {
+          // Certificada, técnica, simples ou juramentada sem máscara (ADR-015, ADR-017): o documento no layout do
+          // original, com a fonte da regra e, na certificada, a declaração do tradutor; sem número de Tradução Pública.
           const issuedAt = now();
           const docx = await renderPlainDocx(content, {
             look: rules,
@@ -952,7 +1004,9 @@ export function createTranslationService({
           ctx,
           { ...row, assignee_id: assigneeId },
           {
-            ...(input.translatorId ? { translatorId: input.translatorId } : {}),
+            ...(input.translatorId || row.preferred_translator_id
+              ? { translatorId: (input.translatorId ?? row.preferred_translator_id)! }
+              : {}),
             ...(input.number ? { number: input.number } : {}),
             ...(input.book ? { book: input.book } : {}),
           },
@@ -1065,7 +1119,7 @@ export function createTranslationService({
     const draft = await currentDraft(pool, jobId, revisionNumber ?? row.current_revision);
     if (!draft) throw notFound('Rascunho não encontrado');
     const rules = await loadRules(pool, row.translation_mode, row.target_language);
-    if (row.translation_mode !== 'sworn') {
+    if (!withMask(row)) {
       const docx = await renderPlainDocx(Draft.parse(draft.content), {
         look: rules,
         draft: true,
@@ -1075,10 +1129,24 @@ export function createTranslationService({
       });
       return { docx, name: `RASCUNHO - ${outputFileName(row.document_name, rules)}` };
     }
-    const mask = translatorId
-      ? await masks(translatorId)
+    // Tradutor: o pedido na prévia, o da numeração preenchida ou o escolhido no envio (ADR-017).
+    const entry = await numbering.getEntry(ctx, jobId, translatorId ?? row.preferred_translator_id ?? undefined).catch(() => null);
+    const chosen = translatorId ?? entry?.rule?.translatorId ?? row.preferred_translator_id ?? null;
+    const mask = chosen
+      ? await masks(chosen)
       : { name: '[tradutor a escolher]', data: new Uint8Array(await renderMaskTemplate(row.target_language)) };
-    const docx = await fillMask(mask.data, Draft.parse(draft.content), null, mask.name);
+    // Número, livro e folha previstos pela regra do tradutor; o número só é emitido na conclusão.
+    const computed = entry?.check?.computed;
+    const values = computed?.number
+      ? {
+          numero: computed.number,
+          livro: computed.book ?? '',
+          folha: sheetText(computed.sheetStart ?? null, computed.sheetEnd ?? null) ?? '',
+          data: now(),
+          tradutor: mask.name,
+        }
+      : null;
+    const docx = await fillMask(mask.data, Draft.parse(draft.content), values, mask.name);
     return { docx, name: `RASCUNHO - ${outputFileName(row.document_name, rules)}` };
   }
 
@@ -1284,6 +1352,7 @@ export function createTranslationService({
     saveDraft,
     submit,
     autoReviewDraft,
+    accept,
     returnForChanges,
     cancel,
     reprocess,

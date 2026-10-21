@@ -9,6 +9,7 @@ import { createNotificationService } from './modules/notifications/service.js';
 import { createNumberingService } from './modules/numbering/service.js';
 import { createTranslatorNumberingService } from './modules/numbering/translator-numbering.js';
 import { createProfileService } from './modules/translations/profiles.js';
+import { createPatternService } from './modules/patterns/service.js';
 import { createTranslatorService } from './modules/translators/service.js';
 import { createDashboardService } from './modules/dashboards/service.js';
 import { createDocumentService } from './modules/documents/service.js';
@@ -89,6 +90,7 @@ export async function buildApp({
     translations: createTranslationService({ ...deps, storage, masks: translators.maskFor, numbering: translatorNumbering, machine }),
     translatorNumbering,
     profiles: createProfileService(deps),
+    patterns: createPatternService({ ...deps, machine }),
     translators,
     notifications: createNotificationService(deps),
     numbering: createNumberingService({ ...deps, storage, masks: translators.maskFor }),

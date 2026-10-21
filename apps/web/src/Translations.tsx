@@ -22,6 +22,7 @@ import {
   type TranslationMode,
 } from './api';
 import { DocumentPreview } from './DocumentPreview';
+import { FlowTracker, NewTranslation, WordPanel } from './Flow';
 import { ModeBadge, StagesPanel } from './Modes';
 import { NumberingPanel } from './TranslatorNumbering';
 import {
@@ -79,7 +80,10 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
   const [pair, setPair] = useState('');
   const [mode, setMode] = useState<TranslationMode | ''>('');
   const [period, setPeriod] = useState({ from: '', to: '' });
+  const [creating, setCreating] = useState(false);
   const teams = useLoad(() => api<{ items: Team[] }>('GET', '/teams'), []);
+  const myTeams = (teams.data?.items ?? []).filter((team) => team.myRole !== null);
+  const canCreate = isDirector || myTeams.length > 0;
   const facets = useLoad(() => api<TranslationFacets>('GET', '/translation-facets'), []);
 
   const path = `/translations${queryString({
@@ -111,12 +115,34 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
   };
 
   return (
-    <Section title="Traduções" subtitle="Confira a prévia, marque como pronta e a liderança conclui ou pede para refazer.">
+    <Section title="Traduções" subtitle="Coloque o documento: tradução e revisão são automáticas; você confere o Word e aprova.">
+      {canCreate && !creating && (
+        <div className="toolbar">
+          <button className="primary" onClick={() => setCreating(true)}>
+            Nova tradução
+          </button>
+        </div>
+      )}
+      {creating && (
+        <NewTranslation
+          teams={myTeams}
+          isDirector={isDirector}
+          onCancel={() => setCreating(false)}
+          onStarted={(ids) => {
+            setCreating(false);
+            if (ids.length === 1) onOpen(ids[0]!);
+            else {
+              setTab('processing');
+              list.reload();
+            }
+          }}
+        />
+      )}
       <Segmented
         label="Situação"
         value={tab}
         options={[
-          ['review', 'Para revisar'],
+          ['review', 'Prévia pronta'],
           ['approval', 'Aguardando conclusão'],
           ['processing', 'Processando'],
           ['approved', 'Concluídas'],
@@ -336,6 +362,21 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
     }
   }
 
+  async function acceptWord() {
+    const done = await run('Aprovado: a tradução seguiu para a próxima fase.', () =>
+      api<TranslationDetail>('POST', `/translations/${id}/accept`),
+    );
+    if (done) {
+      setFeedback({
+        ok:
+          done.translation.status === 'approved'
+            ? 'Concluída: o Word final e o PDF estão liberados.'
+            : 'Aprovado: a liderança da equipe foi avisada para concluir.',
+      });
+      reload();
+    }
+  }
+
   async function ready() {
     if (!(await save())) return;
     const done = await run('Marcada como pronta: a liderança foi avisada para concluir.', () => api('POST', `/translations/${id}/submit`));
@@ -368,6 +409,28 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
         </div>
       </div>
 
+      <FlowTracker t={t} />
+      {(t.status === 'queued' || t.status === 'processing') && (
+        <p className="alert info">Traduzindo e revisando o documento… esta tela se atualiza sozinha e a prévia em Word aparece aqui.</p>
+      )}
+      {t.useMask && (t.status === 'in_review' || t.status === 'awaiting_approval') && (
+        <NumberingPanel
+          key={`${id}-${t.status}-numbering`}
+          translationId={id}
+          editable={t.permissions.edit || t.permissions.approve}
+          canAuthorize={t.permissions.approve}
+          defaultTranslatorId={t.preferredTranslator?.id ?? null}
+          defaultPages={t.pageCount}
+          onSaved={reload}
+        />
+      )}
+      {data.draft && (t.status === 'in_review' || t.status === 'awaiting_approval' || (t.status === 'approved' && t.permissions.download)) && (
+        <WordPanel t={t} revision={data.draft.revision} busy={busy || dirty} onAccept={() => void acceptWord()} />
+      )}
+      <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
+
+      <details className="card manual-tools" open={editing}>
+        <summary>Ajustes manuais (opcional): texto, checklist, revisão e conclusão com outro tradutor</summary>
       <div className="action-bar">
         {t.permissions.claim && (
           <button
@@ -407,9 +470,9 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             Revisão automática
           </button>
         )}
-        {t.permissions.submit && (
+        {t.permissions.submit && dirty && (
           <button className="primary" onClick={() => void ready()} disabled={busy}>
-            {dirty ? 'Salvar e marcar como pronta' : 'Pronta — enviar para conclusão'}
+            Salvar e marcar como pronta
           </button>
         )}
         {t.permissions.approve && (
@@ -451,14 +514,13 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
         </a>
       </div>
 
-      <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
       <CorrectionsPanel corrections={data.draft?.corrections ?? []} unresolved={review?.unresolved ?? []} />
       {panel === 'conclude' && (
         <ConcludePanel
           id={id}
           errors={errors.length}
           canManageTranslators={me.memberships.some((m) => m.role === 'leader')}
-          sworn={t.translationMode === 'sworn'}
+          sworn={t.useMask}
           dirty={dirty}
           onGoTranslators={onGoTranslators}
           onDone={() => {
@@ -499,13 +561,8 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           onChange={reload}
         />
       )}
-      {t.translationMode === 'sworn' && (t.status === 'in_review' || t.status === 'awaiting_approval' || t.status === 'approved') && (
-        <NumberingPanel
-          key={`${id}-${t.status}`}
-          translationId={id}
-          editable={t.permissions.edit || t.permissions.approve}
-          canAuthorize={t.permissions.approve}
-        />
+      {t.useMask && t.status === 'approved' && (
+        <NumberingPanel key={`${id}-${t.status}`} translationId={id} editable={false} canAuthorize={false} />
       )}
 
       {t.annulled && (
@@ -516,9 +573,6 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       )}
       {t.pendingNumberingRequest && (
         <p className="alert info">Há um pedido de alteração ou anulação deste número aguardando decisão (veja em Numeração).</p>
-      )}
-      {(t.status === 'queued' || t.status === 'processing') && (
-        <p className="alert info">Processando o documento… esta tela se atualiza sozinha.</p>
       )}
       {t.status === 'failed' && (
         <p className="alert error">Falha no processamento: {failureLabel[t.failureCode ?? ''] ?? t.failureCode ?? 'erro desconhecido'}.</p>
@@ -571,6 +625,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       ) : (
         t.status !== 'queued' && t.status !== 'processing' && <p className="empty">Ainda não há rascunho para este documento.</p>
       )}
+      </details>
     </section>
   );
 }

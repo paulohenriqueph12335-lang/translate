@@ -156,6 +156,8 @@ export interface Batch {
   /** Par de idiomas do processamento automático; `null` só em lotes antigos. */
   translation: { sourceLanguage: Language; targetLanguage: Language } | null;
   mode?: TranslationMode;
+  useMask?: boolean;
+  translator?: { id: string; name: string } | null;
   owner: { id: string; displayName: string };
   declaredBytes: number;
   createdAt: string;
@@ -296,6 +298,10 @@ export interface TranslationSummary {
   translationMode: TranslationMode;
   modeLabel: string;
   stages: Stage[];
+  /** Juramentada na máscara do tradutor (com número); `false` nas demais e na juramentada sem máscara (ADR-017). */
+  useMask: boolean;
+  preferredTranslator: { id: string; name: string } | null;
+  pageCount: number | null;
   document: { id: string; name: string; tags: string[] };
   batch: { id: string; name: string | null };
   team: { id: string; name: string } | null;
@@ -336,6 +342,8 @@ export interface TranslationSummary {
     claim: boolean;
     reassign: boolean;
     requestNumbering: boolean;
+    /** Aprovar o Word: leva à próxima fase (ADR-017). */
+    accept: boolean;
   };
 }
 
@@ -767,3 +775,45 @@ export const failureLabel: Record<string, string> = {
   attempts_exhausted: 'Tentativas esgotadas',
   processing_error: 'Erro no processamento',
 };
+
+// ---------- Padrões de documento (ADR-017) ----------
+
+export type PatternVerdict = 'can' | 'review' | 'cannot';
+
+export interface DocumentPattern {
+  title: string;
+  documentType: string | null;
+  verdict: PatternVerdict;
+  verdictLabel: string;
+  reasons: string[];
+  total: number;
+  approved: number;
+  failed: number;
+  active: number;
+  averageErrors: number;
+  averageCorrections: number;
+  lastAt: string;
+  formats: string[];
+  pairs: string[];
+  modes: TranslationMode[];
+}
+
+export interface PatternTest {
+  verdict: PatternVerdict;
+  verdictLabel: string;
+  reasons: string[];
+  format: string | null;
+  pages: number | null;
+  words: number;
+  structure: { tables: number; headings: number; paragraphs: number; signatures: number; markers: number } | null;
+  known: { title: string; approved: number } | null;
+  documentType: string;
+  sourceTitle: string;
+  notice: string | null;
+  corrections: Correction[];
+  unresolved: string[];
+  issues: DraftIssue[];
+  draft: DraftContent | null;
+  durationMs: number;
+  previewDocx: string | null;
+}

@@ -119,21 +119,22 @@ describe('modalidades de tradução', () => {
     );
   });
 
-  it('certificada: checklist de diagramação e revisão antes de "Pronta", conclusão sem numeração', async () => {
+  it('certificada: checklist de diagramação e revisão confirmado pela revisão automática, conclusão sem numeração', async () => {
     const job = await upload('historico.pdf', 'certificada', 'certified', 'fr');
     assert.equal(await processNextJob(processing()), true);
     const detail = await c.op!.get(`/api/v1/translations/${job}`);
     assert.equal(detail.body.translation.translationMode, 'certified');
-    const checklist = detail.body.checklist as Array<{ key: string; stage: string }>;
+    const checklist = detail.body.checklist as Array<{ key: string; stage: string; checked: { name: string } | null }>;
     assert.deepEqual([...new Set(checklist.map((item) => item.stage))].sort(), ['layout', 'review']);
+    // Tradução e revisão são automáticas (ADR-017): o checklist já chega confirmado.
+    assert.ok(checklist.every((item) => item.checked?.name === 'Revisão automática'));
 
+    // Quem desmarca um item volta a ser barrado em "Pronta".
+    const keys = checklist.map((item) => item.key);
+    assert.equal((await c.op!.request('PUT', `/api/v1/translations/${job}/checks`, { keys: [keys[0]], checked: false })).status, 200);
     const early = await c.op!.post(`/api/v1/translations/${job}/submit`);
     assert.equal(early.status, 409);
     assert.equal(early.body.error.details.reason, 'checklist_incomplete');
-
-    const keys = checklist.map((item) => item.key);
-    assert.equal((await c.op!.request('PUT', `/api/v1/translations/${job}/checks`, { keys: keys.slice(1), checked: true })).status, 200);
-    assert.equal((await c.op!.post(`/api/v1/translations/${job}/submit`)).status, 409);
     assert.equal((await c.op!.request('PUT', `/api/v1/translations/${job}/checks`, { keys: [keys[0]], checked: true })).status, 200);
     assert.equal((await c.op!.post(`/api/v1/translations/${job}/submit`)).body.translation.status, 'awaiting_approval');
 
