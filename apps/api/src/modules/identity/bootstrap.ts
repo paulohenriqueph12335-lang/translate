@@ -7,8 +7,14 @@ const BOOTSTRAP_LOCK = 724_002;
 
 export class BootstrapRefused extends Error {}
 
-/** Cria o primeiro Diretor (ADR-004). Recusa se já houver Diretor ou se o e-mail existir. */
-export async function bootstrapDirector(pool: Pool, input: { email: string; displayName: string; password: string }) {
+/**
+ * Cria o primeiro Diretor (ADR-004), pela linha de comando ou pela configuração inicial na interface. Recusa se já
+ * houver Diretor ou se o e-mail existir.
+ */
+export async function bootstrapDirector(
+  pool: Pool,
+  input: { email: string; displayName: string; password: string; testAccount?: boolean; via?: 'cli' | 'web' },
+) {
   if (input.password.length < PASSWORD_MIN || input.password.length > PASSWORD_MAX) {
     throw new BootstrapRefused(`A senha deve ter entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres`);
   }
@@ -20,9 +26,9 @@ export async function bootstrapDirector(pool: Pool, input: { email: string; disp
     const existing = await db.query('SELECT 1 FROM users WHERE email = $1', [input.email]);
     if (existing.rowCount) throw new BootstrapRefused('E-mail já cadastrado');
     const created = await db.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash, status, org_role, reviewed_at)
-       VALUES ($1, $2, $3, 'active', 'director', now()) RETURNING id`,
-      [input.email, input.displayName, passwordHash],
+      `INSERT INTO users (email, display_name, password_hash, status, org_role, reviewed_at, test_account)
+       VALUES ($1, $2, $3, 'active', 'director', now(), $4) RETURNING id`,
+      [input.email, input.displayName, passwordHash, input.testAccount ?? false],
     );
     const id = created.rows[0]!.id;
     await recordAudit(db, {
@@ -30,7 +36,7 @@ export async function bootstrapDirector(pool: Pool, input: { email: string; disp
       action: 'director.bootstrapped',
       targetType: 'user',
       targetId: id,
-      metadata: { via: 'cli' },
+      metadata: { via: input.via ?? 'cli', ...(input.testAccount ? { testAccount: true } : {}) },
     });
     return id;
   });

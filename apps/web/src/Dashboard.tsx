@@ -121,6 +121,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
         </div>
       </aside>
       <main className="content">
+        {me.user.testAccount && <TestAccountBanner me={me} onDeleted={onLogout} />}
         {(view === 'translations' || view === 'documents') && !openTranslation && (
           <AutoTranslationNotice isDirector={isDirector} canManageTranslators={supervises} onGoTranslators={() => go('translators')} />
         )}
@@ -255,6 +256,7 @@ function Users({ selfId }: { selfId: string }) {
                 <strong>
                   {user.displayName} {user.orgRole === 'director' && <span className="badge">Diretor</span>}{' '}
                   {self && <span className="badge soft">Você</span>}
+                  {user.testAccount && <span className="badge warn">Conta de teste</span>}
                 </strong>
                 <span className="muted">
                   {user.email} · {statusLabel[user.status]}
@@ -262,6 +264,17 @@ function Users({ selfId }: { selfId: string }) {
               </div>
               {!self && (
                 <div className="actions">
+                  {user.testAccount && (
+                    <button
+                      className="small"
+                      onClick={() => {
+                        if (!window.confirm(`Excluir a conta de teste de ${user.displayName}? Não dá para desfazer.`)) return;
+                        void run('Conta de teste excluída.', () => api('POST', `/users/${user.id}/delete-test-account`));
+                      }}
+                    >
+                      Excluir conta de teste
+                    </button>
+                  )}
                   {user.status === 'active' && (
                     <>
                       <button
@@ -352,5 +365,34 @@ function Sessions() {
         ))}
       </ul>
     </Section>
+  );
+}
+
+/** Conta de teste (ADR-004): lembra que é teste e exclui com um clique; sem Diretor, volta a configuração inicial. */
+function TestAccountBanner({ me, onDeleted }: { me: Me; onDeleted: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const director = me.user.orgRole === 'director';
+  async function remove() {
+    const warning = director
+      ? 'Excluir esta conta de teste? Você sai do sistema e, se não houver outro Diretor, volta a tela de configuração inicial para criar a conta definitiva.'
+      : 'Excluir esta conta de teste? Você sai do sistema.';
+    if (!window.confirm(warning)) return;
+    try {
+      await api('POST', `/users/${me.user.id}/delete-test-account`);
+      onDeleted();
+    } catch (caught) {
+      setError(message(caught));
+    }
+  }
+  return (
+    <div className="alert test-account" role="status">
+      <span>
+        <strong>Conta de teste.</strong> Use à vontade; quando terminar, exclua para criar a conta definitiva.
+      </span>
+      <button className="small" onClick={() => void remove()}>
+        Excluir conta de teste
+      </button>
+      {error && <span className="error-text">{error}</span>}
+    </div>
   );
 }

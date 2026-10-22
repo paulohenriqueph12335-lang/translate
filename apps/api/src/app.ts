@@ -16,6 +16,7 @@ import { createDashboardService } from './modules/dashboards/service.js';
 import { createDocumentService } from './modules/documents/service.js';
 import { createTranslationService } from './modules/translations/service.js';
 import { createIdentityService, type PublicUser } from './modules/identity/service.js';
+import { createSetupService } from './modules/identity/setup.js';
 import { createTeamService } from './modules/teams/service.js';
 import { createUserAdminService } from './modules/users/service.js';
 import { createGemini, type AiFactory } from '@tradutor/core/ai';
@@ -47,6 +48,8 @@ export interface AppDeps {
   machine?: Partial<Record<MachineProviderName, MachineTranslator>>;
   /** Gemini do Gerenciamento AI (ADR-021); padrão é o da chave GEMINI_API_KEY. Testes injetam um falso. */
   ai?: AiFactory;
+  /** Onde o código da configuração inicial é mostrado (ADR-004); padrão é o log da API. Testes capturam por aqui. */
+  announceSetupCode?: (code: string) => void;
 }
 
 interface RateLimitOptions {
@@ -69,6 +72,7 @@ export async function buildApp({
     ...(config.DEEPL_API_KEY ? { DEEPL_API_KEY: config.DEEPL_API_KEY } : {}),
   }),
   ai = config.GEMINI_API_KEY ? (model) => createGemini(config.GEMINI_API_KEY!, model) : null,
+  announceSetupCode,
 }: AppDeps) {
   const app = Fastify({
     logger: logger ?? {
@@ -88,6 +92,10 @@ export async function buildApp({
   const translatorNumbering = createTranslatorNumberingService(deps);
   const services = {
     identity: createIdentityService(deps),
+    setup: createSetupService({
+      ...deps,
+      announce: announceSetupCode ?? ((code) => app.log.warn({ setupCode: code }, `Código de configuração inicial: ${code}`)),
+    }),
     users: createUserAdminService(deps),
     teams: createTeamService(deps),
     audit: createAuditService(deps),
@@ -161,5 +169,7 @@ export async function buildApp({
     signupLimiter: createRateLimiter(rateLimits.signup),
   });
 
+  // Sem Diretor, o código da configuração inicial já sai no log quando a API sobe.
+  await services.setup.prepare();
   return app;
 }

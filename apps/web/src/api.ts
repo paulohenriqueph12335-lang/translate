@@ -9,6 +9,8 @@ export interface User {
   status: UserStatus;
   orgRole: OrgRole;
   createdAt: string;
+  /** Conta criada como teste na configuração inicial: pode ser excluída. */
+  testAccount: boolean;
 }
 
 export interface Membership {

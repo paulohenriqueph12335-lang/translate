@@ -28,6 +28,7 @@ import {
 } from '@tradutor/core/translation';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../modules/identity/passwords.js';
 import type { IdentityService } from '../modules/identity/service.js';
+import type { SetupService } from '../modules/identity/setup.js';
 import { pageQuery } from '../modules/pagination.js';
 import type { TeamService } from '../modules/teams/service.js';
 import type { UserAdminService } from '../modules/users/service.js';
@@ -40,6 +41,7 @@ export const SESSION_COOKIE = 'sid';
 
 export interface Services {
   identity: IdentityService;
+  setup: SetupService;
   users: UserAdminService;
   teams: TeamService;
   audit: AuditService;
@@ -150,6 +152,29 @@ export function registerRoutes(
     return { user: result.user, memberships: await services.identity.listMemberships(result.user.id) };
   });
 
+  // ---------- Configuração inicial (ADR-004): primeiro Diretor pela interface, com o código do log da API ----------
+  app.get('/api/v1/setup', async () => ({ needed: await services.setup.needed() }));
+
+  app.post('/api/v1/setup', async (request, reply) => {
+    const body = parse(
+      z.strictObject({
+        code: z.string().trim().min(4).max(20),
+        email,
+        displayName: z.string().trim().min(1).max(120),
+        password: z.string().min(PASSWORD_MIN).max(PASSWORD_MAX),
+        testAccount: z.boolean().default(false),
+      }),
+      request.body,
+    );
+    limit(deps.loginLimiter, [`ip:${request.ip}`]);
+    const ctx = requestContext(request);
+    await services.setup.createDirector(body, ctx);
+    // Já entra: quem acabou de criar a conta não precisa digitar tudo de novo.
+    const result = await services.identity.login({ email: body.email, password: body.password }, ctx);
+    setSessionCookie(reply, result.token, result.expiresAt);
+    return reply.code(201).send({ user: result.user, memberships: [] });
+  });
+
   app.post('/api/v1/auth/logout', async (request, reply) => {
     if (request.auth) await services.identity.logout(auth(request));
     clearSessionCookie(reply);
@@ -192,6 +217,15 @@ export function registerRoutes(
       return { user: await services.users.changeStatus(ctx, id, action) };
     });
   }
+
+  // Conta de teste: a própria pessoa ou um Diretor exclui; sem Diretor, volta a configuração inicial.
+  app.post('/api/v1/users/:id/delete-test-account', async (request, reply) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    const result = await services.setup.deleteTestAccount(ctx, id);
+    if (id === ctx.actor.id) clearSessionCookie(reply);
+    return result;
+  });
 
   app.put('/api/v1/users/:id/org-role', async (request) => {
     const ctx = auth(request);

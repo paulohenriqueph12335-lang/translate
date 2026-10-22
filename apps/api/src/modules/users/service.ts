@@ -23,7 +23,7 @@ export function createUserAdminService({ pool }: ServiceDeps) {
     const after = decodeCursor(query.cursor, ([at, id]) => !!at && !Number.isNaN(Date.parse(at)) && !!id && UUID.test(id));
     const result = await pool.query<UserRow & { cursor_at: string }>(
       `SELECT ${USER_COLUMNS}, to_char(u.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM users u
-        WHERE ($1::text IS NULL OR u.status = $1)
+        WHERE ($1::text IS NULL OR u.status = $1) AND u.deleted_at IS NULL
           AND ($2::timestamptz IS NULL OR (u.created_at, u.id) > ($2, $3::uuid))
         ORDER BY u.created_at, u.id
         LIMIT $4`,
