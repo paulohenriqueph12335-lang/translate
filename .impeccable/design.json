@@ -1,0 +1,28 @@
+{
+  "colors": {
+    "ink": "#121212",
+    "ink-2": "#2d2c2a",
+    "paper": "#f3f1ec",
+    "sheet": "#fbfaf7",
+    "gray-50": "#f0eee9",
+    "gray-100": "#e8e5df",
+    "rule": "#dcd8d0",
+    "gray-300": "#c4bfb6",
+    "gray-500": "#8a857c",
+    "muted": "#5f5b55",
+    "on-ink": "#f3f1ec",
+    "on-ink-muted": "#a6a198",
+    "ok": "#2f6a45",
+    "warn": "#7a5712",
+    "danger": "#9b3027"
+  },
+  "typography": {
+    "sans": "Schibsted Grotesk",
+    "mono": "Geist Mono",
+    "body": "15px",
+    "title": "30px/700",
+    "auth-title": "40px/700"
+  },
+  "radius": { "default": "4px", "small": "2px" },
+  "motion": { "state": "160ms ease-out" }
+}

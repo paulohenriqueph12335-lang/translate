@@ -6,6 +6,7 @@ import { Audit } from './Audit';
 import { AutoTranslationNotice } from './AutoTranslationNotice';
 import { Documents } from './Documents';
 import { Downloads } from './Downloads';
+import { LiveNotifications, usePopupPermission } from './LiveNotifications';
 import { Notifications, useUnreadCount } from './Notifications';
 import { Numbering } from './Numbering';
 import { OrganizationPanel, TeamPanel } from './Panels';
@@ -16,7 +17,7 @@ import { Glossary, TranslationSettingsView } from './TranslationAdmin';
 import { Translations } from './Translations';
 import { Teams } from './Teams';
 import { Translators } from './Translators';
-import { dateTime, EmbeddedSection, Feedback, message, Section, useLoad } from './ui';
+import { dateTime, EmbeddedSection, Wordmark, Feedback, message, Section, useLoad } from './ui';
 
 /**
  * Navegação por papel, compacta: poucas áreas no menu e as telas parecidas como abas dentro delas.
@@ -35,6 +36,8 @@ interface Tab {
 interface Area {
   key: AreaKey;
   label: string;
+  /** Rótulo da barra de baixo no celular, quando o nome inteiro não cabe. */
+  short?: string;
   title: string;
   subtitle: string;
   count?: number;
@@ -51,6 +54,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const [openTranslation, setOpenTranslation] = useState<string | null>(null);
   const [notificationsVersion, setNotificationsVersion] = useState(0);
   const unread = useUnreadCount(notificationsVersion);
+  const popups = usePopupPermission();
   const pending = useLoad(
     () => (isDirector ? api<Page<User>>('GET', '/users?status=pending&limit=100') : Promise.resolve(null)),
     [isDirector, place.area],
@@ -182,6 +186,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
     {
       key: 'admin',
       label: 'Administração',
+      short: 'Admin.',
       title: 'Administração',
       subtitle: 'Quem entra no sistema e com que papel.',
       count: pendingCount,
@@ -235,7 +240,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   return (
     <div className="shell">
       <aside className="sidebar">
-        <span className="eyebrow">PLATAFORMA DOCUMENTAL</span>
+        <Wordmark />
         <div className="identity">
           <strong>{me.user.displayName}</strong>
           <span className="muted">{me.user.email}</span>
@@ -244,29 +249,46 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
         <nav>
           {visible.map((area) => (
             <div key={area.key} className="nav-item">
-              <button className={current.key === area.key ? 'active' : ''} onClick={() => go(area.key)}>
-                {area.label}
+              <button aria-label={area.label} className={current.key === area.key ? 'active' : ''} onClick={() => go(area.key)}>
+                <span className="label-full">{area.label}</span>
+                <span className="label-short">{area.short ?? area.label}</span>
                 {!!area.count && <span className="nav-count">{area.count}</span>}
               </button>
             </div>
           ))}
         </nav>
         <div className="sidebar-foot">
+          {popups.permission === 'default' && (
+            <button className="ghost small foot-popups" onClick={() => void popups.request()}>
+              Ativar pop-ups no Windows
+            </button>
+          )}
           {footer.map((area) => (
-            <button key={area.key} className={`ghost small ${current.key === area.key ? 'active' : ''}`} onClick={() => go(area.key)}>
+            <button
+              key={area.key}
+              className={`ghost small foot-${area.key} ${current.key === area.key ? 'active' : ''}`}
+              onClick={() => go(area.key)}
+            >
               {area.label}
               {!!area.count && <span className="nav-count">{area.count}</span>}
             </button>
           ))}
-          <button className="ghost" onClick={onLogout}>
+          <button className="ghost foot-logout" onClick={onLogout}>
             Sair
           </button>
         </div>
       </aside>
       <main className="content">
+        <LiveNotifications
+          onOpenTranslation={goToTranslation}
+          onOpenNotifications={() => go('notifications')}
+          onNew={() => setNotificationsVersion((value) => value + 1)}
+        />
         {me.user.testAccount && <TestAccountBanner me={me} onDeleted={onLogout} />}
         {single ? (
-          tab.render()
+          <div key={current.key} className="panel-enter">
+            {tab.render()}
+          </div>
         ) : (
           <section className="area">
             <header className="area-head">
@@ -288,7 +310,10 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
               ))}
             </div>
             <EmbeddedSection.Provider value={true}>
-              <div role="tabpanel">{tab.render()}</div>
+              {/* A troca de aba entra com um movimento curto; a chave remonta o painel a cada troca. */}
+              <div role="tabpanel" key={`${current.key}:${tab.key}:${openTranslation ?? ''}`} className="panel-enter">
+                {tab.render()}
+              </div>
             </EmbeddedSection.Provider>
           </section>
         )}

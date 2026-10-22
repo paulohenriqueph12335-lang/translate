@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type InputHTMLAttributes } from 'react';
 import { api, ApiError, type Me } from './api';
+import { Wordmark } from './ui';
 
 /** Campo de senha com "Mostrar" / "Ocultar", para quem quiser conferir o que digitou. */
 export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
@@ -58,7 +59,7 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
 
   return (
     <main className="auth">
-      <span className="eyebrow">PLATAFORMA DOCUMENTAL</span>
+      <Wordmark />
       <h1 className="auth-title">{mode === 'login' ? 'Entrar' : 'Solicitar acesso'}</h1>
       <p className="muted">
         {mode === 'login' ? 'Use o e-mail e a senha da sua conta aprovada.' : 'Seu cadastro ficará pendente até a aprovação de um Diretor.'}
@@ -169,7 +170,7 @@ export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
 
   return (
     <main className="auth">
-      <span className="eyebrow">PLATAFORMA DOCUMENTAL</span>
+      <Wordmark />
       <h1 className="auth-title">Configuração inicial</h1>
       <p className="muted">O sistema ainda não tem Diretor. Crie a conta que vai administrar tudo.</p>
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, notificationKindLabel, queryString, type NotificationItem } from './api';
+import { PopupSettings } from './LiveNotifications';
 import { dateTime, Feedback, message, PagedFooter, Section, Segmented, usePaged } from './ui';
 
 /** Quantidade de notificações não lidas, atualizada periodicamente e quando `version` muda. */
@@ -62,6 +63,7 @@ export function Notifications({
 
   return (
     <Section title="Notificações" subtitle="Documentos prontos, tipos novos, pedidos para refazer, conclusões e falhas.">
+      <PopupSettings />
       <div className="filters">
         <Segmented
           label="Mostrar"

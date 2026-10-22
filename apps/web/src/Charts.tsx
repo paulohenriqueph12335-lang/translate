@@ -1,11 +1,16 @@
 import { useState, type MouseEvent, type ReactNode } from 'react';
 
 /**
- * Gráficos dos painéis, em SVG/HTML simples. Paleta categórica validada (dataviz: azul, laranja, água, nessa ordem);
- * sequencial em azul. Toda série tem legenda ou rótulo direto, dica ao passar o mouse e tabela equivalente.
+ * Gráficos dos painéis, em SVG/HTML simples. Paleta categórica validada (dataviz): azul-caneta e sépia-carimbo, as
+ * tintas de um documento juramentado; o que passa de duas séries vira cinza ("Outros"). Toda série tem legenda ou
+ * rótulo direto, dica ao passar o mouse e tabela equivalente.
  */
-export const SERIES = ['#2a78d6', '#eb6834', '#1baf7a'] as const;
-const OTHER = '#9a9893';
+export const INK_BLUE = '#2f5a96';
+export const SEPIA = '#b5782b';
+export const SERIES = [INK_BLUE, SEPIA, '#8a857c'] as const;
+/** Desfechos: acerto em azul-caneta, refeita no vermelho de erro, justificada no ocre de alerta (validado para daltonismo). */
+export const OUTCOME_COLORS = [INK_BLUE, '#9b3027', '#b98a2e'] as const;
+const OTHER = '#dcd8d0';
 
 type Tip = { x: number; y: number; text: string } | null;
 
@@ -117,7 +122,15 @@ export function RankedBars({ items, unit = '' }: { items: Array<{ label: string;
 }
 
 /** Barras 100% empilhadas por linha (até 3 partes), com legenda; % no segmento só quando cabe. */
-export function StackedShare({ rows, parts }: { rows: Array<{ label: string; values: number[] }>; parts: string[] }) {
+export function StackedShare({
+  rows,
+  parts,
+  colors = SERIES,
+}: {
+  rows: Array<{ label: string; values: number[] }>;
+  parts: string[];
+  colors?: readonly string[];
+}) {
   const tip = useTip();
   if (!rows.length) return <p className="empty">Sem dados no período.</p>;
   return (
@@ -125,7 +138,7 @@ export function StackedShare({ rows, parts }: { rows: Array<{ label: string; val
       <div className="legend">
         {parts.map((part, index) => (
           <span key={part}>
-            <i style={{ background: SERIES[index] }} /> {part}
+            <i style={{ background: colors[index] }} /> {part}
           </span>
         ))}
       </div>
@@ -142,7 +155,7 @@ export function StackedShare({ rows, parts }: { rows: Array<{ label: string; val
                   <span
                     key={index}
                     className="stack-seg"
-                    style={{ width: `${(value / total) * 100}%`, background: SERIES[index] }}
+                    style={{ width: `${(value / total) * 100}%`, background: colors[index] }}
                     onMouseMove={tip.show(`${row.label} · ${parts[index]}: ${number(value)} (${percent(value, total)}%)`)}
                   >
                     {percent(value, total) >= 18 ? `${percent(value, total)}%` : ''}
