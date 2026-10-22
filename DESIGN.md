@@ -31,7 +31,15 @@ Estratégia: restrita. Sem cor de marca; cor só para estado. Tema único claro 
 | `--on-ink` / `--on-ink-muted` | `#f3f1ec` / `#a6a198` | Texto sobre o preto |
 | `--ok` · `--warn` · `--danger` (+ `-bg`, `-line`) | `#2f6a45` · `#7a5712` · `#9b3027` | Estados: concluída, alerta, erro |
 
-Gráficos: série 1 tinta `#121212`, série 2 cinza `#8a857c`, série 3 cinza claro `#c4bfb6`, "Outros" `#dcd8d0`.
+Gráficos (paleta validada para daltonismo): as tintas de um documento juramentado. Série 1 / período atual em
+azul-caneta `#2f5a96`, série 2 / período anterior (tracejado) e maior perda do funil em sépia-carimbo `#b5782b`,
+terceira série cinza `#8a857c`, "Outros" `#dcd8d0`. Desfechos: acerto azul-caneta, refeita `#9b3027`, justificada
+`#b98a2e`. Mapa de calor: rampa de um tom só, de `#e9eef6` a `#1d3d6b`. Cor de dado nunca vira cor de texto.
+
+Painéis: filtros numa linha acima dos gráficos (atalhos de período primeiro, depois "Comparar com o período anterior"
+e a equipe). Cada número mostra a variação contra o período anterior com seta e texto. Toda tendência tem cursor que
+lista todas as séries, toda figura tem "Ver tabela". Ao trocar o filtro o desenho fica esmaecido até chegar o novo,
+sem esqueleto. O cartão "Agora" atualiza a cada 15 s e pode ser pausado.
 
 A prévia do documento (`.paper`) não segue esta paleta: ela reproduz o Word como vai sair.
 

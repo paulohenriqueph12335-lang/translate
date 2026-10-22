@@ -3014,3 +3014,508 @@ a.button.primary-link::before {
     overflow-x: clip;
   }
 }
+
+/*
+ * Painéis com filtros e gráficos dinâmicos. Cor de dado (validada): azul-caneta = período atual, sépia-carimbo =
+ * período anterior ou a maior perda; o mapa de calor usa a rampa de um tom só. Ao trocar o filtro o desenho
+ * anterior fica, esmaecido, até chegar o novo (sem esqueleto piscando).
+ */
+.dash-filters {
+  gap: 10px 12px;
+}
+.period-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.period-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.period-custom input {
+  padding: 5px 8px;
+}
+.compare-toggle {
+  font-size: 13px;
+  color: var(--muted);
+}
+.dash-body {
+  transition: opacity 0.2s var(--ease-out);
+}
+.dash-body.stale {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.period-line {
+  margin: 4px 0 0;
+}
+.chart-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+/* Número com variação: o número em sans grande; a variação diz a direção com seta e texto, não só cor. */
+.kpi-tile {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 16px 18px;
+}
+.kpi-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+.kpi-value {
+  font-family: var(--sans);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.delta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.delta svg {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+}
+.delta strong {
+  font-weight: 700;
+}
+.delta.good strong,
+.delta.good svg {
+  color: var(--ok);
+}
+.delta.bad strong,
+.delta.bad svg {
+  color: var(--danger);
+}
+.delta-cell.good {
+  color: var(--ok);
+  font-weight: 600;
+}
+.delta-cell.bad {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Tendência: grade recessiva, linha de 2px, cursor vertical que lista todas as séries. */
+.trend {
+  position: relative;
+}
+.trend .legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.trend .legend svg {
+  width: 18px;
+  height: 4px;
+}
+.trend-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+.trend-svg:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+}
+.trend-svg .grid {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.trend-svg .axis {
+  fill: var(--muted);
+  font-family: var(--sans);
+  font-size: 11px;
+}
+.trend-svg .crosshair {
+  stroke: var(--ink);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.trend-svg .direct-label {
+  fill: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+}
+.trend-svg .trend-dot {
+  stroke: var(--sheet);
+  stroke-width: 2;
+}
+.trend-svg .trend-line {
+  transition: d 0.4s var(--ease-out);
+}
+.trend-tip {
+  top: 34px;
+  display: grid;
+  gap: 4px;
+  white-space: nowrap;
+}
+.tip-head {
+  color: var(--on-ink-muted);
+}
+.tip-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tip-row svg {
+  width: 14px;
+  height: 4px;
+}
+.tip-row line[stroke='#2f5a96'] {
+  stroke: #8fb0e0;
+}
+.tip-row line[stroke='#b5782b'] {
+  stroke: #e0b170;
+}
+
+/* Funil: barra por etapa, conversão entre etapas; a maior perda vira nota do tradutor em sépia. */
+.funnel {
+  display: grid;
+  gap: 2px;
+}
+.funnel-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 28%) 1fr minmax(92px, auto);
+  align-items: center;
+  gap: 14px;
+  padding: 8px 6px;
+  border-radius: var(--radius);
+  outline: none;
+}
+.funnel-row.on,
+.funnel-row:focus-visible {
+  background: var(--gray-50);
+}
+.funnel-row:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.funnel-label,
+.funnel-value {
+  display: grid;
+  gap: 1px;
+}
+.funnel-value {
+  text-align: right;
+}
+.funnel-value strong {
+  font-size: 18px;
+}
+.funnel-track {
+  display: block;
+  height: 20px;
+  background: var(--gray-50);
+  border-radius: 0 4px 4px 0;
+}
+.funnel-bar {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  transition: width 0.5s var(--ease-out);
+}
+.funnel-drop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-left: calc(min(28%, 260px) + 20px);
+  padding: 2px 0;
+  border-left: 1px dashed var(--gray-300);
+  padding-left: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.funnel-drop.leak {
+  color: #8a5a1c;
+  border-left-color: #b5782b;
+}
+.funnel-drop.leak strong {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+.funnel-note {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--rule);
+  font-size: 13px;
+}
+
+/* Mapa de calor pessoa × semana. */
+.heat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.heat-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.heat-legend i {
+  width: 18px;
+  height: 10px;
+  border-radius: 2px;
+}
+.heat-legend span:first-child {
+  margin-right: 4px;
+}
+.heat-legend span:last-child {
+  margin-left: 4px;
+}
+.heat-scroll {
+  overflow-x: auto;
+}
+.heat-grid {
+  border-collapse: separate;
+  border-spacing: 2px;
+  width: 100%;
+  font-size: 12px;
+}
+.heat-grid th {
+  background: none;
+  padding: 4px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.heat-grid tbody th {
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.heat-grid td {
+  min-width: 44px;
+  height: 30px;
+  padding: 0 4px;
+  text-align: center;
+  border: 0;
+  border-radius: 2px;
+  background: var(--gray-50);
+  color: var(--ink);
+  font-weight: 600;
+}
+.heat-grid td.dark {
+  color: #fff;
+}
+.heat-grid td:hover,
+.heat-grid td:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -1px;
+}
+
+/* Agora: a fila ao vivo, com ponto pulsando enquanto atualiza. */
+.live-now {
+  padding: 14px 18px;
+  margin: 12px 0 4px;
+}
+.live-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.live-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.live-head button {
+  margin-left: auto;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 0 rgba(47, 106, 69, 0.45);
+  animation: live-pulse 2s var(--ease-out) infinite;
+}
+.live-dot.paused {
+  background: var(--gray-500);
+  animation: none;
+}
+@keyframes live-pulse {
+  70% {
+    box-shadow: 0 0 0 7px rgba(47, 106, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(47, 106, 69, 0);
+  }
+}
+.live-body {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) minmax(0, 1.4fr) minmax(0, 1.2fr);
+  gap: 14px 24px;
+  align-items: start;
+  margin-top: 12px;
+}
+.live-total {
+  display: grid;
+  gap: 2px;
+}
+.live-total strong {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.spark {
+  width: 140px;
+  height: 34px;
+  margin-top: 6px;
+  overflow: visible;
+}
+.live-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.live-stages li {
+  display: grid;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.live-stages strong {
+  font-size: 20px;
+  color: var(--ink);
+}
+.live-stages li.alarm {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+}
+.live-stages li.alarm strong {
+  color: var(--danger);
+}
+.live-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.live-event {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--rule);
+  animation: live-in 0.4s var(--ease-out);
+}
+.live-event time {
+  color: var(--muted);
+  font-size: 12px;
+}
+@keyframes live-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* Tabelas que ordenam e barras dentro da célula. */
+.sort-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.sort-head span {
+  color: var(--gray-300);
+}
+.sort-head.on,
+.sort-head:hover {
+  color: var(--ink);
+}
+.sort-head.on span {
+  color: var(--ink);
+}
+.cell-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+.cell-bar i {
+  display: block;
+  height: 8px;
+  min-width: 2px;
+  flex: 0 0 auto;
+  border-radius: 0 2px 2px 0;
+  background: #2f5a96;
+}
+
+@media (max-width: 600px) {
+  /* O gráfico encolhe com a tela; o texto do SVG cresce na mesma proporção para continuar legível. */
+  .trend-svg .axis {
+    font-size: 22px;
+  }
+  .trend-svg .direct-label {
+    font-size: 24px;
+  }
+}
+@media (max-width: 900px) {
+  .live-body {
+    grid-template-columns: 1fr;
+  }
+  .funnel-row {
+    grid-template-columns: 1fr auto;
+  }
+  .funnel-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .funnel-drop {
+    margin-left: 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .live-event {
+    animation: none;
+  }
+  .funnel-bar,
+  .trend-svg .trend-line,
+  .dash-body {
+    transition: none;
+  }
+}
