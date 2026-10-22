@@ -17,7 +17,7 @@ No início, `migrate` espera o Postgres saudável e aplica, em ordem e uma únic
 
 ## Primeiro Diretor
 
-Com a stack em execução, abra <http://localhost:5173>: sem Diretor, aparece a **Configuração inicial**. Ela pede o código de configuração, que está no log da API (Docker Desktop → Containers → translate → api → Logs, procure "CÓDIGO DE CONFIGURAÇÃO INICIAL", ou rode `docker compose logs api`), e o nome, o e-mail e a senha do Diretor. Marque **Conta de teste** para experimentar: a conta pode ser excluída depois pelo botão no topo da tela, e a configuração inicial volta para criar a conta definitiva.
+Com a stack em execução, abra <http://localhost:5173>: sem Diretor, aparece a **Configuração inicial**. Ela pede o código de configuração, que está no log da API (Docker Desktop → Containers → translate → api → Logs, procure "CÓDIGO DE CONFIGURAÇÃO INICIAL", ou rode `docker compose logs api`), e o nome, o e-mail e a senha do Diretor. Marque **Conta de teste** para experimentar; com **Criar também Líder e Usuário de teste**, o sistema cria a "Equipe de Teste" com `lider.teste@exemplo.com` e `usuario.teste@exemplo.com`, com a mesma senha. O botão **Excluir contas de teste**, no topo da tela do Diretor de teste, apaga todas de uma vez, e a configuração inicial volta para criar a conta definitiva.
 
 Também dá para criar pelo terminal. A senha é pedida sem eco, e o comando recusa se já existir Diretor:
 
