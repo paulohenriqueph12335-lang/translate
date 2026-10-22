@@ -6,7 +6,19 @@ import { createS3Storage } from '@tradutor/core/storage';
 const config = loadConfig();
 const database = createPool(config.DATABASE_URL);
 const storage = createS3Storage(config);
-const app = await buildApp({ config, pool: database, storage });
+// Em texto simples, para achar fácil no Docker Desktop (Containers → api → Logs) ou em `docker compose logs api`.
+const announceSetupCode = (code: string) =>
+  process.stdout.write(
+    [
+      '',
+      '==============================================================',
+      `  CÓDIGO DE CONFIGURAÇÃO INICIAL: ${code}`,
+      '  Abra http://localhost:5173 e crie o Diretor com este código.',
+      '==============================================================',
+      '',
+    ].join('\n') + '\n',
+  );
+const app = await buildApp({ config, pool: database, storage, announceSetupCode });
 
 // O armazenamento pode subir depois da API no Compose: tenta criar/verificar o bucket algumas vezes.
 for (let attempt = 1; ; attempt += 1) {

@@ -17,7 +17,9 @@ No início, `migrate` espera o Postgres saudável e aplica, em ordem e uma únic
 
 ## Primeiro Diretor
 
-Com a stack em execução, crie o primeiro Diretor. A senha é pedida sem eco, e o comando recusa se já existir Diretor:
+Com a stack em execução, abra <http://localhost:5173>: sem Diretor, aparece a **Configuração inicial**. Ela pede o código de configuração, que está no log da API (Docker Desktop → Containers → translate → api → Logs, procure "CÓDIGO DE CONFIGURAÇÃO INICIAL", ou rode `docker compose logs api`), e o nome, o e-mail e a senha do Diretor. Marque **Conta de teste** para experimentar: a conta pode ser excluída depois pelo botão no topo da tela, e a configuração inicial volta para criar a conta definitiva.
+
+Também dá para criar pelo terminal. A senha é pedida sem eco, e o comando recusa se já existir Diretor:
 
 ```powershell
 docker compose run --rm -it api corepack pnpm --filter @tradutor/api bootstrap:director --email diretor@exemplo.com --name "Nome do Diretor"

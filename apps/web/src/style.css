@@ -1901,3 +1901,18 @@ h4 {
 .paired .chart-table {
   margin-top: 26px;
 }
+
+/* Conta de teste e configuração inicial (ADR-004) */
+.alert.test-account {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff7e6;
+  border: 1px solid #f0d49a;
+  margin-bottom: 16px;
+}
+.form label.check {
+  display: block;
+}

@@ -14,6 +14,8 @@ export interface PublicUser {
   status: UserStatus;
   orgRole: OrgRole;
   createdAt: string;
+  /** Conta criada como teste na configuração inicial: pode ser excluída. */
+  testAccount: boolean;
 }
 
 export interface UserRow {
@@ -23,9 +25,10 @@ export interface UserRow {
   status: UserStatus;
   org_role: OrgRole;
   created_at: Date;
+  test_account: boolean;
 }
 
-export const USER_COLUMNS = 'u.id, u.email, u.display_name, u.status, u.org_role, u.created_at';
+export const USER_COLUMNS = 'u.id, u.email, u.display_name, u.status, u.org_role, u.created_at, u.test_account';
 
 export const toPublicUser = (row: UserRow): PublicUser => ({
   id: row.id,
@@ -34,6 +37,7 @@ export const toPublicUser = (row: UserRow): PublicUser => ({
   status: row.status,
   orgRole: row.org_role,
   createdAt: row.created_at.toISOString(),
+  testAccount: row.test_account,
 });
 
 export interface Membership {
