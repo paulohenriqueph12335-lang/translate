@@ -119,13 +119,7 @@ const VISUAL_LABELS: Record<string, keyof (typeof MARKERS)['en']> = {
   PHOTO: 'photo',
 };
 
-const foldLabel = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[[\]]/g, '')
-    .trim()
-    .toUpperCase();
+const foldLabel = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').replace(/[[\]]/g, '').trim().toUpperCase();
 
 /** Chave do marcador para um rótulo de elemento visual ("Brasão", "[QR CODE]"), em qualquer idioma conhecido. */
 export function visualLabelKey(text: string): keyof (typeof MARKERS)['en'] | null {

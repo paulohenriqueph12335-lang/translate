@@ -110,7 +110,9 @@ export function StagesPanel({
             <li key={stage} className={done ? 'done' : ''}>
               <strong>{stageLabel[stage]}</strong>
               <span className="muted small-text">
-                {stage === 'translation' ? 'Automática, no layout do original' : `${items.filter((item) => item.checked).length}/${items.length} conferidos`}
+                {stage === 'translation'
+                  ? 'Automática, no layout do original'
+                  : `${items.filter((item) => item.checked).length}/${items.length} conferidos`}
               </span>
             </li>
           );
@@ -150,7 +152,16 @@ export function StagesPanel({
                 ))}
               </ul>
               {editable && pending.length > 1 && (
-                <button className="small ghost" disabled={busy} onClick={() => void toggle(pending.map((item) => item.key), true)}>
+                <button
+                  className="small ghost"
+                  disabled={busy}
+                  onClick={() =>
+                    void toggle(
+                      pending.map((item) => item.key),
+                      true,
+                    )
+                  }
+                >
                   Confirmar os {pending.length} itens de {stageLabel[stage].toLowerCase()}
                 </button>
               )}
@@ -187,7 +198,8 @@ export function TranslationRulesEditor() {
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
   useEffect(() => setRules(entry?.rules ?? null), [entry]);
   const canEdit = data?.canEdit ?? false;
-  const set = <K extends keyof TranslationRules>(key: K, value: TranslationRules[K]) => setRules((current) => (current ? { ...current, [key]: value } : current));
+  const set = <K extends keyof TranslationRules>(key: K, value: TranslationRules[K]) =>
+    setRules((current) => (current ? { ...current, [key]: value } : current));
 
   async function save(reset = false) {
     try {
@@ -199,7 +211,11 @@ export function TranslationRulesEditor() {
     }
   }
 
-  const select = <K extends 'dates' | 'numbers' | 'visualElements'>(key: K, label: string, options: Array<[TranslationRules[K], string]>) => (
+  const select = <K extends 'dates' | 'numbers' | 'visualElements'>(
+    key: K,
+    label: string,
+    options: Array<[TranslationRules[K], string]>,
+  ) => (
     <label>
       {label}
       <select value={rules?.[key] as string} disabled={!canEdit} onChange={(e) => set(key, e.target.value as TranslationRules[K])}>
@@ -244,7 +260,12 @@ export function TranslationRulesEditor() {
             </label>
             <label>
               Tamanho (pt)
-              <input inputMode="decimal" value={rules.fontSize} disabled={!canEdit} onChange={(e) => set('fontSize', Number(e.target.value) || 10)} />
+              <input
+                inputMode="decimal"
+                value={rules.fontSize}
+                disabled={!canEdit}
+                onChange={(e) => set('fontSize', Number(e.target.value) || 10)}
+              />
             </label>
             <label>
               Sufixo do arquivo
@@ -259,7 +280,12 @@ export function TranslationRulesEditor() {
           </div>
           <div className="field-row">
             <label className="check">
-              <input type="checkbox" checked={rules.institutions === 'translate'} disabled={!canEdit} onChange={(e) => set('institutions', e.target.checked ? 'translate' : 'keep')} />
+              <input
+                type="checkbox"
+                checked={rules.institutions === 'translate'}
+                disabled={!canEdit}
+                onChange={(e) => set('institutions', e.target.checked ? 'translate' : 'keep')}
+              />
               Traduzir nomes de instituições (nomes próprios ficam)
             </label>
             <label className="check">
@@ -272,14 +298,24 @@ export function TranslationRulesEditor() {
               Trechos em outro idioma: transcrever sem traduzir
             </label>
             <label className="check">
-              <input type="checkbox" checked={rules.bordersOnlyInTables} disabled={!canEdit} onChange={(e) => set('bordersOnlyInTables', e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={rules.bordersOnlyInTables}
+                disabled={!canEdit}
+                onChange={(e) => set('bordersOnlyInTables', e.target.checked)}
+              />
               Bordas só nas tabelas do original
             </label>
           </div>
           {mode === 'certified' && (
             <label>
               Declaração do tradutor
-              <textarea rows={2} value={rules.statement ?? ''} disabled={!canEdit} onChange={(e) => set('statement', e.target.value || null)} />
+              <textarea
+                rows={2}
+                value={rules.statement ?? ''}
+                disabled={!canEdit}
+                onChange={(e) => set('statement', e.target.value || null)}
+              />
             </label>
           )}
           {(['correction', 'layout', 'review'] as const)

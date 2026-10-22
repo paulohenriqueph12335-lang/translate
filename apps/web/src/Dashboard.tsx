@@ -134,7 +134,12 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
         )}
         {view === 'teamPanel' && <TeamPanel key={panelTeam ?? 'default'} me={me} initialTeamId={panelTeam} />}
         {view === 'workspace' && (
-          <Workspace me={me} onOpenTranslation={goToTranslation} onUpload={() => go('documents')} onNotifications={() => go('notifications')} />
+          <Workspace
+            me={me}
+            onOpenTranslation={goToTranslation}
+            onUpload={() => go('documents')}
+            onNotifications={() => go('notifications')}
+          />
         )}
         {view === 'history' && <History onOpenTranslation={goToTranslation} />}
         {view === 'numbering' && <Numbering me={me} onOpenTranslation={goToTranslation} />}

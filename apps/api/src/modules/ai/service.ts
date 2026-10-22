@@ -16,7 +16,16 @@ import {
   type LayoutCombination,
 } from '@tradutor/core/ai';
 import { forgetLayoutKnowledge } from '@tradutor/core/processing';
-import { checkDraft, Draft, loadRules, ROLE_LABEL, type GlossaryTerm, type Role, type Mode, type Language } from '@tradutor/core/translation';
+import {
+  checkDraft,
+  Draft,
+  loadRules,
+  ROLE_LABEL,
+  type GlossaryTerm,
+  type Role,
+  type Mode,
+  type Language,
+} from '@tradutor/core/translation';
 import { canEditTranslation, canWorkOnTranslation, isDirector, ledTeams } from '../access/policy.js';
 import { AppError, conflict, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
@@ -84,7 +93,14 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
   async function settings(ctx: AuthenticatedContext) {
     requireManager(ctx);
     const config = await loadAiConfig(pool);
-    const skills = await pool.query<{ id: string; name: string; content: string; active: boolean; updated_at: Date; updated_by_name: string }>(
+    const skills = await pool.query<{
+      id: string;
+      name: string;
+      content: string;
+      active: boolean;
+      updated_at: Date;
+      updated_by_name: string;
+    }>(
       `SELECT s.id, s.name, s.content, s.active, s.updated_at, u.display_name AS updated_by_name
          FROM ai_skills s JOIN users u ON u.id = s.updated_by ORDER BY s.name`,
     );
@@ -114,7 +130,14 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
          model = coalesce($2, ai_settings.model),
          governance_prompt = CASE WHEN $5 THEN $3 ELSE ai_settings.governance_prompt END,
          updated_by = $4, updated_at = now()`,
-      [input.enabled ?? null, input.model ?? null, input.governancePrompt ?? null, ctx.actor.id, input.governancePrompt !== undefined, DEFAULT_AI_MODEL],
+      [
+        input.enabled ?? null,
+        input.model ?? null,
+        input.governancePrompt ?? null,
+        ctx.actor.id,
+        input.governancePrompt !== undefined,
+        DEFAULT_AI_MODEL,
+      ],
     );
     await recordAudit(pool, {
       actorUserId: ctx.actor.id,
@@ -167,7 +190,13 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
     requireManager(ctx);
     const removed = await pool.query('DELETE FROM ai_skills WHERE id = $1 RETURNING name', [id]);
     if (!removed.rowCount) throw notFound('Habilidade não encontrada');
-    await recordAudit(pool, { actorUserId: ctx.actor.id, action: 'ai.skill_removed', targetType: 'ai', targetId: id, correlationId: ctx.correlationId });
+    await recordAudit(pool, {
+      actorUserId: ctx.actor.id,
+      action: 'ai.skill_removed',
+      targetType: 'ai',
+      targetId: id,
+      correlationId: ctx.correlationId,
+    });
     return settings(ctx);
   }
 
@@ -176,7 +205,14 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
   /** Pessoas que a pessoa pode liberar ou limitar: o Diretor, todas; o Líder, as das equipes que lidera. */
   async function manageable(ctx: AuthenticatedContext) {
     const teams = isDirector(ctx.actor) ? null : ledTeams(ctx.actor);
-    const result = await pool.query<{ id: string; name: string; email: string; teams: string[]; allowed: boolean | null; set_by_name: string | null }>(
+    const result = await pool.query<{
+      id: string;
+      name: string;
+      email: string;
+      teams: string[];
+      allowed: boolean | null;
+      set_by_name: string | null;
+    }>(
       `SELECT u.id, u.display_name AS name, u.email::text AS email,
               coalesce(array_agg(DISTINCT t.name::text) FILTER (WHERE t.id IS NOT NULL), '{}') AS teams,
               a.allowed, su.display_name AS set_by_name
@@ -318,7 +354,9 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
   async function gate(ctx: AuthenticatedContext, task: AiTask, translationId: string | null) {
     // Quem escolheu trabalhar sem IA: a escolha é dela, então não é bloqueio nem vai ao registro de chamadas.
     if (!(await aiChosenBy(pool, ctx.actor.id))) {
-      throw new AppError(409, 'CONFLICT', 'Você escolheu trabalhar sem IA. Troque em Meu workspace para usar o auxílio.', { reason: 'ai_not_chosen' });
+      throw new AppError(409, 'CONFLICT', 'Você escolheu trabalhar sem IA. Troque em Meu workspace para usar o auxílio.', {
+        reason: 'ai_not_chosen',
+      });
     }
     const config = await loadAiConfig(pool);
     const reason = !ai
@@ -329,10 +367,21 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
           ? 'Seu acesso à IA foi limitado pela liderança'
           : null;
     if (reason) {
-      await logAiRequest(pool, { userId: ctx.actor.id, translationId, task, status: reason.startsWith('Seu acesso') ? 'denied' : 'unavailable', reason });
-      throw new AppError(reason.startsWith('Seu acesso') ? 403 : 503, reason.startsWith('Seu acesso') ? 'FORBIDDEN' : 'DEPENDENCY_UNAVAILABLE', reason, {
-        reason: 'ai_unavailable',
+      await logAiRequest(pool, {
+        userId: ctx.actor.id,
+        translationId,
+        task,
+        status: reason.startsWith('Seu acesso') ? 'denied' : 'unavailable',
+        reason,
       });
+      throw new AppError(
+        reason.startsWith('Seu acesso') ? 403 : 503,
+        reason.startsWith('Seu acesso') ? 'FORBIDDEN' : 'DEPENDENCY_UNAVAILABLE',
+        reason,
+        {
+          reason: 'ai_unavailable',
+        },
+      );
     }
     return { config, provider: ai!(config.model) };
   }
@@ -355,7 +404,12 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
       translationId,
       task: 'glossary_check',
       status: outcome.status,
-      reason: outcome.status === 'ok' ? (outcome.output.discarded ? `${outcome.output.discarded} apontamento(s) inválido(s) descartado(s)` : null) : outcome.reason,
+      reason:
+        outcome.status === 'ok'
+          ? outcome.output.discarded
+            ? `${outcome.output.discarded} apontamento(s) inválido(s) descartado(s)`
+            : null
+          : outcome.reason,
       durationMs: outcome.durationMs,
     });
     // A conferência do próprio sistema (determinística) vem junto: a IA não substitui a checagem, só a reforça.
@@ -371,7 +425,8 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
 
   async function proposeLayout(ctx: AuthenticatedContext, translationId: string) {
     const job = await loadJob(ctx, translationId);
-    if (job.status !== 'in_review' && job.status !== 'awaiting_approval') throw conflict('A diagramação só muda enquanto a tradução está em revisão');
+    if (job.status !== 'in_review' && job.status !== 'awaiting_approval')
+      throw conflict('A diagramação só muda enquanto a tradução está em revisão');
     await gate(ctx, 'layout_combination', translationId);
     const result = await proposeLayoutCombination(pool, ai, translationId, ctx.actor.id);
     if (result.status !== 'ok') return { status: result.status, reason: result.reason ?? null, combination: null };
@@ -380,10 +435,14 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
 
   async function combinationView(id: string) {
     const row = (
-      await pool.query<{ id: string; translation_id: string; status: string; rationale: string | null; created_at: Date; sample: LayoutCombination['sample'] }>(
-        'SELECT id, translation_id, status, rationale, created_at, sample FROM ai_layout_combinations WHERE id = $1',
-        [id],
-      )
+      await pool.query<{
+        id: string;
+        translation_id: string;
+        status: string;
+        rationale: string | null;
+        created_at: Date;
+        sample: LayoutCombination['sample'];
+      }>('SELECT id, translation_id, status, rationale, created_at, sample FROM ai_layout_combinations WHERE id = $1', [id])
     ).rows[0];
     if (!row) throw notFound('Combinação não encontrada');
     return {
@@ -505,7 +564,23 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
       : { status: outcome.status, answer: null, reason: outcome.reason };
   }
 
-  return { status, setChoice, settings, updateSettings, saveSkill, removeSkill, access, setAccess, requests, glossaryCheck, proposeLayout, pendingFor, proposedDraft, decide, ask };
+  return {
+    status,
+    setChoice,
+    settings,
+    updateSettings,
+    saveSkill,
+    removeSkill,
+    access,
+    setAccess,
+    requests,
+    glossaryCheck,
+    proposeLayout,
+    pendingFor,
+    proposedDraft,
+    decide,
+    ask,
+  };
 }
 
 export type AiService = ReturnType<typeof createAiService>;

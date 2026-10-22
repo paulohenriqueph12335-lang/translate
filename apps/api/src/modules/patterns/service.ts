@@ -205,7 +205,11 @@ export function createPatternService({
     let verdict: Verdict = 'can';
     if (!translator || result.machineFailure) {
       verdict = 'review';
-      reasons.push(result.machineFailure ? `A tradução automática falhou: ${result.machineFailure.message}` : 'Tradutor automático fora do ar no teste.');
+      reasons.push(
+        result.machineFailure
+          ? `A tradução automática falhou: ${result.machineFailure.message}`
+          : 'Tradutor automático fora do ar no teste.',
+      );
     }
     if (extraction.ocr) {
       verdict = 'review';
@@ -219,7 +223,9 @@ export function createPatternService({
     }
     if (errors.length) {
       verdict = 'review';
-      reasons.push(`${errors.length} problema(s) de checagem depois da revisão automática (${[...new Set(errors.map((issue) => issue.code))].join(', ')}).`);
+      reasons.push(
+        `${errors.length} problema(s) de checagem depois da revisão automática (${[...new Set(errors.map((issue) => issue.code))].join(', ')}).`,
+      );
     }
     if (result.unresolved.length) {
       verdict = 'review';
@@ -262,7 +268,13 @@ export function createPatternService({
       durationMs: Math.round(performance.now() - started),
       /** Word da prévia do teste, no layout e na fonte da regra (base64). */
       previewDocx: (
-        await renderPlainDocx(result.draft, { look: rules, draft: true, statement: rules.statement, translatorName: null, issuedAt: new Date() })
+        await renderPlainDocx(result.draft, {
+          look: rules,
+          draft: true,
+          statement: rules.statement,
+          translatorName: null,
+          issuedAt: new Date(),
+        })
       ).toString('base64'),
     };
   }
@@ -304,7 +316,8 @@ function historyVerdict(row: PatternRow): { verdict: Verdict; reasons: string[] 
     if (row.failed) reasons.push(`${row.failed} falha(s) de processamento no histórico.`);
     return { verdict: 'can', reasons };
   }
-  if (!row.clean) reasons.push(row.approved ? 'As conclusões deste tipo precisaram de justificativa.' : 'Ainda sem tradução concluída deste tipo.');
+  if (!row.clean)
+    reasons.push(row.approved ? 'As conclusões deste tipo precisaram de justificativa.' : 'Ainda sem tradução concluída deste tipo.');
   if ((row.last_errors ?? 0) > 0) reasons.push(`O último processamento ficou com ${row.last_errors} problema(s) de checagem.`);
   if (row.without_text) reasons.push(`${row.without_text} arquivo(s) sem texto legível.`);
   if (row.failed) reasons.push(`${row.failed} falha(s) de processamento.`);

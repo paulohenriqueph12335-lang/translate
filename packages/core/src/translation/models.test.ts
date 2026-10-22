@@ -7,7 +7,14 @@ import { approvedTranscriptDraft } from './fixtures.js';
 import { fillMask, inspectMask } from './mask/fill-mask.js';
 import { FRAME_MODELS, renderFrameModel } from './mask/frame-models.js';
 
-const cell = (text: string, colSpan = 1, rowSpan = 1) => ({ text, sourceText: text, colSpan, rowSpan, bold: false, align: 'left' as const });
+const cell = (text: string, colSpan = 1, rowSpan = 1) => ({
+  text,
+  sourceText: text,
+  colSpan,
+  rowSpan,
+  bold: false,
+  align: 'left' as const,
+});
 const para = (text: string, sourceText: string | null = text) =>
   ({ kind: 'paragraph', text, align: 'left', bold: false, size: 'normal', sourceText, origin: 'machine' }) as const;
 const draftOf = (blocks: DraftBlock[], extra: Partial<Draft> = {}): Draft => ({
@@ -51,7 +58,14 @@ describe('modelos de corpo (diagramação por tipo de documento)', () => {
 
   it('certidão: rótulo e valor em tabela, sem parágrafos vazios, tipo preenchido pelo modelo', () => {
     const draft = draftOf([
-      { kind: 'heading', text: 'BIRTH CERTIFICATE', align: 'center', level: 'title', sourceText: 'CERTIDÃO DE NASCIMENTO', origin: 'machine' },
+      {
+        kind: 'heading',
+        text: 'BIRTH CERTIFICATE',
+        align: 'center',
+        level: 'title',
+        sourceText: 'CERTIDÃO DE NASCIMENTO',
+        origin: 'machine',
+      },
       para(''),
       para('Name: MARIANA ALVES TEIXEIRA', 'Nome: MARIANA ALVES TEIXEIRA'),
       para('Date of birth: March 14, 2006', 'Data de nascimento: 14/03/2006'),
@@ -67,22 +81,33 @@ describe('modelos de corpo (diagramação por tipo de documento)', () => {
     );
     const table = result.draft.blocks[1] as Extract<DraftBlock, { kind: 'table' }>;
     assert.deepEqual(table.columns, [35, 65]);
-    assert.deepEqual(table.rows[1]!.cells.map((item) => [item.text, item.sourceText]), [
-      ['Date of birth', 'Data de nascimento'],
-      ['March 14, 2006', '14/03/2006'],
-    ]);
+    assert.deepEqual(
+      table.rows[1]!.cells.map((item) => [item.text, item.sourceText]),
+      [
+        ['Date of birth', 'Data de nascimento'],
+        ['March 14, 2006', '14/03/2006'],
+      ],
+    );
     assert.ok(result.changes.length >= 3);
   });
 
   it('documento sem tipo conhecido usa o primeiro título', () => {
-    const draft = draftOf([{ kind: 'heading', text: 'Meeting minutes', align: 'center', level: 'title', sourceText: 'Ata de reunião', origin: 'machine' }]);
+    const draft = draftOf([
+      { kind: 'heading', text: 'Meeting minutes', align: 'center', level: 'title', sourceText: 'Ata de reunião', origin: 'machine' },
+    ]);
     const result = applyBodyModel(draft, 'Ata de reunião');
     assert.equal(result.draft.documentType, 'MEETING MINUTES');
     assert.equal(result.draft.sourceTitle, 'Ata de reunião');
   });
 });
 
-const profile = { name: 'Helena Duarte Fictícia', registration: 'Matrícula JUCEFIC nº 0000', city: 'Vila Esperança', state: 'EF', contact: 'tradutora@exemplo.test' };
+const profile = {
+  name: 'Helena Duarte Fictícia',
+  registration: 'Matrícula JUCEFIC nº 0000',
+  city: 'Vila Esperança',
+  state: 'EF',
+  contact: 'tradutora@exemplo.test',
+};
 const text = async (docx: Buffer) => {
   const zip = await JSZip.loadAsync(docx);
   const parts = await Promise.all(

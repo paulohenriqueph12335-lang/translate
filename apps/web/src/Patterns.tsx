@@ -53,7 +53,9 @@ export function Patterns() {
               <tr key={item.title}>
                 <td className="name-cell">
                   <strong>{item.title}</strong>
-                  {item.documentType && item.documentType !== item.title && <span className="muted small-text block-line">{item.documentType}</span>}
+                  {item.documentType && item.documentType !== item.title && (
+                    <span className="muted small-text block-line">{item.documentType}</span>
+                  )}
                   <span className="muted small-text block-line">
                     {item.formats.map((format) => format.toUpperCase()).join(', ')} · {item.modes.map((mode) => modeLabel[mode]).join(', ')}
                   </span>
@@ -102,11 +104,14 @@ function PatternTester() {
     setResult(null);
     try {
       const [sourceLanguage, targetLanguage] = splitPair(pair);
-      const response = await fetch(`/api/v1/document-patterns/test?sourceLanguage=${sourceLanguage}&targetLanguage=${targetLanguage}&mode=${mode}`, {
-        method: 'POST',
-        headers: { 'X-CSRF-Protection': '1', 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-        body: file,
-      });
+      const response = await fetch(
+        `/api/v1/document-patterns/test?sourceLanguage=${sourceLanguage}&targetLanguage=${targetLanguage}&mode=${mode}`,
+        {
+          method: 'POST',
+          headers: { 'X-CSRF-Protection': '1', 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+          body: file,
+        },
+      );
       const data = await response.json();
       if (!response.ok) throw new ApiError(response.status, data?.error?.code ?? 'ERROR', data?.error?.message ?? 'Falha no teste');
       setResult(data as PatternTest);
@@ -120,9 +125,7 @@ function PatternTester() {
   function downloadPreview() {
     if (!result?.previewDocx || !file) return;
     const bytes = Uint8Array.from(atob(result.previewDocx), (char) => char.charCodeAt(0));
-    const url = URL.createObjectURL(
-      new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
-    );
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
     const link = document.createElement('a');
     link.href = url;
     link.download = `TESTE - ${file.name.replace(/\.[^.]+$/, '')}.docx`;
@@ -189,9 +192,9 @@ function PatternTester() {
           </ul>
           {result.structure && (
             <p className="small-text">
-              Estrutura reconhecida: {result.structure.tables} tabela(s), {result.structure.headings} título(s), {result.structure.paragraphs}{' '}
-              parágrafo(s), {result.structure.signatures} assinatura(s), {result.structure.markers} elemento(s) visual(is) ·{' '}
-              {result.corrections.length} correção(ões) automáticas
+              Estrutura reconhecida: {result.structure.tables} tabela(s), {result.structure.headings} título(s),{' '}
+              {result.structure.paragraphs} parágrafo(s), {result.structure.signatures} assinatura(s), {result.structure.markers}{' '}
+              elemento(s) visual(is) · {result.corrections.length} correção(ões) automáticas
               {result.known ? ` · já há ${result.known.approved} tradução(ões) concluída(s) de "${result.known.title}"` : ''}
             </p>
           )}

@@ -99,7 +99,12 @@ describe('Gerenciamento AI', () => {
   it('começa desligada: a pessoa vê que não há auxílio e o pedido é registrado sem travar nada', async () => {
     const status = await c.op!.get('/api/v1/ai/status');
     assert.deepEqual(
-      { configured: status.body.configured, enabled: status.body.enabled, available: status.body.available, canManage: status.body.canManage },
+      {
+        configured: status.body.configured,
+        enabled: status.body.enabled,
+        available: status.body.available,
+        canManage: status.body.canManage,
+      },
       { configured: true, enabled: false, available: false, canManage: false },
     );
     const ask = await c.op!.post('/api/v1/ai/ask', { question: 'O que falta?' });
@@ -113,9 +118,14 @@ describe('Gerenciamento AI', () => {
     assert.equal((await c.op!.post('/api/v1/ai/skills', { name: 'Qualquer', content: 'Faça outra coisa' })).status, 403);
     assert.equal((await c.leader!.request('PATCH', '/api/v1/ai/settings', { enabled: true })).status, 403);
 
-    const skill = await c.leader!.post('/api/v1/ai/skills', { name: 'Padrão de diagramação', content: 'Título centralizado e em negrito.' });
+    const skill = await c.leader!.post('/api/v1/ai/skills', {
+      name: 'Padrão de diagramação',
+      content: 'Título centralizado e em negrito.',
+    });
     assert.equal(skill.status, 201, JSON.stringify(skill.body));
-    const prompt = await c.leader!.request('PATCH', '/api/v1/ai/settings', { governancePrompt: 'Atue somente como orientador técnico do processo.' });
+    const prompt = await c.leader!.request('PATCH', '/api/v1/ai/settings', {
+      governancePrompt: 'Atue somente como orientador técnico do processo.',
+    });
     assert.equal(prompt.status, 200);
     assert.equal((await c.leader!.request('PATCH', '/api/v1/ai/settings', { model: 'gpt-4' })).status, 400);
 
@@ -246,7 +256,9 @@ describe('com IA × sem IA (ADR-022)', () => {
     assert.equal(batch.status, 201, JSON.stringify(batch.body));
     const documentId = batch.body.documents[0].id as string;
     await client.putContent(`/api/v1/documents/${documentId}/content`, pdf);
-    return (await pool.query<{ id: string; ai_mode: string }>('SELECT id, ai_mode FROM translation_jobs WHERE document_id = $1', [documentId])).rows[0]!;
+    return (
+      await pool.query<{ id: string; ai_mode: string }>('SELECT id, ai_mode FROM translation_jobs WHERE document_id = $1', [documentId])
+    ).rows[0]!;
   }
 
   it('a pessoa escolhe sem IA: vai para a auditoria, o auxílio sai das traduções e o protocolo nasce sem IA', async () => {
@@ -259,12 +271,14 @@ describe('com IA × sem IA (ADR-022)', () => {
     );
     assert.deepEqual(audit.rows[0]?.metadata, { escolha: 'sem IA', antes: 'com IA' });
 
-    const before = (await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM ai_requests WHERE user_id = $1', [ids.op])).rows[0]!.total;
+    const before = (await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM ai_requests WHERE user_id = $1', [ids.op]))
+      .rows[0]!.total;
     const ask = await c.op!.post('/api/v1/ai/ask', { question: 'O que falta?' });
     assert.equal(ask.status, 409);
     assert.equal((await c.op!.post(`/api/v1/translations/${ids.job}/ai/layout`)).status, 409);
     // A escolha é da pessoa: não é bloqueio e não entra no registro de chamadas.
-    const after = (await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM ai_requests WHERE user_id = $1', [ids.op])).rows[0]!.total;
+    const after = (await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM ai_requests WHERE user_id = $1', [ids.op]))
+      .rows[0]!.total;
     assert.equal(after, before);
 
     ids.withoutAi = (await newProtocol(c.op!, 'sem-ia.pdf')).ai_mode;
@@ -276,7 +290,10 @@ describe('com IA × sem IA (ADR-022)', () => {
     const created = await newProtocol(c.op!, 'com-ia.pdf');
     assert.equal(created.ai_mode, 'with_ai');
     ids.withAi = created.id;
-    assert.equal((await pool.query<{ ai_mode: string }>('SELECT ai_mode FROM translation_jobs WHERE id = $1', [ids.job])).rows[0]!.ai_mode, 'without_ai');
+    assert.equal(
+      (await pool.query<{ ai_mode: string }>('SELECT ai_mode FROM translation_jobs WHERE id = $1', [ids.job])).rows[0]!.ai_mode,
+      'without_ai',
+    );
 
     // Limitado pela liderança, a escolha "com IA" não basta: o protocolo nasce sem IA.
     await c.leader!.request('PUT', `/api/v1/ai/access/${ids.op}`, { allowed: false });

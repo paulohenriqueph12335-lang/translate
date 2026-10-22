@@ -104,12 +104,14 @@ export function rolesOf(draft: Draft): Role[] {
     }
     if (/^\[[^\]]+\]$/.test(text)) roles.push('marker');
     else if (/^_{5,}$/.test(text)) roles.push('signature_line');
-    else if (previous === 'signature_line' || (previous === 'signatory' && text.length < 80 && !text.endsWith('.'))) roles.push('signatory');
+    else if (previous === 'signature_line' || (previous === 'signatory' && text.length < 80 && !text.endsWith('.')))
+      roles.push('signatory');
     else if (index === title) roles.push('title');
     else if (PLACE_DATE.test(text)) roles.push('place_date');
     else if (block.kind === 'heading' || block.kind === 'section') roles.push(title >= 0 && index < title ? 'authority' : 'heading');
     // Campo pelo original também: a tradução pode alongar o rótulo ("CPF" → "CPF (Brazilian Individual …)").
-    else if (isField(text) || (text.includes(':') && 'sourceText' in block && !!block.sourceText && isField(block.sourceText))) roles.push('field');
+    else if (isField(text) || (text.includes(':') && 'sourceText' in block && !!block.sourceText && isField(block.sourceText)))
+      roles.push('field');
     else if (isCaps(text) && text.length < 90 && (title < 0 || index < title)) roles.push('authority');
     else if (block.kind === 'paragraph' && block.size !== 'normal' && index > blocks.length * 0.6) roles.push('note');
     // Texto corrido é frase longa; linha curta (nome de órgão, cargo, legenda) tem diagramação própria.
@@ -209,18 +211,19 @@ function joinWrappedLines(draft: Draft) {
   let joined = 0;
   const blocks: DraftBlock[] = [];
   // Linha com espaço largo no meio ("Cidade: Serra Clara    SC") a leitura toma por tabela de uma linha: volta a ser linha.
-  const lines = draft.blocks.map((block): DraftBlock =>
-    block.kind === 'table' && block.rows.length === 1 && block.rows[0]!.cells.length <= 3
-      ? {
-          kind: 'paragraph',
-          text: block.rows[0]!.cells.map((cell) => cell.text).join(' '),
-          align: 'left',
-          bold: false,
-          size: 'normal',
-          sourceText: block.rows[0]!.cells.map((cell) => cell.sourceText ?? cell.text).join(' '),
-          origin: block.origin,
-        }
-      : block,
+  const lines = draft.blocks.map(
+    (block): DraftBlock =>
+      block.kind === 'table' && block.rows.length === 1 && block.rows[0]!.cells.length <= 3
+        ? {
+            kind: 'paragraph',
+            text: block.rows[0]!.cells.map((cell) => cell.text).join(' '),
+            align: 'left',
+            bold: false,
+            size: 'normal',
+            sourceText: block.rows[0]!.cells.map((cell) => cell.sourceText ?? cell.text).join(' '),
+            origin: block.origin,
+          }
+        : block,
   );
   for (const block of lines) {
     const previous = blocks.at(-1);
@@ -260,9 +263,11 @@ export function composeLayout(
   const changes: ComposeResult['changes'] = [];
   // O mesmo tipo aparece várias vezes entre os vizinhos: a origem mostra cada um uma vez, com a maior semelhança.
   const borrowed = new Map<string, number>();
-  for (const item of ranked) borrowed.set(item.sample.title, Math.max(borrowed.get(item.sample.title) ?? 0, Math.round(item.similarity * 100)));
+  for (const item of ranked)
+    borrowed.set(item.sample.title, Math.max(borrowed.get(item.sample.title) ?? 0, Math.round(item.similarity * 100)));
   const borrowedFrom = [...borrowed.entries()].map(([title, similarity]) => ({ title, similarity }));
-  if (joined) changes.push({ block: 0, message: `${joined} linha(s) quebrada(s) pela leitura juntada(s) ao parágrafo`, before: '', after: '' });
+  if (joined)
+    changes.push({ block: 0, message: `${joined} linha(s) quebrada(s) pela leitura juntada(s) ao parágrafo`, before: '', after: '' });
   if (!ranked.length) return { draft, borrowedFrom, changes, roles };
 
   const weight = ranked.reduce((sum, item) => sum + item.similarity, 0);
@@ -290,7 +295,14 @@ export function composeLayout(
       if (!style) return block;
       const next: DraftBlock =
         style.heading || role === 'title'
-          ? { kind: 'heading', text: block.text, align: style.align, level: role === 'title' ? 'title' : 'normal', sourceText: block.sourceText, origin: block.origin }
+          ? {
+              kind: 'heading',
+              text: block.text,
+              align: style.align,
+              level: role === 'title' ? 'title' : 'normal',
+              sourceText: block.sourceText,
+              origin: block.origin,
+            }
           : { ...block, align: style.align, bold: style.bold, size: style.size };
       if (JSON.stringify(next) !== JSON.stringify(block)) styled += 1;
       return next;
@@ -309,7 +321,8 @@ export function composeLayout(
   const tableVotes = ranked.filter((item) => item.sample.fieldsAsTable !== null);
   const tableWeight = tableVotes.reduce((sum, item) => sum + item.similarity, 0);
   const asTable =
-    tableVotes.length > 0 && tableVotes.filter((item) => item.sample.fieldsAsTable).reduce((sum, item) => sum + item.similarity, 0) / tableWeight >= 0.5;
+    tableVotes.length > 0 &&
+    tableVotes.filter((item) => item.sample.fieldsAsTable).reduce((sum, item) => sum + item.similarity, 0) / tableWeight >= 0.5;
   if (asTable) {
     const widths = ranked.map((item) => item.sample.labelWidth).filter((value): value is number => value !== null);
     const label = widths.length ? Math.round(widths.reduce((sum, value) => sum + value, 0) / widths.length) : 35;
@@ -341,7 +354,10 @@ export function composeLayout(
         changes.push({
           block: blocks.length,
           message: `${run.length} campos alinhados em tabela (${label}% / ${100 - label}%), como nos documentos parecidos`,
-          before: run.map((block) => block.text).join(' | ').slice(0, 300),
+          before: run
+            .map((block) => block.text)
+            .join(' | ')
+            .slice(0, 300),
           after: 'tabela de campos',
         });
       } else blocks.push(...run);

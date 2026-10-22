@@ -133,7 +133,12 @@ export function Glossary({ me }: { me: Me }) {
           </tbody>
         </table>
       </div>
-      {data && data.items.length === 0 && <p className="empty">Nenhum termo {q ? 'corresponde à busca' : `de ${languageLabel[source].toLowerCase()} para ${languageLabel[target].toLowerCase()}`}.</p>}
+      {data && data.items.length === 0 && (
+        <p className="empty">
+          Nenhum termo {q ? 'corresponde à busca' : `de ${languageLabel[source].toLowerCase()} para ${languageLabel[target].toLowerCase()}`}
+          .
+        </p>
+      )}
     </Section>
   );
 }

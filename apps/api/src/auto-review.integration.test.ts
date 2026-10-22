@@ -76,7 +76,10 @@ describe('revisão automática', () => {
     assert.equal(await processNextJob(processing()), true);
     const detail = await c.op!.get(`/api/v1/translations/${ids.job}`);
     const corrections = detail.body.draft.corrections as Array<{ code: string }>;
-    assert.ok(corrections.some((item) => item.code === 'untranslated'), JSON.stringify(corrections.slice(0, 3)));
+    assert.ok(
+      corrections.some((item) => item.code === 'untranslated'),
+      JSON.stringify(corrections.slice(0, 3)),
+    );
     assert.match(detail.body.translation.notice, /Revisão automática: \d+ correção/);
     const leftovers = (detail.body.draft.content.blocks as Block[]).filter(
       (block) => block.text && block.sourceText && confidentLanguage(block.text) === 'pt',
@@ -90,12 +93,17 @@ describe('revisão automática', () => {
     const index = (content.blocks as Block[]).findIndex((block) => block.kind === 'paragraph' && block.sourceText);
     const broken = structuredClone(content);
     broken.blocks[index].text = 'This paragraph was left in English by mistake during the review of the document';
-    const saved = await c.op!.request('PUT', `/api/v1/translations/${ids.job}/draft`, { baseRevision: detail.body.draft.revision, draft: broken });
+    const saved = await c.op!.request('PUT', `/api/v1/translations/${ids.job}/draft`, {
+      baseRevision: detail.body.draft.revision,
+      draft: broken,
+    });
     assert.equal(saved.status, 200);
 
     const reviewed = await c.op!.post(`/api/v1/translations/${ids.job}/auto-review`);
     assert.equal(reviewed.status, 200, JSON.stringify(reviewed.body));
-    assert.ok(reviewed.body.corrections.some((item: { code: string; block: number }) => item.code === 'wrong_language' && item.block === index + 1));
+    assert.ok(
+      reviewed.body.corrections.some((item: { code: string; block: number }) => item.code === 'wrong_language' && item.block === index + 1),
+    );
     const after = await c.op!.get(`/api/v1/translations/${ids.job}`);
     assert.equal(after.body.draft.origin, 'review');
     assert.equal(after.body.draft.revision, saved.body.revision + 1);

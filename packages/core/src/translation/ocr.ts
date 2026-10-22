@@ -120,7 +120,12 @@ export async function ocrDocument(data: Uint8Array, format: string, source: Lang
       await run('pdftoppm', ['-r', '300', '-gray', '-png', '-l', String(MAX_PAGES), pdf, path.join(dir, 'pagina')], {
         timeout: 180_000,
       });
-      images.push(...(await readdir(dir)).filter((name) => name.startsWith('pagina')).sort().map((name) => path.join(dir, name)));
+      images.push(
+        ...(await readdir(dir))
+          .filter((name) => name.startsWith('pagina'))
+          .sort()
+          .map((name) => path.join(dir, name)),
+      );
     } else {
       const image = path.join(dir, format === 'png' ? 'original.png' : 'original.jpg');
       await writeFile(image, data);

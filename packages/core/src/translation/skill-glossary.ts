@@ -47,7 +47,11 @@ const ENG: SkillTerm[] = [
 
 const FRA: SkillTerm[] = [
   { source: 'Ministério da Justiça', target: 'Ministère de la Justice' },
-  { source: 'Certidão de Antecedentes Criminais', target: 'Certificat de Casier Judiciaire', note: 'Também: Bulletin de Casier Judiciaire' },
+  {
+    source: 'Certidão de Antecedentes Criminais',
+    target: 'Certificat de Casier Judiciaire',
+    note: 'Também: Bulletin de Casier Judiciaire',
+  },
   { source: 'Trânsito em julgado', target: 'Autorité de la chose jugée', note: 'Também: Décision définitive' },
   { source: 'Vara de Família e Sucessões', target: 'Tribunal des Affaires Familiales et des Successions' },
   { source: 'Agravo de Instrumento', target: 'Appel Intermédiaire' },
@@ -134,7 +138,13 @@ export async function seedSkillGlossary(db: Queryable) {
   const director = (await db.query<{ id: string }>(`SELECT id FROM users WHERE org_role = 'director' ORDER BY created_at LIMIT 1`)).rows[0];
   if (!director) return 0;
   const rows = SKILL_GLOSSARY.flatMap(({ target, skill, terms }) =>
-    terms.map((term) => ({ target, source_term: term.source, target_term: term.target, note: term.note ?? null, origin: `Skill ${skill}` })),
+    terms.map((term) => ({
+      target,
+      source_term: term.source,
+      target_term: term.target,
+      note: term.note ?? null,
+      origin: `Skill ${skill}`,
+    })),
   );
   const result = await db.query(
     `INSERT INTO glossary_entries (source_language, target_language, source_term, target_term, note, team_id, created_by, origin)

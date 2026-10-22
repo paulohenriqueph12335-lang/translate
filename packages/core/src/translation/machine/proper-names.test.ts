@@ -14,7 +14,9 @@ describe('nomes próprios e marcadores protegidos', () => {
     assert.deepEqual(placeNames('SSP/EF'), []);
     assert.deepEqual(placeNames('Cartório do 1º Ofício de Registro Civil de Vila Esperança – EF'), ['Vila Esperança']);
     assert.deepEqual(placeNames('natural de São José dos Campos/SP'), ['São José dos Campos']);
-    assert.deepEqual(webAddresses('Verifique em: verificacao-ficticia.exemplo/apostila – código X'), ['verificacao-ficticia.exemplo/apostila']);
+    assert.deepEqual(webAddresses('Verifique em: verificacao-ficticia.exemplo/apostila – código X'), [
+      'verificacao-ficticia.exemplo/apostila',
+    ]);
   });
 
   it('protege nomes, colchetes e ordinais; maiúsculas vão em minúsculas e voltam', () => {

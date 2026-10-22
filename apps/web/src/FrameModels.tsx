@@ -16,7 +16,12 @@ export function FrameModelPicker({ translator, onCreated }: { translator: SwornT
   const models = useLoad(() => api<{ items: FrameModelInfo[] }>('GET', '/frame-models'), []);
   const current = translator.mask?.frame ?? null;
   const [model, setModel] = useState<FrameModelInfo['id']>(current?.model ?? 'classico');
-  const [form, setForm] = useState({ city: current?.city ?? '', state: current?.state ?? '', contact: current?.contact ?? '', title: current?.title ?? '' });
+  const [form, setForm] = useState({
+    city: current?.city ?? '',
+    state: current?.state ?? '',
+    contact: current?.contact ?? '',
+    title: current?.title ?? '',
+  });
   const [target, setTarget] = useState<Language>('en');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +52,9 @@ export function FrameModelPicker({ translator, onCreated }: { translator: SwornT
         contact: form.contact.trim() || null,
         title: form.title.trim() || null,
       });
-      onCreated(`Máscara gerada do modelo "${models.data?.items.find((item) => item.id === model)?.label}": as próximas conclusões usam essa edição.`);
+      onCreated(
+        `Máscara gerada do modelo "${models.data?.items.find((item) => item.id === model)?.label}": as próximas conclusões usam essa edição.`,
+      );
     } catch (caught) {
       setError(message(caught));
     } finally {
@@ -59,8 +66,8 @@ export function FrameModelPicker({ translator, onCreated }: { translator: SwornT
     <details className="frame-models" open={!translator.mask}>
       <summary>Usar um modelo de moldura do sistema</summary>
       <p className="muted small-text">
-        Sem máscara própria, escolha um modelo: o timbre, a abertura, o encerramento, a numeração e o rodapé saem prontos, no idioma de
-        cada tradução, com os dados deste tradutor.
+        Sem máscara própria, escolha um modelo: o timbre, a abertura, o encerramento, a numeração e o rodapé saem prontos, no idioma de cada
+        tradução, com os dados deste tradutor.
       </p>
       <div className="mode-options" role="radiogroup" aria-label="Modelo de moldura">
         {models.data?.items.map((item) => (
@@ -80,11 +87,22 @@ export function FrameModelPicker({ translator, onCreated }: { translator: SwornT
       <div className="field-row top-gap">
         <label>
           Cidade
-          <input id={`frame-city-${translator.id}`} value={form.city} maxLength={80} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+          <input
+            id={`frame-city-${translator.id}`}
+            value={form.city}
+            maxLength={80}
+            onChange={(e) => setForm({ ...form, city: e.target.value })}
+          />
         </label>
         <label>
           Estado
-          <input id={`frame-state-${translator.id}`} value={form.state} maxLength={40} placeholder="SP, Paraná…" onChange={(e) => setForm({ ...form, state: e.target.value })} />
+          <input
+            id={`frame-state-${translator.id}`}
+            value={form.state}
+            maxLength={40}
+            placeholder="SP, Paraná…"
+            onChange={(e) => setForm({ ...form, state: e.target.value })}
+          />
         </label>
         <label>
           Contato no timbre (opcional)
@@ -122,7 +140,11 @@ export function FrameModelPicker({ translator, onCreated }: { translator: SwornT
           <a className="button small" href={preview.replace('format=pdf', 'format=docx')}>
             Baixar exemplo (Word)
           </a>
-          <button className="primary small" disabled={busy || form.city.trim().length < 2 || form.state.trim().length < 2} onClick={() => void create()}>
+          <button
+            className="primary small"
+            disabled={busy || form.city.trim().length < 2 || form.state.trim().length < 2}
+            onClick={() => void create()}
+          >
             {busy ? 'Gerando…' : 'Gerar máscara com este modelo'}
           </button>
         </div>

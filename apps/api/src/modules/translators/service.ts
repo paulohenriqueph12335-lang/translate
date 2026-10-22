@@ -274,7 +274,14 @@ export function createTranslatorService({ pool, storage }: ServiceDeps & { stora
         targetType: 'translator',
         targetId: id,
         correlationId: ctx.correlationId,
-        metadata: { edition: next, name: fileName, size: data.length, markers, configured: inspection.ok, ...(frame ? { model: frame.model } : {}) },
+        metadata: {
+          edition: next,
+          name: fileName,
+          size: data.length,
+          markers,
+          configured: inspection.ok,
+          ...(frame ? { model: frame.model } : {}),
+        },
       });
       return next;
     });

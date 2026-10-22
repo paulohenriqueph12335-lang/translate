@@ -24,7 +24,9 @@ describe('regras das modalidades (ADR-015)', () => {
     assert.equal(outputFileName('certidao de nascimento.pdf', defaultRules('sworn', 'en')), 'certidao de nascimento - ENG.docx');
     assert.equal(outputFileName('acte.pdf', defaultRules('sworn', 'fr')), 'acte-FRA.docx');
     assert.deepEqual(MODE_STAGES.simple, ['translation', 'review']);
-    const stages = (mode: 'sworn' | 'certified' | 'simple') => [...new Set(checklistOf(mode, defaultRules(mode, 'en')).map((item) => item.stage))];
+    const stages = (mode: 'sworn' | 'certified' | 'simple') => [
+      ...new Set(checklistOf(mode, defaultRules(mode, 'en')).map((item) => item.stage)),
+    ];
     assert.deepEqual(stages('sworn'), ['correction', 'review']);
     assert.deepEqual(stages('certified'), ['layout', 'review']);
     assert.deepEqual(stages('simple'), ['review']);

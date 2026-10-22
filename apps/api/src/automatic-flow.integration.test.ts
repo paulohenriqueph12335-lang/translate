@@ -119,7 +119,8 @@ describe('fluxo automático até o Word', () => {
     assert.ok((detail.body.checklist as Array<{ checked: unknown }>).every((item) => item.checked));
 
     assert.equal(
-      (await c.op!.request('PUT', `/api/v1/translations/${ids.sworn}/numbering`, { translatorId: ids.translator, pages: t.pageCount })).status,
+      (await c.op!.request('PUT', `/api/v1/translations/${ids.sworn}/numbering`, { translatorId: ids.translator, pages: t.pageCount }))
+        .status,
       200,
     );
     const preview = await c.op!.raw('GET', `/api/v1/translations/${ids.sworn}/preview`);
@@ -223,7 +224,12 @@ describe('padrões de documento', () => {
     const image = await c.op!.putContent('/api/v1/document-patterns/test?sourceLanguage=pt&targetLanguage=en', png, {}, 'POST');
     assert.equal(image.body.verdict, 'cannot');
     assert.match(image.body.reasons[0], /OCR/);
-    const unknown = await c.op!.putContent('/api/v1/document-patterns/test?sourceLanguage=pt&targetLanguage=en', Buffer.from('texto'), {}, 'POST');
+    const unknown = await c.op!.putContent(
+      '/api/v1/document-patterns/test?sourceLanguage=pt&targetLanguage=en',
+      Buffer.from('texto'),
+      {},
+      'POST',
+    );
     assert.equal(unknown.body.verdict, 'cannot');
   });
 });

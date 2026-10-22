@@ -16,7 +16,16 @@ import type { PatternService } from '../modules/patterns/service.js';
 import type { DashboardService } from '../modules/dashboards/service.js';
 import { MAX_MASK_BYTES, type TranslatorService } from '../modules/translators/service.js';
 import type { TranslationService } from '../modules/translations/service.js';
-import { Draft, FRAME_MODEL_INFO, FRAME_MODELS, fillMask, LANGUAGES, MODES, renderFrameModel, TranslationRules } from '@tradutor/core/translation';
+import {
+  Draft,
+  FRAME_MODEL_INFO,
+  FRAME_MODELS,
+  fillMask,
+  LANGUAGES,
+  MODES,
+  renderFrameModel,
+  TranslationRules,
+} from '@tradutor/core/translation';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../modules/identity/passwords.js';
 import type { IdentityService } from '../modules/identity/service.js';
 import { pageQuery } from '../modules/pagination.js';
@@ -1023,7 +1032,8 @@ export function registerRoutes(
         z.strictObject({ sourceLanguage: z.enum(LANGUAGES), targetLanguage: z.enum(LANGUAGES), mode: z.enum(MODES).default('sworn') }),
         request.query,
       );
-      if (!Buffer.isBuffer(request.body) || !request.body.length) throw new AppError(400, 'VALIDATION_FAILED', 'Envie o arquivo do documento');
+      if (!Buffer.isBuffer(request.body) || !request.body.length)
+        throw new AppError(400, 'VALIDATION_FAILED', 'Envie o arquivo do documento');
       const raw = request.headers['x-file-name'];
       const name = typeof raw === 'string' ? decodeURIComponent(raw).trim().slice(0, 255) : 'documento';
       return services.patterns.test(ctx, { data: request.body, name }, query);
@@ -1063,7 +1073,15 @@ export function registerRoutes(
         sourceTitle: 'CERTIDÃO DE NASCIMENTO',
         blocks: [
           { kind: 'heading', text: 'BIRTH CERTIFICATE', align: 'center', level: 'title', sourceText: null, origin: 'rules' },
-          { kind: 'paragraph', text: '[Conteúdo traduzido do documento, no layout do original]', align: 'left', bold: false, size: 'normal', sourceText: null, origin: 'rules' },
+          {
+            kind: 'paragraph',
+            text: '[Conteúdo traduzido do documento, no layout do original]',
+            align: 'left',
+            bold: false,
+            size: 'normal',
+            sourceText: null,
+            origin: 'rules',
+          },
         ],
       },
       { numero: '1201', livro: '7', folha: '1', data: new Date(), tradutor: query.name },
@@ -1096,7 +1114,9 @@ export function registerRoutes(
       }),
       request.body,
     );
-    return reply.code(201).send(await services.translators.maskFromModel(ctx, id, { ...body, contact: body.contact ?? null, title: body.title ?? null }));
+    return reply
+      .code(201)
+      .send(await services.translators.maskFromModel(ctx, id, { ...body, contact: body.contact ?? null, title: body.title ?? null }));
   });
 
   // Máscara (Word) e PDF de referência chegam como binário; o nome do arquivo vem no cabeçalho X-File-Name.

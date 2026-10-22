@@ -302,7 +302,14 @@ export function createDashboardService({ pool, now = () => new Date() }: Service
            ${base} GROUP BY 1`,
         params,
       ),
-      pool.query<{ week: string; mode: 'with_ai' | 'without_ai'; received: number; approved: number; first_time: number; avg_minutes: number | null }>(
+      pool.query<{
+        week: string;
+        mode: 'with_ai' | 'without_ai';
+        received: number;
+        approved: number;
+        first_time: number;
+        avg_minutes: number | null;
+      }>(
         `WITH w AS (
            SELECT j.ai_mode AS mode, date_trunc('week', j.created_at) AS created_week, date_trunc('week', j.approved_at) AS approved_week,
                   j.approved_at, j.created_at, j.redo_count, j.approval_override_reason

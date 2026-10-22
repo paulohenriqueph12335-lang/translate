@@ -442,7 +442,14 @@ export interface MaskEdition {
   issues: string[];
   notes: string | null;
   /** Edição gerada de um modelo de moldura do sistema (ADR-019). */
-  frame: { model: 'classico' | 'quadro' | 'bilingue' | 'compacto'; label: string; city: string; state: string; contact: string | null; title: string | null } | null;
+  frame: {
+    model: 'classico' | 'quadro' | 'bilingue' | 'compacto';
+    label: string;
+    city: string;
+    state: string;
+    contact: string | null;
+    title: string | null;
+  } | null;
   uploadedBy: string;
   uploadedAt: string;
   translations: number;
@@ -633,12 +640,12 @@ export const languageLabel: Record<Language, string> = { pt: 'Português', en: '
 export const LANGUAGES: Language[] = ['pt', 'en', 'fr', 'it', 'es'];
 
 /** Pares de idiomas atendidos, organizados pelo idioma de destino (ADR-015): do português e para o português. */
-export const LANGUAGE_PAIRS: Array<{ value: string; source: Language; target: Language; label: string }> = (['en', 'fr', 'it', 'es'] as Language[]).flatMap(
-  (other) => [
-    { value: `pt-${other}`, source: 'pt' as Language, target: other, label: `Português → ${languageLabel[other]}` },
-    { value: `${other}-pt`, source: other, target: 'pt' as Language, label: `${languageLabel[other]} → Português` },
-  ],
-);
+export const LANGUAGE_PAIRS: Array<{ value: string; source: Language; target: Language; label: string }> = (
+  ['en', 'fr', 'it', 'es'] as Language[]
+).flatMap((other) => [
+  { value: `pt-${other}`, source: 'pt' as Language, target: other, label: `Português → ${languageLabel[other]}` },
+  { value: `${other}-pt`, source: other, target: 'pt' as Language, label: `${languageLabel[other]} → Português` },
+]);
 export const splitPair = (value: string) => value.split('-') as [Language, Language];
 
 // ---------- Modalidades de tradução (ADR-015) ----------
@@ -646,14 +653,24 @@ export const splitPair = (value: string) => value.split('-') as [Language, Langu
 export type TranslationMode = 'sworn' | 'certified' | 'technical' | 'simple';
 export type Stage = 'correction' | 'translation' | 'layout' | 'review';
 export const MODES: TranslationMode[] = ['sworn', 'certified', 'technical', 'simple'];
-export const modeLabel: Record<TranslationMode, string> = { sworn: 'Juramentada', certified: 'Certificada', technical: 'Técnica', simple: 'Simples' };
+export const modeLabel: Record<TranslationMode, string> = {
+  sworn: 'Juramentada',
+  certified: 'Certificada',
+  technical: 'Técnica',
+  simple: 'Simples',
+};
 export const modeHint: Record<TranslationMode, string> = {
   sworn: 'Correção + tradução + revisão; número e máscara do tradutor juramentado',
   certified: 'Tradução + diagramação + revisão; declaração do tradutor, sem número',
   technical: 'Tradução + diagramação + revisão; layout fiel ao original',
   simple: 'Tradução + revisão',
 };
-export const stageLabel: Record<Stage, string> = { correction: 'Correção', translation: 'Tradução', layout: 'Diagramação', review: 'Revisão' };
+export const stageLabel: Record<Stage, string> = {
+  correction: 'Correção',
+  translation: 'Tradução',
+  layout: 'Diagramação',
+  review: 'Revisão',
+};
 
 export interface TranslationRules {
   font: string;
@@ -683,7 +700,13 @@ export interface ProfilesOverview {
     mode: TranslationMode;
     label: string;
     stages: Array<{ stage: Stage; label: string }>;
-    languages: Array<{ target: Language; rules: TranslationRules; customized: boolean; updatedBy: string | null; updatedAt: string | null }>;
+    languages: Array<{
+      target: Language;
+      rules: TranslationRules;
+      customized: boolean;
+      updatedBy: string | null;
+      updatedAt: string | null;
+    }>;
   }>;
 }
 export const pairLabel = (source: Language, target: Language) => `${source.toUpperCase()} → ${target.toUpperCase()}`;

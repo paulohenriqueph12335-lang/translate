@@ -229,8 +229,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
       )
     ).rows[0] ?? null;
   // Tipo e título só de um exemplo com o mesmo título do original: etiqueta em comum não diz que o documento é do mesmo tipo.
-  const known =
-    example?.by_title ? { documentType: example.content.documentType, sourceTitle: example.content.sourceTitle } : null;
+  const known = example?.by_title ? { documentType: example.content.documentType, sourceTitle: example.content.sourceTitle } : null;
 
   // Tradução automática gratuita (ADR-008); na tradução manual o sistema não traduz nada.
   const setting =

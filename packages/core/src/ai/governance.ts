@@ -83,9 +83,7 @@ const SIZES = ['normal', 'small', 'tiny'] as const;
 
 const GlossaryOutput = z.strictObject({
   in_scope: z.boolean(),
-  findings: z
-    .array(z.strictObject({ block: z.number().int().min(1), term: z.string().max(200), problem: z.string().max(300) }))
-    .max(200),
+  findings: z.array(z.strictObject({ block: z.number().int().min(1), term: z.string().max(200), problem: z.string().max(300) })).max(200),
 });
 
 const LayoutOutput = z.strictObject({
@@ -173,14 +171,19 @@ async function run<T>(
   if (!provider) return { status: 'unavailable', reason: 'IA não configurada (chave GEMINI_API_KEY ausente)', durationMs: 0 };
   let raw: unknown;
   try {
-    raw = await provider.generate({ system: systemPrompt(task, config.governance, config.skills), input: JSON.stringify(input), schema: SCHEMAS[task] });
+    raw = await provider.generate({
+      system: systemPrompt(task, config.governance, config.skills),
+      input: JSON.stringify(input),
+      schema: SCHEMAS[task],
+    });
   } catch (error) {
     if (error instanceof AiUnavailable) return { status: 'unavailable', reason: error.message, durationMs: elapsed() };
     return { status: 'failed', reason: String(error instanceof Error ? error.message : error), durationMs: elapsed() };
   }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) return { status: 'blocked', reason: 'Resposta fora do formato permitido para a tarefa', durationMs: elapsed() };
-  if (!parsed.data.in_scope) return { status: 'blocked', reason: 'Pedido fora do escopo da IA (processo, glossário e diagramação)', durationMs: elapsed() };
+  if (!parsed.data.in_scope)
+    return { status: 'blocked', reason: 'Pedido fora do escopo da IA (processo, glossário e diagramação)', durationMs: elapsed() };
   return { status: 'ok', output: parsed.data, durationMs: elapsed() };
 }
 
@@ -217,7 +220,11 @@ export async function checkGlossaryWithAi(
   const findings = outcome.output.findings.filter((finding) => blocks.has(finding.block) && terms.has(fold(finding.term)));
   const discarded = outcome.output.findings.length - findings.length;
   if (discarded && !findings.length)
-    return { status: 'blocked' as const, reason: 'A IA citou termos ou blocos que não existem no glossário e no documento', durationMs: outcome.durationMs };
+    return {
+      status: 'blocked' as const,
+      reason: 'A IA citou termos ou blocos que não existem no glossário e no documento',
+      durationMs: outcome.durationMs,
+    };
   return { status: 'ok' as const, output: { findings, discarded }, durationMs: outcome.durationMs };
 }
 
@@ -244,7 +251,12 @@ export async function proposeLayoutWithAi(
     ...(block.kind === 'paragraph' ? { align: block.align, bold: block.bold, size: block.size } : {}),
     ...(block.kind === 'heading' ? { align: block.align, level: block.level } : {}),
     ...(block.kind === 'table' ? { columns: block.columns.length, rows: block.rows.length } : {}),
-    chars: block.kind === 'table' ? block.rows.reduce((sum, row) => sum + row.cells.reduce((s, cell) => s + cell.text.length, 0), 0) : 'text' in block ? block.text.length : 0,
+    chars:
+      block.kind === 'table'
+        ? block.rows.reduce((sum, row) => sum + row.cells.reduce((s, cell) => s + cell.text.length, 0), 0)
+        : 'text' in block
+          ? block.text.length
+          : 0,
   }));
   const outcome = await run(
     provider,

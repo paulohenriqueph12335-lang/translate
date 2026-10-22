@@ -72,7 +72,10 @@ describe('modelos de moldura do tradutor', () => {
   });
 
   it('o Supervisor gera a máscara de um modelo; a tradução em francês sai com a moldura em francês', async () => {
-    const created = await c.lider!.post('/api/v1/sworn-translators', { name: 'Helena Duarte Fictícia', registration: 'Matrícula JUCEFIC nº 0000' });
+    const created = await c.lider!.post('/api/v1/sworn-translators', {
+      name: 'Helena Duarte Fictícia',
+      registration: 'Matrícula JUCEFIC nº 0000',
+    });
     ids.translator = created.body.translator.id;
     const masked = await c.lider!.post(`/api/v1/sworn-translators/${ids.translator}/masks/model`, {
       model: 'bilingue',

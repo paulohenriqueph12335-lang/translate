@@ -4,11 +4,7 @@
  * Aqui se acham esses trechos para que sigam protegidos, como os números.
  */
 
-const fold = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toUpperCase();
+const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
 
 /** Prenomes comuns no Brasil (sem acento, em maiúsculas). Um nome de pessoa começa por um deles. */
 const FIRST_NAMES = new Set(
@@ -74,8 +70,7 @@ const INSTITUTION =
  */
 export function placeNames(text: string): string[] {
   const places: string[] = [];
-  const pattern =
-    /((?:[\p{Lu}][\p{L}'’-]+)(?:\s+(?:d[aeo]s?\s+)?[\p{Lu}][\p{L}'’-]+){0,3})\s*(?:[–—-]\s*|\/|,\s*)([A-Z]{2})(?![\p{L}])/gu;
+  const pattern = /((?:[\p{Lu}][\p{L}'’-]+)(?:\s+(?:d[aeo]s?\s+)?[\p{Lu}][\p{L}'’-]+){0,3})\s*(?:[–—-]\s*|\/|,\s*)([A-Z]{2})(?![\p{L}])/gu;
   for (const match of text.matchAll(pattern)) {
     let name = match[1]!.trim();
     // "Registro Civil de Vila Esperança – EF": a cidade é o que vem depois do órgão.
@@ -87,7 +82,7 @@ export function placeNames(text: string): string[] {
       }
     }
     // "SSP/EF" ou "CPF – SP" são siglas, não cidades.
-    if (name.length < 4 || !/\p{Ll}/u.test(name) && name.split(/\s+/).length < 2) continue;
+    if (name.length < 4 || (!/\p{Ll}/u.test(name) && name.split(/\s+/).length < 2)) continue;
     places.push(name);
   }
   return places;
