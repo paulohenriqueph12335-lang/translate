@@ -16,7 +16,7 @@ import { Glossary, TranslationSettingsView } from './TranslationAdmin';
 import { Translations } from './Translations';
 import { Teams } from './Teams';
 import { Translators } from './Translators';
-import { dateTime, EmbeddedSection, Feedback, message, Section, useLoad } from './ui';
+import { dateTime, EmbeddedSection, Wordmark, Feedback, message, Section, useLoad } from './ui';
 
 /**
  * Navegação por papel, compacta: poucas áreas no menu e as telas parecidas como abas dentro delas.
@@ -235,7 +235,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   return (
     <div className="shell">
       <aside className="sidebar">
-        <span className="eyebrow">PLATAFORMA DOCUMENTAL</span>
+        <Wordmark />
         <div className="identity">
           <strong>{me.user.displayName}</strong>
           <span className="muted">{me.user.email}</span>

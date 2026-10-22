@@ -4,8 +4,9 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
  * Gráficos dos painéis, em SVG/HTML simples. Paleta categórica validada (dataviz: azul, laranja, água, nessa ordem);
  * sequencial em azul. Toda série tem legenda ou rótulo direto, dica ao passar o mouse e tabela equivalente.
  */
-export const SERIES = ['#2a78d6', '#eb6834', '#1baf7a'] as const;
-const OTHER = '#9a9893';
+// Tinta, cinza médio e cinza claro: a mesma paleta de papel e tinta da interface.
+export const SERIES = ['#121212', '#8a857c', '#c4bfb6'] as const;
+const OTHER = '#dcd8d0';
 
 type Tip = { x: number; y: number; text: string } | null;
 

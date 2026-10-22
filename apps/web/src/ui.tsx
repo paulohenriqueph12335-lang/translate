@@ -50,6 +50,26 @@ export function Feedback({ error, ok }: { error?: string | null; ok?: string | n
   return null;
 }
 
+/**
+ * Marca: os colchetes das notas do tradutor ("[Assinatura ilegível]") com o traço de inutilização entre eles, a linha
+ * que fecha o espaço em branco do documento juramentado.
+ */
+export function Wordmark() {
+  return (
+    <span className="wordmark">
+      <svg viewBox="0 0 30 22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
+        <path d="M7 2H3v18h4" />
+        <path d="M23 2h4v18h-4" />
+        <path d="M10 11h3M15.5 11h4.5" />
+      </svg>
+      <span>
+        <strong>Tradutor Documental</strong>
+        <small>TRADUÇÃO PÚBLICA</small>
+      </span>
+    </span>
+  );
+}
+
 /** Dentro de uma área com abas, a seção não repete o título: a aba já diz onde a pessoa está. */
 export const EmbeddedSection = createContext(false);
 
