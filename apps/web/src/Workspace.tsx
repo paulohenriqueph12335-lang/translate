@@ -11,7 +11,7 @@ import {
   type TranslationSummary,
   LANGUAGE_PAIRS,
 } from './api';
-import { AiChoice, AiComparisonPanel } from './AiComparison';
+import { AiChoice } from './AiComparison';
 import { Meter } from './Charts';
 import { StatusBadge } from './Translations';
 import { dateTime, DateRange, Feedback, message, PagedFooter, SearchInput, Section, TagList, useDebounced, useLoad, usePaged } from './ui';
@@ -76,9 +76,6 @@ export function Workspace({
       </div>
       <Feedback error={mine.error ?? open.error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
       <AiChoice />
-      {(me.user.orgRole === 'director' || me.memberships.some((membership) => membership.role === 'leader')) && (
-        <AiComparisonPanel me={me} />
-      )}
 
       <h3 className="top-gap">Comigo</h3>
       <WorkList

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useState, type ReactNode } from 'react';
 import { api, ApiError, type Page } from './api';
 
 export const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -50,13 +50,21 @@ export function Feedback({ error, ok }: { error?: string | null; ok?: string | n
   return null;
 }
 
+/** Dentro de uma área com abas, a seção não repete o título: a aba já diz onde a pessoa está. */
+export const EmbeddedSection = createContext(false);
+
 export function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  const embedded = useContext(EmbeddedSection);
   return (
     <section className="section">
-      <header>
-        <h2>{title}</h2>
-        {subtitle && <p className="muted">{subtitle}</p>}
-      </header>
+      {embedded ? (
+        subtitle && <p className="muted section-hint">{subtitle}</p>
+      ) : (
+        <header>
+          <h2>{title}</h2>
+          {subtitle && <p className="muted">{subtitle}</p>}
+        </header>
+      )}
       {children}
     </section>
   );

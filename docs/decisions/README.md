@@ -24,6 +24,7 @@ Decisões que mudam limites, dependências ou operação ficam registradas como 
 - [ADR-020 — Diagramação construída para documentos desconhecidos, combinando o que o sistema já conhece](020-composed-layout.md)
 - [ADR-021 — Gerenciamento AI: o Gemini como gestor de processo e orientador técnico, com escopo restrito](021-ai-governance.md)
 - [ADR-022 — Escolha com IA ou sem IA por pessoa e comparação dos protocolos](022-ai-choice-comparison.md)
+- [ADR-023 — Navegação compacta por papel](023-compact-navigation.md)
 
 ## Modelo para novas decisões
 
