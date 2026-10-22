@@ -164,7 +164,9 @@ function summary(row: JobRow, actor: Actor) {
     modeLabel: modeLabel[row.translation_mode],
     stages: MODE_STAGES[row.translation_mode],
     useMask: sworn,
-    preferredTranslator: row.preferred_translator_id ? { id: row.preferred_translator_id, name: row.preferred_translator_name ?? '' } : null,
+    preferredTranslator: row.preferred_translator_id
+      ? { id: row.preferred_translator_id, name: row.preferred_translator_name ?? '' }
+      : null,
     pageCount: row.page_count,
     document: { id: row.document_id, name: row.document_name, tags: row.tags },
     batch: { id: row.batch_id, name: row.batch_name },
@@ -607,10 +609,11 @@ export function createTranslationService({
        VALUES ($1, $2, $3, $4, 'review', $5, $6)`,
       [row.id, next, JSON.stringify(review.draft), JSON.stringify(issues), ctx.actor.id, JSON.stringify(review.corrections)],
     );
-    await db.query(
-      `UPDATE translation_jobs SET current_revision = $2, document_type = nullif($3, ''), updated_at = now() WHERE id = $1`,
-      [row.id, next, review.draft.documentType.slice(0, 200)],
-    );
+    await db.query(`UPDATE translation_jobs SET current_revision = $2, document_type = nullif($3, ''), updated_at = now() WHERE id = $1`, [
+      row.id,
+      next,
+      review.draft.documentType.slice(0, 200),
+    ]);
     await audit(db, ctx, row, 'translation.auto_reviewed', {
       revision: next,
       corrections: review.corrections.length,

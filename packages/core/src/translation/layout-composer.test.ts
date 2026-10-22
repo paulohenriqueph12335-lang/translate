@@ -13,7 +13,14 @@ const p = (text: string, extra: Partial<Extract<DraftBlock, { kind: 'paragraph' 
   origin: 'machine',
   ...extra,
 });
-const h = (text: string, level: 'title' | 'normal' = 'normal'): DraftBlock => ({ kind: 'heading', text, align: 'center', level, sourceText: text, origin: 'machine' });
+const h = (text: string, level: 'title' | 'normal' = 'normal'): DraftBlock => ({
+  kind: 'heading',
+  text,
+  align: 'center',
+  level,
+  sourceText: text,
+  origin: 'machine',
+});
 const fields = (rows: Array<[string, string]>, label = 30): DraftBlock => ({
   kind: 'table',
   columns: [label, 100 - label],
@@ -27,7 +34,13 @@ const fields = (rows: Array<[string, string]>, label = 30): DraftBlock => ({
   sourceText: null,
   origin: 'machine',
 });
-const draft = (blocks: DraftBlock[], sourceTitle = ''): Draft => ({ sourceLanguage: 'pt', targetLanguage: 'en', documentType: '', sourceTitle, blocks });
+const draft = (blocks: DraftBlock[], sourceTitle = ''): Draft => ({
+  sourceLanguage: 'pt',
+  targetLanguage: 'en',
+  documentType: '',
+  sourceTitle,
+  blocks,
+});
 
 /** Dois documentos já concluídos, de tipos diferentes, com a mesma "gramática" de diagramação. */
 const known = [
@@ -82,7 +95,17 @@ const unknown = () =>
 describe('diagramação construída para documentos desconhecidos', () => {
   it('reconhece o papel de cada parte do documento', () => {
     assert.deepEqual(rolesOf(known[0]!), ['authority', 'title', 'field_table', 'line', 'place_date', 'signature_line', 'signatory']);
-    assert.deepEqual(rolesOf(unknown()), ['authority', 'title', 'field', 'field', 'field', 'prose', 'place_date', 'signature_line', 'signatory']);
+    assert.deepEqual(rolesOf(unknown()), [
+      'authority',
+      'title',
+      'field',
+      'field',
+      'field',
+      'prose',
+      'place_date',
+      'signature_line',
+      'signatory',
+    ]);
   });
 
   it('combina os documentos conhecidos parecidos: campos em tabela, centralização e tipo, sem mudar texto', () => {
@@ -90,13 +113,27 @@ describe('diagramação construída para documentos desconhecidos', () => {
     const result = composeLayout(before, knowledge);
     assert.ok(result.borrowedFrom.length >= 1);
     const texts = (d: Draft) =>
-      d.blocks.flatMap((block) => (block.kind === 'table' ? block.rows.flatMap((row) => row.cells.map((cell) => cell.text)) : [block.kind === 'signature' ? block.name : block.text]));
+      d.blocks.flatMap((block) =>
+        block.kind === 'table'
+          ? block.rows.flatMap((row) => row.cells.map((cell) => cell.text))
+          : [block.kind === 'signature' ? block.name : block.text],
+      );
     // Nenhuma palavra muda: "Name: LUCAS FERREIRA" vira rótulo e valor.
-    assert.deepEqual(texts(result.draft).join(' ').replace(/\s+/g, ' '), texts(before).join(' ').replace(/:\s*/g, ' ').replace(/\s+/g, ' '));
+    assert.deepEqual(
+      texts(result.draft).join(' ').replace(/\s+/g, ' '),
+      texts(before).join(' ').replace(/:\s*/g, ' ').replace(/\s+/g, ' '),
+    );
     const table = result.draft.blocks.find((block) => block.kind === 'table') as Extract<DraftBlock, { kind: 'table' }>;
     assert.deepEqual(table.columns, [30, 70]);
-    assert.deepEqual(table.rows.map((row) => row.cells[0]!.text), ['Name', 'Address', 'Neighbourhood']);
-    const byText = (text: string) => result.draft.blocks.find((block) => block.kind !== 'table' && block.kind !== 'signature' && block.text === text) as Extract<DraftBlock, { kind: 'paragraph' | 'heading' }>;
+    assert.deepEqual(
+      table.rows.map((row) => row.cells[0]!.text),
+      ['Name', 'Address', 'Neighbourhood'],
+    );
+    const byText = (text: string) =>
+      result.draft.blocks.find((block) => block.kind !== 'table' && block.kind !== 'signature' && block.text === text) as Extract<
+        DraftBlock,
+        { kind: 'paragraph' | 'heading' }
+      >;
     assert.equal(byText('Serra Clara, October 21, 2026.').align, 'center');
     assert.equal(byText('LUCAS FERREIRA').align, 'center');
     assert.equal(byText('FICTITIOUS MUNICIPALITY OF SERRA CLARA').kind, 'heading');
@@ -118,7 +155,10 @@ describe('diagramação construída para documentos desconhecidos', () => {
     const result = composeLayout(ocr, knowledge);
     const table = result.draft.blocks.find((block) => block.kind === 'table') as Extract<DraftBlock, { kind: 'table' }>;
     assert.equal(table.rows.length, 2);
-    const prose = result.draft.blocks.find((block) => block.kind === 'paragraph' && block.text.startsWith('I certify')) as Extract<DraftBlock, { kind: 'paragraph' }>;
+    const prose = result.draft.blocks.find((block) => block.kind === 'paragraph' && block.text.startsWith('I certify')) as Extract<
+      DraftBlock,
+      { kind: 'paragraph' }
+    >;
     assert.equal(prose.text, 'I certify that the patient above was seen today and needs to be away from school activities for three days.');
     assert.equal(prose.align, 'justify');
     assert.equal(result.draft.documentType, 'MEDICAL CERTIFICATE');

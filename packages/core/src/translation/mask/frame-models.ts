@@ -30,7 +30,8 @@ export type FrameModel = (typeof FRAME_MODELS)[number];
 export const FRAME_MODEL_INFO: Record<FrameModel, { label: string; description: string }> = {
   classico: {
     label: 'Clássico',
-    description: 'Timbre centralizado, título "Tradução Pública nº" com livro e folha, abertura e encerramento no idioma da tradução e assinatura ao centro.',
+    description:
+      'Timbre centralizado, título "Tradução Pública nº" com livro e folha, abertura e encerramento no idioma da tradução e assinatura ao centro.',
   },
   quadro: {
     label: 'Cabeçalho em quadro',
@@ -163,7 +164,17 @@ export async function renderFrameModel(
     targetLanguage: target,
     documentType: '{{tipo}}',
     sourceTitle: '',
-    blocks: [{ kind: 'paragraph' as const, text: '{{texto}}', align: 'justify' as const, bold: false, size: 'normal' as const, sourceText: null, origin: 'rules' as const }],
+    blocks: [
+      {
+        kind: 'paragraph' as const,
+        text: '{{texto}}',
+        align: 'justify' as const,
+        bold: false,
+        size: 'normal' as const,
+        sourceText: null,
+        origin: 'rules' as const,
+      },
+    ],
   };
   if (model === 'classico') {
     return renderSwornDocx(placeholderDraft, { profile, issuedAt: new Date(), numbering: null, placeholders: true, look });
@@ -195,12 +206,20 @@ export async function renderFrameModel(
         rows: [
           new TableRow({
             children: [
-              cell([para(name, look, { bold: true, after: 0 }), para(`${profile.titlePt} – ${profile.languagePt}`, look, { size: look.fontSize - 1, after: 60 })], 'left'),
+              cell(
+                [
+                  para(name, look, { bold: true, after: 0 }),
+                  para(`${profile.titlePt} – ${profile.languagePt}`, look, { size: look.fontSize - 1, after: 60 }),
+                ],
+                'left',
+              ),
               cell(
                 [
                   para(profile.registration, look, { align: 'right', size: look.fontSize - 1, after: 0 }),
                   para(`${profile.city} – ${profile.statePt}`, look, { align: 'right', size: look.fontSize - 1, after: 0 }),
-                  ...(profile.letterheadNote ? [para(profile.letterheadNote, look, { align: 'right', size: look.fontSize - 1, after: 60 })] : []),
+                  ...(profile.letterheadNote
+                    ? [para(profile.letterheadNote, look, { align: 'right', size: look.fontSize - 1, after: 60 })]
+                    : []),
                 ],
                 'right',
               ),
@@ -233,7 +252,11 @@ export async function renderFrameModel(
     const second = target === 'pt' ? null : frame;
     header = [
       para(name, look, { align: 'center', bold: true, after: 0 }),
-      para(`${profile.titlePt} – ${profile.languagePt} – ${profile.registration}`, look, { align: 'center', size: look.fontSize - 1, after: 120 }),
+      para(`${profile.titlePt} – ${profile.languagePt} – ${profile.registration}`, look, {
+        align: 'center',
+        size: look.fontSize - 1,
+        after: 120,
+      }),
     ];
     body = [
       para('TRADUÇÃO PÚBLICA Nº {{numero}}', look, { align: 'center', bold: true, size: look.fontSize + 1, after: 0 }),
@@ -248,9 +271,18 @@ export async function renderFrameModel(
     ];
   } else {
     // compacto
-    header = [para(`**${name}** · ${profile.titlePt} – ${profile.languagePt} · ${profile.registration}`, look, { align: 'center', size: look.fontSize - 1, after: 60 })];
+    header = [
+      para(`**${name}** · ${profile.titlePt} – ${profile.languagePt} · ${profile.registration}`, look, {
+        align: 'center',
+        size: look.fontSize - 1,
+        after: 60,
+      }),
+    ];
     body = [
-      para('**TRADUÇÃO PÚBLICA Nº {{numero}}** · Livro {{livro}} · Folha {{folha}} · {{data_curta}}', look, { align: 'center', after: 160 }),
+      para('**TRADUÇÃO PÚBLICA Nº {{numero}}** · Livro {{livro}} · Folha {{folha}} · {{data_curta}}', look, {
+        align: 'center',
+        after: 160,
+      }),
       para(frame.opening, look, { align: 'justify', after: 160 }),
       typeLine,
       content,
@@ -259,7 +291,8 @@ export async function renderFrameModel(
       para(profile.registration, look, { align: 'right', size: look.fontSize - 1, after: 0 }),
     ];
   }
-  if (profile.letterheadNote && model !== 'quadro') header.push(para(profile.letterheadNote, look, { align: 'center', size: look.fontSize - 2, after: 120 }));
+  if (profile.letterheadNote && model !== 'quadro')
+    header.push(para(profile.letterheadNote, look, { align: 'center', size: look.fontSize - 2, after: 120 }));
 
   const document = new Document({
     creator: profile.name,

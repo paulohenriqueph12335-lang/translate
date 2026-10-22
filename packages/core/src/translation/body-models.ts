@@ -37,13 +37,25 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
     label: 'Certidão de nascimento',
     keywords: /CERTIDAO DE NASCIMENTO|REGISTRO DE NASCIMENTO|BIRTH CERTIFICATE|ACTE DE NAISSANCE|ATTO DI NASCITA|ACTA DE NACIMIENTO/,
     keyValue: true,
-    type: { en: 'BIRTH CERTIFICATE', pt: 'CERTIDÃO DE NASCIMENTO', fr: 'ACTE DE NAISSANCE', it: 'CERTIFICATO DI NASCITA', es: 'ACTA DE NACIMIENTO' },
+    type: {
+      en: 'BIRTH CERTIFICATE',
+      pt: 'CERTIDÃO DE NASCIMENTO',
+      fr: 'ACTE DE NAISSANCE',
+      it: 'CERTIFICATO DI NASCITA',
+      es: 'ACTA DE NACIMIENTO',
+    },
   },
   marriage_certificate: {
     label: 'Certidão de casamento',
     keywords: /CERTIDAO DE CASAMENTO|MARRIAGE CERTIFICATE|ACTE DE MARIAGE|ATTO DI MATRIMONIO|ACTA DE MATRIMONIO/,
     keyValue: true,
-    type: { en: 'MARRIAGE CERTIFICATE', pt: 'CERTIDÃO DE CASAMENTO', fr: 'ACTE DE MARIAGE', it: 'CERTIFICATO DI MATRIMONIO', es: 'ACTA DE MATRIMONIO' },
+    type: {
+      en: 'MARRIAGE CERTIFICATE',
+      pt: 'CERTIDÃO DE CASAMENTO',
+      fr: 'ACTE DE MARIAGE',
+      it: 'CERTIFICATO DI MATRIMONIO',
+      es: 'ACTA DE MATRIMONIO',
+    },
   },
   death_certificate: {
     label: 'Certidão de óbito',
@@ -53,21 +65,41 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   },
   identity: {
     label: 'Identidade (CIN, RG)',
-    keywords: /CARTEIRA DE IDENTIDADE|REGISTRO GERAL|CEDULA DE IDENTIDADE|IDENTITY CARD|CARTE D.IDENTITE|CARTA D.IDENTITA|DOCUMENTO DE IDENTIDAD/,
+    keywords:
+      /CARTEIRA DE IDENTIDADE|REGISTRO GERAL|CEDULA DE IDENTIDADE|IDENTITY CARD|CARTE D.IDENTITE|CARTA D.IDENTITA|DOCUMENTO DE IDENTIDAD/,
     keyValue: true,
-    type: { en: 'IDENTITY CARD', pt: 'CARTEIRA DE IDENTIDADE', fr: "CARTE D'IDENTITÉ", it: "CARTA D'IDENTITÀ", es: 'DOCUMENTO DE IDENTIDAD' },
+    type: {
+      en: 'IDENTITY CARD',
+      pt: 'CARTEIRA DE IDENTIDADE',
+      fr: "CARTE D'IDENTITÉ",
+      it: "CARTA D'IDENTITÀ",
+      es: 'DOCUMENTO DE IDENTIDAD',
+    },
   },
   driver_license: {
     label: 'Carteira de motorista (CNH)',
-    keywords: /CARTEIRA NACIONAL DE HABILITACAO|PERMISSAO PARA DIRIGIR|DRIVER.S LICEN[CS]E|DRIVING LICEN[CS]E|PERMIS DE CONDUIRE|PATENTE DI GUIDA|LICENCIA DE CONDUCIR/,
+    keywords:
+      /CARTEIRA NACIONAL DE HABILITACAO|PERMISSAO PARA DIRIGIR|DRIVER.S LICEN[CS]E|DRIVING LICEN[CS]E|PERMIS DE CONDUIRE|PATENTE DI GUIDA|LICENCIA DE CONDUCIR/,
     keyValue: true,
-    type: { en: 'DRIVING LICENCE', pt: 'CARTEIRA NACIONAL DE HABILITAÇÃO', fr: 'PERMIS DE CONDUIRE', it: 'PATENTE DI GUIDA', es: 'LICENCIA DE CONDUCIR' },
+    type: {
+      en: 'DRIVING LICENCE',
+      pt: 'CARTEIRA NACIONAL DE HABILITAÇÃO',
+      fr: 'PERMIS DE CONDUIRE',
+      it: 'PATENTE DI GUIDA',
+      es: 'LICENCIA DE CONDUCIR',
+    },
   },
   school_record: {
     label: 'Histórico escolar',
     keywords: /HISTORICO ESCOLAR|HISTORICO ACADEMICO|TRANSCRIPT|RELEVE DE NOTES|CERTIFICATO DEGLI ESAMI|CERTIFICADO DE ESTUDIOS/,
     keyValue: false,
-    type: { en: 'SCHOOL TRANSCRIPT', pt: 'HISTÓRICO ESCOLAR', fr: 'RELEVÉ DE NOTES', it: 'CERTIFICATO DEGLI ESAMI', es: 'CERTIFICADO DE ESTUDIOS' },
+    type: {
+      en: 'SCHOOL TRANSCRIPT',
+      pt: 'HISTÓRICO ESCOLAR',
+      fr: 'RELEVÉ DE NOTES',
+      it: 'CERTIFICATO DEGLI ESAMI',
+      es: 'CERTIFICADO DE ESTUDIOS',
+    },
   },
   diploma: {
     label: 'Diploma',
@@ -113,11 +145,7 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   },
 };
 
-const fold = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toUpperCase();
+const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
 
 /** Tipo do documento pelo título e pelo começo do texto do original. */
 export function classifyDocument(draft: Draft, sourceText: string | null): BodyModel {
@@ -277,7 +305,12 @@ export function applyBodyModel(input: Draft, sourceText: string | null, model = 
     );
   });
   if (draft.blocks.length !== before) {
-    changes.push({ block: 0, message: 'Parágrafos vazios removidos', before: `${before} bloco(s)`, after: `${draft.blocks.length} bloco(s)` });
+    changes.push({
+      block: 0,
+      message: 'Parágrafos vazios removidos',
+      before: `${before} bloco(s)`,
+      after: `${draft.blocks.length} bloco(s)`,
+    });
   }
 
   // Rótulo e valor: sequências de duas ou mais linhas "Rótulo: valor" viram tabela de duas colunas (35% / 65%).
@@ -303,7 +336,12 @@ export function applyBodyModel(input: Draft, sourceText: string | null, model = 
           sourceText: run.map((block) => block.sourceText ?? '').join('\n') || null,
           origin: run[0]!.origin,
         });
-        changes.push({ block: blocks.length, message: `${run.length} linhas "rótulo: valor" alinhadas em tabela`, before: run.map((block) => block.text).join(' | '), after: 'tabela de duas colunas' });
+        changes.push({
+          block: blocks.length,
+          message: `${run.length} linhas "rótulo: valor" alinhadas em tabela`,
+          before: run.map((block) => block.text).join(' | '),
+          after: 'tabela de duas colunas',
+        });
       } else blocks.push(...run);
       run = [];
     };
@@ -320,7 +358,9 @@ export function applyBodyModel(input: Draft, sourceText: string | null, model = 
 
   // Tipo do documento: o do modelo (ou o primeiro título) quando o rascunho não tem.
   // No modelo geral, só com título no original; sem ele, a diagramação construída (ADR-020) reconhece o título.
-  const title = draft.blocks.find((block) => block.kind === 'heading' && block.text.trim()) as Extract<DraftBlock, { kind: 'heading' }> | undefined;
+  const title = draft.blocks.find((block) => block.kind === 'heading' && block.text.trim()) as
+    | Extract<DraftBlock, { kind: 'heading' }>
+    | undefined;
   if (!draft.documentType.trim() && (model !== 'generic' || title)) {
     const fallback = model !== 'generic' ? spec.type[draft.targetLanguage] : title!.text.replace(/\*\*/g, '').trim().toUpperCase();
     draft.documentType = fallback.slice(0, 200);

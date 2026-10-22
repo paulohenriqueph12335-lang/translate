@@ -140,7 +140,8 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
     : buildManualDraft({ sourceLanguage, targetLanguage, extractedText, glossary });
 
   if (extraction?.ocr && extractedText) {
-    notice = `Texto lido por OCR (confiança média ${extraction.ocr.confidence}%): confira nomes, números e datas com o original. ${notice ?? ''}`.trim();
+    notice =
+      `Texto lido por OCR (confiança média ${extraction.ocr.confidence}%): confira nomes, números e datas com o original. ${notice ?? ''}`.trim();
   }
   // Modelo de corpo pelo tipo do documento (ADR-019): tabelas que fecham, rótulo e valor, espaçamento e tipo.
   const body = applyBodyModel(draft, extractedText);
@@ -157,14 +158,23 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
   }
   if (!shaped.documentType.trim()) {
     shaped = { ...shaped, documentType: BODY_MODEL_SPECS.generic.type[shaped.targetLanguage] };
-    layoutChanges.push({ code: 'layout', block: 0, message: 'Tipo do documento genérico: o original não tem título reconhecível', before: '', after: shaped.documentType });
+    layoutChanges.push({
+      code: 'layout',
+      block: 0,
+      message: 'Tipo do documento genérico: o original não tem título reconhecível',
+      before: '',
+      after: shaped.documentType,
+    });
   }
   // Revisão automática (ADR-016): corrige idioma, números, datas, glossário e marcadores.
   const review = await autoReview({ draft: shaped, sourceText: extractedText, glossary, rules, translator: reviewTranslator });
   review.corrections.unshift(...layoutChanges);
   if (body.model !== 'generic') notice = `${notice ?? ''} Diagramação pelo modelo "${BODY_MODEL_SPECS[body.model].label}".`.trim();
   if (composedFrom.length && layoutChanges.some((change) => change.message.includes('parecidos'))) {
-    const names = composedFrom.slice(0, 3).map((item) => `${item.title} (${item.similarity}%)`).join(', ');
+    const names = composedFrom
+      .slice(0, 3)
+      .map((item) => `${item.title} (${item.similarity}%)`)
+      .join(', ');
     notice = `${notice ?? ''} Diagramação construída combinando documentos conhecidos: ${names}.`.trim();
   }
   if (review.corrections.length) notice = `${notice ?? ''} Revisão automática: ${review.corrections.length} correção(ões) feita(s).`.trim();

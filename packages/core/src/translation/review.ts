@@ -106,7 +106,8 @@ function noteAsMarker(text: string, quote: string | null, target: Language) {
   if (/watermark|marca d.água|filigran|marca de agua/.test(lower)) return `[${m.watermark}${translated ? `: ${translated}` : ''}]`;
   if (/^(footer|rodapé|pied de page|piè di pagina|pie de página)\s*:/.test(lower)) return translated ?? text.replace(/^[^:]+:\s*/, '');
   if (/stamp|carimbo|cachet|timbro|sello/.test(lower)) return `[${m.stamp}${translated ? `: ${translated}` : ''}]`;
-  if (/signature|assinatura|firma/.test(lower)) return `[${/illeg|ilegív|illisible|ilegible/.test(lower) ? m.illegibleSignature : m.signature}]`;
+  if (/signature|assinatura|firma/.test(lower))
+    return `[${/illeg|ilegív|illisible|ilegible/.test(lower) ? m.illegibleSignature : m.signature}]`;
   if (/qr/.test(lower)) return `[${m.qrCode}]`;
   return `[${text.replace(/^[[\s]+|[\].\s]+$/g, '')}]`;
 }
@@ -143,9 +144,7 @@ export async function autoReview(input: AutoReviewInput): Promise<AutoReviewResu
     let spaced = text.replace(/[ \t]{2,}/g, ' ');
     // Francês e italiano: o provedor separa a elisão ("l ' État", "dell ' anno").
     if (to === 'fr' || to === 'it') spaced = spaced.replace(/(\p{L})\s*['’]\s+(?=\p{L})/gu, "$1'");
-    spaced = spaced
-      .replace(to === 'fr' ? /\s+([,.](?!\d))/g : /\s+([,.;:!?](?!\d))/g, '$1')
-      .trim();
+    spaced = spaced.replace(to === 'fr' ? /\s+([,.](?!\d))/g : /\s+([,.;:!?](?!\d))/g, '$1').trim();
     if (spaced !== text && spaced) {
       record('spacing', unit.block, text, spaced, 'Espaçamento corrigido');
       unit.set((text = spaced));
@@ -237,10 +236,12 @@ export async function autoReview(input: AutoReviewInput): Promise<AutoReviewResu
               ? 'Trecho sem tradução: traduzido do original'
               : code === 'content_lost'
                 ? 'Texto perdido na tradução: traduzido de novo a partir do original'
-              : `Trecho fora do ${LANGUAGE_LABEL[to]}: traduzido de novo a partir do original`,
+                : `Trecho fora do ${LANGUAGE_LABEL[to]}: traduzido de novo a partir do original`,
         );
       } else if (!translated && !unresolved.some((line) => line.startsWith('A tradução automática'))) {
-        unresolved.push(`Bloco ${unit.block}: trecho fora do ${LANGUAGE_LABEL[to]} ("${before.slice(0, 60)}"); sem tradutor automático para refazer.`);
+        unresolved.push(
+          `Bloco ${unit.block}: trecho fora do ${LANGUAGE_LABEL[to]} ("${before.slice(0, 60)}"); sem tradutor automático para refazer.`,
+        );
       }
     });
   }
@@ -259,15 +260,19 @@ export async function autoReview(input: AutoReviewInput): Promise<AutoReviewResu
         numericDateToLong(token, from, to),
         // Dia e mês trocados (formato americano) mesmo entre idiomas que escrevem a data igual.
         token.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, '$2/$1/$3'),
-      ].filter(
-        (variant, index, all) => variant !== expected && all.indexOf(variant) === index,
-      );
+      ].filter((variant, index, all) => variant !== expected && all.indexOf(variant) === index);
       const found = variants.find((variant) => numberPattern(variant).test(text));
       let replacement: string | null = null;
       if (found) replacement = found;
       else if (/\p{L}/u.test(expected)) {
         // Data por extenso com a pontuação mexida pelo provedor ("September 5 2025" no lugar de "September 5, 2025").
-        const loose = new RegExp(expected.split(/[\s,]+/).map(escapeRegExp).join('[\\s,.]*'), 'iu');
+        const loose = new RegExp(
+          expected
+            .split(/[\s,]+/)
+            .map(escapeRegExp)
+            .join('[\\s,.]*'),
+          'iu',
+        );
         replacement = loose.exec(text)?.[0] ?? null;
       }
       if (replacement === null) {

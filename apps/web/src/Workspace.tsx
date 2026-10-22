@@ -76,7 +76,9 @@ export function Workspace({
       </div>
       <Feedback error={mine.error ?? open.error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
       <AiChoice />
-      {(me.user.orgRole === 'director' || me.memberships.some((membership) => membership.role === 'leader')) && <AiComparisonPanel me={me} />}
+      {(me.user.orgRole === 'director' || me.memberships.some((membership) => membership.role === 'leader')) && (
+        <AiComparisonPanel me={me} />
+      )}
 
       <h3 className="top-gap">Comigo</h3>
       <WorkList

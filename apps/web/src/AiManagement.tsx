@@ -44,7 +44,10 @@ export function AiManagement() {
   }
 
   return (
-    <Section title="Gerenciamento AI" subtitle="Auxílio do Gemini com escopo restrito: glossário, diagramação aprovada na prévia e orientação do processo.">
+    <Section
+      title="Gerenciamento AI"
+      subtitle="Auxílio do Gemini com escopo restrito: glossário, diagramação aprovada na prévia e orientação do processo."
+    >
       <Feedback error={feedback.error ?? settings.error ?? null} ok={feedback.ok ?? null} />
       {data && (
         <>
@@ -59,8 +62,8 @@ export function AiManagement() {
             </p>
             {!data.configured && (
               <p className="muted small-text">
-                Para ativar, coloque a chave do Google AI Studio em <code>GEMINI_API_KEY</code> no arquivo <code>.env</code> e reinicie a API e o
-                worker.
+                Para ativar, coloque a chave do Google AI Studio em <code>GEMINI_API_KEY</code> no arquivo <code>.env</code> e reinicie a
+                API e o worker.
               </p>
             )}
             <div className="actions">
@@ -68,7 +71,9 @@ export function AiManagement() {
                 <button
                   type="button"
                   className={data.enabled ? 'secondary' : ''}
-                  onClick={() => void save(data.enabled ? 'IA desligada.' : 'IA ligada.', () => api('PATCH', '/ai/settings', { enabled: !data.enabled }))}
+                  onClick={() =>
+                    void save(data.enabled ? 'IA desligada.' : 'IA ligada.', () => api('PATCH', '/ai/settings', { enabled: !data.enabled }))
+                  }
                 >
                   {data.enabled ? 'Desligar a IA' : 'Ligar a IA'}
                 </button>
@@ -97,11 +102,13 @@ function ModelPicker({ current, onSave }: { current: string; onSave: (model: str
     <label className="inline">
       <span className="muted small-text">Modelo</span>
       <select value={model} onChange={(e) => setModel(e.target.value)}>
-        {[...new Set([current, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'])].map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
+        {[...new Set([current, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'])].map(
+          (option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ),
+        )}
       </select>
       {model !== current && (
         <button type="button" className="secondary" onClick={() => onSave(model)}>
@@ -117,11 +124,12 @@ function GovernanceEditor({ current, fallback, onSave }: { current: string; fall
   return (
     <details className="top-gap">
       <summary>
-        <strong>Prompt de governança</strong> {current === fallback ? <span className="badge soft">padrão</span> : <span className="badge info">editado</span>}
+        <strong>Prompt de governança</strong>{' '}
+        {current === fallback ? <span className="badge soft">padrão</span> : <span className="badge info">editado</span>}
       </summary>
       <p className="muted small-text">
-        As regras fixas do sistema (não alterar texto, não sair do escopo, responder só no formato pedido) entram sempre depois deste prompt e
-        das habilidades, e não podem ser desligadas por aqui.
+        As regras fixas do sistema (não alterar texto, não sair do escopo, responder só no formato pedido) entram sempre depois deste prompt
+        e das habilidades, e não podem ser desligadas por aqui.
       </p>
       <textarea rows={14} value={text} maxLength={8000} onChange={(e) => setText(e.target.value)} aria-label="Prompt de governança" />
       <div className="actions">
@@ -150,7 +158,9 @@ function Skills({ skills, onSave }: { skills: AiSkillItem[]; onSave: (label: str
   return (
     <>
       <h3 className="top-gap">Habilidades</h3>
-      <p className="muted small-text">Instruções adicionais que entram no prompt da IA (padrão de qualidade da diagramação, convenções da equipe).</p>
+      <p className="muted small-text">
+        Instruções adicionais que entram no prompt da IA (padrão de qualidade da diagramação, convenções da equipe).
+      </p>
       <ul className="list compact">
         {skills.map((skill) => (
           <li key={skill.id}>
@@ -160,14 +170,19 @@ function Skills({ skills, onSave }: { skills: AiSkillItem[]; onSave: (label: str
                 {skill.active ? 'Ativa' : 'Inativa'} · {skill.updatedBy}, {dateTime(skill.updatedAt)}
               </span>
             </span>
-            <button type="button" className="secondary" onClick={() => setEditing({ id: skill.id, name: skill.name, content: skill.content, active: skill.active })}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setEditing({ id: skill.id, name: skill.name, content: skill.content, active: skill.active })}
+            >
               Editar
             </button>
             <button
               type="button"
               className="secondary"
               onClick={() =>
-                window.confirm(`Remover a habilidade "${skill.name}"?`) && void onSave('Habilidade removida.', () => api('DELETE', `/ai/skills/${skill.id}`))
+                window.confirm(`Remover a habilidade "${skill.name}"?`) &&
+                void onSave('Habilidade removida.', () => api('DELETE', `/ai/skills/${skill.id}`))
               }
             >
               Remover
@@ -178,7 +193,12 @@ function Skills({ skills, onSave }: { skills: AiSkillItem[]; onSave: (label: str
       </ul>
       {editing ? (
         <div className="card">
-          <input placeholder="Nome" value={editing.name} maxLength={80} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+          <input
+            placeholder="Nome"
+            value={editing.name}
+            maxLength={80}
+            onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+          />
           <textarea
             rows={8}
             placeholder="Instruções da habilidade"
@@ -222,7 +242,9 @@ function AccessList({ onError }: { onError: (error: string) => void }) {
   return (
     <>
       <h3 className="top-gap">Acesso por pessoa</h3>
-      <p className="muted small-text">Todos usam por padrão. O Supervisor limita as pessoas das próprias equipes; o Diretor, qualquer pessoa.</p>
+      <p className="muted small-text">
+        Todos usam por padrão. O Supervisor limita as pessoas das próprias equipes; o Diretor, qualquer pessoa.
+      </p>
       <Feedback error={access.error} />
       <div className="table-wrap">
         <table>
@@ -266,7 +288,10 @@ function AccessList({ onError }: { onError: (error: string) => void }) {
 }
 
 function RequestLog() {
-  const log = useLoad(() => api<{ last30Days: Partial<Record<AiOutcomeStatus, number>>; items: AiRequestItem[] }>('GET', '/ai/requests'), []);
+  const log = useLoad(
+    () => api<{ last30Days: Partial<Record<AiOutcomeStatus, number>>; items: AiRequestItem[] }>('GET', '/ai/requests'),
+    [],
+  );
   const totals = log.data?.last30Days ?? {};
   return (
     <>
@@ -318,15 +343,27 @@ function RequestLog() {
  * Auxílio da IA na tela da tradução: conferir glossário, sugerir diagramação (prévia + aprovação) e tirar dúvidas do
  * processo. Fica fora do caminho: sem IA disponível, mostra só uma linha e nada mais muda na tela.
  */
-export function AiAssist({ translationId, status, onApplied }: { translationId: string; status: TranslationStatus; onApplied: () => void }) {
+export function AiAssist({
+  translationId,
+  status,
+  onApplied,
+}: {
+  translationId: string;
+  status: TranslationStatus;
+  onApplied: () => void;
+}) {
   const ai = useLoad(() => api<AiStatus>('GET', '/ai/status'), []);
   const [version, setVersion] = useState(0);
-  const pending = useLoad(() => api<{ combination: AiCombination | null }>('GET', `/translations/${translationId}/ai/layout`), [translationId, version]);
+  const pending = useLoad(
+    () => api<{ combination: AiCombination | null }>('GET', `/translations/${translationId}/ai/layout`),
+    [translationId, version],
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
-  const [glossary, setGlossary] = useState<{ findings: Array<{ block: number; term: string; problem: string }>; systemFindings: string[] } | null>(
-    null,
-  );
+  const [glossary, setGlossary] = useState<{
+    findings: Array<{ block: number; term: string; problem: string }>;
+    systemFindings: string[];
+  } | null>(null);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
   if (!ai.data) return null;
@@ -364,7 +401,11 @@ export function AiAssist({ translationId, status, onApplied }: { translationId: 
     }
   }
   const outcome = (result: { status: string; reason?: string | null }, ok: string) =>
-    setFeedback(result.status === 'ok' ? { ok } : { error: `${aiStatusLabel[result.status as AiOutcomeStatus] ?? result.status}: ${result.reason ?? ''}` });
+    setFeedback(
+      result.status === 'ok'
+        ? { ok }
+        : { error: `${aiStatusLabel[result.status as AiOutcomeStatus] ?? result.status}: ${result.reason ?? ''}` },
+    );
 
   return (
     <details className="card top-gap" open={!!combination}>
@@ -422,7 +463,9 @@ export function AiAssist({ translationId, status, onApplied }: { translationId: 
               {text}
             </li>
           ))}
-          {!glossary.findings.length && !glossary.systemFindings.length && <li className="muted">Nenhum termo do glossário fora do padrão.</li>}
+          {!glossary.findings.length && !glossary.systemFindings.length && (
+            <li className="muted">Nenhum termo do glossário fora do padrão.</li>
+          )}
         </ul>
       )}
 
@@ -430,7 +473,9 @@ export function AiAssist({ translationId, status, onApplied }: { translationId: 
         <CombinationReview
           combination={combination}
           onDone={(approved) => {
-            setFeedback({ ok: approved ? 'Diagramação aplicada; o sistema passa a usá-la em documentos parecidos.' : 'Sugestão descartada.' });
+            setFeedback({
+              ok: approved ? 'Diagramação aplicada; o sistema passa a usá-la em documentos parecidos.' : 'Sugestão descartada.',
+            });
             setVersion((current) => current + 1);
             if (approved) onApplied();
           }}
@@ -500,7 +545,8 @@ function CombinationReview({
         ))}
         <li>
           <span>
-            <strong>campos</strong>: {combination.fieldsAsTable ? `em tabela${combination.labelWidth ? ` (rótulo ${combination.labelWidth}%)` : ''}` : 'em linhas'}
+            <strong>campos</strong>:{' '}
+            {combination.fieldsAsTable ? `em tabela${combination.labelWidth ? ` (rótulo ${combination.labelWidth}%)` : ''}` : 'em linhas'}
           </span>
         </li>
       </ul>

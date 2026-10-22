@@ -182,11 +182,25 @@ export function NewTranslation({
         <div className="tags-field mask-choice">
           <span className="field-label">Máscara do tradutor</span>
           <div className="mode-options" role="radiogroup" aria-label="Máscara do tradutor">
-            <button type="button" role="radio" aria-checked={useMask} className={`mode-option ${useMask ? 'on' : ''}`} onClick={() => setUseMask(true)}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={useMask}
+              className={`mode-option ${useMask ? 'on' : ''}`}
+              onClick={() => setUseMask(true)}
+            >
               <strong>Com máscara</strong>
-              <span className="muted small-text">Timbre, abertura e encerramento do tradutor, com número, livro e folha pela regra dele.</span>
+              <span className="muted small-text">
+                Timbre, abertura e encerramento do tradutor, com número, livro e folha pela regra dele.
+              </span>
             </button>
-            <button type="button" role="radio" aria-checked={!useMask} className={`mode-option ${!useMask ? 'on' : ''}`} onClick={() => setUseMask(false)}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!useMask}
+              className={`mode-option ${!useMask ? 'on' : ''}`}
+              onClick={() => setUseMask(false)}
+            >
               <strong>Sem máscara</strong>
               <span className="muted small-text">Só o documento traduzido no layout do original, sem tradutor nem numeração.</span>
             </button>
@@ -240,7 +254,11 @@ export function FlowTracker({ t }: { t: TranslationSummary }) {
       t.status === 'failed' ? 'failed' : processing ? 'current' : 'done',
       t.status === 'failed' ? 'Falhou' : processing ? 'Traduzindo no layout do original' : 'Automática',
     ],
-    ['Revisão', processing || t.status === 'failed' ? 'waiting' : 'done', processing ? 'Aguardando a tradução' : 'Automática, com correções'],
+    [
+      'Revisão',
+      processing || t.status === 'failed' ? 'waiting' : 'done',
+      processing ? 'Aguardando a tradução' : 'Automática, com correções',
+    ],
     [
       'Prévia em Word',
       t.status === 'in_review' ? 'current' : t.status === 'awaiting_approval' || t.status === 'approved' ? 'done' : 'waiting',

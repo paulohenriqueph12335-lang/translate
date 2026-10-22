@@ -47,8 +47,14 @@ describe('revisão automática', () => {
     const calls: string[][] = [];
     const result = await autoReview({
       draft: draft([
-        paragraph('Certifico que o registro foi lavrado neste cartório de registro civil', 'Certifico que o registro foi lavrado neste cartório de registro civil'),
-        paragraph('I certify that the record was drawn up in this office of the registry', 'Certifico que o registro foi lavrado neste cartório'),
+        paragraph(
+          'Certifico que o registro foi lavrado neste cartório de registro civil',
+          'Certifico que o registro foi lavrado neste cartório de registro civil',
+        ),
+        paragraph(
+          'I certify that the record was drawn up in this office of the registry',
+          'Certifico que o registro foi lavrado neste cartório',
+        ),
         paragraph('MARIANA ALVES TEIXEIRA', 'MARIANA ALVES TEIXEIRA'),
       ]),
       sourceText: null,
@@ -69,7 +75,9 @@ describe('revisão automática', () => {
 
   it('sem tradutor, não inventa: deixa o trecho para a pessoa', async () => {
     const result = await autoReview({
-      draft: draft([paragraph('I certify that the record was drawn up in this office', 'Certifico que o registro foi lavrado neste cartório')]),
+      draft: draft([
+        paragraph('I certify that the record was drawn up in this office', 'Certifico que o registro foi lavrado neste cartório'),
+      ]),
       sourceText: null,
       glossary: [],
       rules,
@@ -81,9 +89,7 @@ describe('revisão automática', () => {
 
   it('devolve números e datas ao formato da regra', async () => {
     const result = await autoReview({
-      draft: draft([
-        paragraph('Né le 03/14/2006, note 8.5, RG 12,345,678-9', 'Nascido em 14/03/2006, nota 8,5, RG 12.345.678-9'),
-      ]),
+      draft: draft([paragraph('Né le 03/14/2006, note 8.5, RG 12,345,678-9', 'Nascido em 14/03/2006, nota 8,5, RG 12.345.678-9')]),
       sourceText: null,
       glossary: [],
       rules,

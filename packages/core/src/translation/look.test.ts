@@ -34,7 +34,9 @@ describe('fonte e tamanho da regra em todo o documento (skills)', () => {
 
   it('prévia com o número previsto continua marcada como rascunho', async () => {
     const mask = new Uint8Array(await renderMaskTemplate('en'));
-    const result = await look(await fillMask(mask, approvedTranscriptDraft, values, 'X', { look: defaultRules('sworn', 'en'), draft: true }));
+    const result = await look(
+      await fillMask(mask, approvedTranscriptDraft, values, 'X', { look: defaultRules('sworn', 'en'), draft: true }),
+    );
     assert.equal(result.banner, true);
   });
 
@@ -47,6 +49,9 @@ describe('fonte e tamanho da regra em todo o documento (skills)', () => {
     assert.deepEqual(result.fonts, ['Times New Roman']);
     assert.deepEqual(result.tableSizes, [10]);
     // Só o rodapé com o número da página é menor que o corpo.
-    assert.ok(result.sizes.every((size) => size === 10 || size === 8), JSON.stringify(result.sizes));
+    assert.ok(
+      result.sizes.every((size) => size === 10 || size === 8),
+      JSON.stringify(result.sizes),
+    );
   });
 });

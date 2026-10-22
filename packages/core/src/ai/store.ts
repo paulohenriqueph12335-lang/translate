@@ -17,7 +17,9 @@ export interface AiConfig {
 /** Configuração em vigor: ligada ou não, modelo, governança e habilidades ativas. */
 export async function loadAiConfig(db: Queryable): Promise<AiConfig> {
   const settings = (
-    await db.query<{ enabled: boolean; model: string; governance_prompt: string | null }>('SELECT enabled, model, governance_prompt FROM ai_settings')
+    await db.query<{ enabled: boolean; model: string; governance_prompt: string | null }>(
+      'SELECT enabled, model, governance_prompt FROM ai_settings',
+    )
   ).rows[0];
   const skills = (await db.query<AiSkill>('SELECT name, content FROM ai_skills WHERE active ORDER BY name')).rows;
   return {
@@ -46,10 +48,14 @@ export async function logAiRequest(
   db: Queryable,
   entry: { userId: string | null; translationId: string | null; task: AiTask; status: string; reason?: string | null; durationMs?: number },
 ) {
-  await db.query(
-    `INSERT INTO ai_requests (user_id, translation_id, task, status, reason, duration_ms) VALUES ($1, $2, $3, $4, $5, $6)`,
-    [entry.userId, entry.translationId, entry.task, entry.status, entry.reason?.slice(0, 500) ?? null, entry.durationMs ?? null],
-  );
+  await db.query(`INSERT INTO ai_requests (user_id, translation_id, task, status, reason, duration_ms) VALUES ($1, $2, $3, $4, $5, $6)`, [
+    entry.userId,
+    entry.translationId,
+    entry.task,
+    entry.status,
+    entry.reason?.slice(0, 500) ?? null,
+    entry.durationMs ?? null,
+  ]);
 }
 
 /**
@@ -64,12 +70,21 @@ export async function proposeLayoutCombination(
 ): Promise<{ status: AiOutcome<unknown>['status'] | 'denied'; reason?: string; combinationId?: string }> {
   const config = await loadAiConfig(db);
   if (!config.enabled || !factory) {
-    return { status: 'unavailable', reason: !factory ? 'IA não configurada (chave GEMINI_API_KEY ausente)' : 'IA desligada em Gerenciamento AI' };
+    return {
+      status: 'unavailable',
+      reason: !factory ? 'IA não configurada (chave GEMINI_API_KEY ausente)' : 'IA desligada em Gerenciamento AI',
+    };
   }
   // Quem escolheu trabalhar sem IA não recebe sugestões (nem em segundo plano); não é bloqueio, não vai ao registro.
   if (!(await aiChosenBy(db, userId))) return { status: 'unavailable', reason: 'Você escolheu trabalhar sem IA' };
   if (!(await aiAllowedFor(db, userId))) {
-    await logAiRequest(db, { userId, translationId: jobId, task: 'layout_combination', status: 'denied', reason: 'Acesso à IA bloqueado para a pessoa' });
+    await logAiRequest(db, {
+      userId,
+      translationId: jobId,
+      task: 'layout_combination',
+      status: 'denied',
+      reason: 'Acesso à IA bloqueado para a pessoa',
+    });
     return { status: 'denied', reason: 'Seu acesso à IA foi limitado pela liderança' };
   }
   const row = (

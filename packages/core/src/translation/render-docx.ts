@@ -278,7 +278,13 @@ function renderBlock(block: DraftBlock, frame: ReturnType<typeof swornFrame>): A
   switch (block.kind) {
     case 'heading':
       return [
-        paragraph(block.text, { align: block.align, bold: true, size: block.level === 'title' ? SIZE.large : SIZE.body, after: 0, keepNext: true }),
+        paragraph(block.text, {
+          align: block.align,
+          bold: true,
+          size: block.level === 'title' ? SIZE.large : SIZE.body,
+          after: 0,
+          keepNext: true,
+        }),
       ];
     case 'paragraph':
       return [

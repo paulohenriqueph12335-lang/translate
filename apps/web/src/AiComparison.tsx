@@ -81,7 +81,8 @@ function value(point: AiComparisonPoint, metric: Metric): number | null {
   if (metric === 'avgMinutes') return point.avgMinutes;
   return point[metric];
 }
-const formatFor = (metric: Metric) => (metric === 'firstTime' ? (v: number) => `${v}%` : metric === 'avgMinutes' ? (v: number) => duration(v) : undefined);
+const formatFor = (metric: Metric) =>
+  metric === 'firstTime' ? (v: number) => `${v}%` : metric === 'avgMinutes' ? (v: number) => duration(v) : undefined;
 
 /**
  * Protocolos com IA × sem IA (ADR-022), no workspace do Diretor e dos Supervisores: a métrica escolhida, semana a
@@ -102,9 +103,7 @@ export function AiComparisonPanel({ me }: { me: Me }) {
   }, []);
 
   const range =
-    period.from && period.to
-      ? period
-      : { from: isoDay(new Date(Date.now() - (Number(quick) - 1) * 86_400_000)), to: isoDay(new Date()) };
+    period.from && period.to ? period : { from: isoDay(new Date(Date.now() - (Number(quick) - 1) * 86_400_000)), to: isoDay(new Date()) };
   const { data, error } = useLoad(
     () => api<Comparison>('GET', `/dashboards/ai-comparison${queryString({ ...range, teamId: teamId || undefined })}`),
     [range.from, range.to, teamId, tick],
@@ -119,7 +118,17 @@ export function AiComparisonPanel({ me }: { me: Me }) {
     if (!data) return;
     downloadCsv(
       `com-ia-x-sem-ia-${data.period.from}-a-${data.period.to}.csv`,
-      ['Semana', 'Recebidos com IA', 'Recebidos sem IA', 'Concluídos com IA', 'Concluídos sem IA', 'Acerto 1ª com IA (%)', 'Acerto 1ª sem IA (%)', 'Tempo médio com IA (min)', 'Tempo médio sem IA (min)'],
+      [
+        'Semana',
+        'Recebidos com IA',
+        'Recebidos sem IA',
+        'Concluídos com IA',
+        'Concluídos sem IA',
+        'Acerto 1ª com IA (%)',
+        'Acerto 1ª sem IA (%)',
+        'Tempo médio com IA (min)',
+        'Tempo médio sem IA (min)',
+      ],
       data.weeks.map((week) => [
         week.week,
         week.withAi.received,
@@ -197,7 +206,10 @@ export function AiComparisonPanel({ me }: { me: Me }) {
             </div>
           </div>
           <PairedColumns
-            items={data.weeks.map((week) => ({ label: shortDate(week.week), values: [value(week.withAi, metric), value(week.withoutAi, metric)] }))}
+            items={data.weeks.map((week) => ({
+              label: shortDate(week.week),
+              values: [value(week.withAi, metric), value(week.withoutAi, metric)],
+            }))}
             series={SERIES_NAMES}
             {...(format ? { format } : {})}
           />

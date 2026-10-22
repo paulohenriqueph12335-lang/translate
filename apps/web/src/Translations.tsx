@@ -425,209 +425,212 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           onSaved={reload}
         />
       )}
-      {data.draft && (t.status === 'in_review' || t.status === 'awaiting_approval' || (t.status === 'approved' && t.permissions.download)) && (
-        <WordPanel t={t} revision={data.draft.revision} busy={busy || dirty} onAccept={() => void acceptWord()} />
-      )}
+      {data.draft &&
+        (t.status === 'in_review' || t.status === 'awaiting_approval' || (t.status === 'approved' && t.permissions.download)) && (
+          <WordPanel t={t} revision={data.draft.revision} busy={busy || dirty} onAccept={() => void acceptWord()} />
+        )}
       {/* Auxílio da IA (ADR-021) junto da prévia: a sugestão de diagramação pendente aparece aberta. */}
       {data.draft && !editing && <AiAssist translationId={id} status={t.status} onApplied={reload} />}
       <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
 
       <details className="card manual-tools" open={editing}>
         <summary>Ajustes manuais (opcional): texto, checklist, revisão e conclusão com outro tradutor</summary>
-      <div className="action-bar">
-        {t.permissions.claim && (
-          <button
-            className="primary"
-            disabled={busy}
-            onClick={() => void run('Agora esta tradução é sua.', () => api('POST', `/translations/${id}/claim`)).then(reload)}
-          >
-            Assumir
-          </button>
-        )}
-        {t.permissions.reassign && t.team && (
-          <ReassignControl teamId={t.team.id} current={t.assignee?.id ?? null} id={id} onDone={reload} />
-        )}
-        {t.permissions.edit && !editing && (
-          <button onClick={() => setEditing(true)} disabled={busy}>
-            Editar texto
-          </button>
-        )}
-        {editing && (
-          <>
-            <button className="primary" onClick={() => void save()} disabled={busy || !dirty}>
-              Salvar alterações
-            </button>
+        <div className="action-bar">
+          {t.permissions.claim && (
             <button
-              className="ghost"
-              onClick={() => {
-                setDraft(data.draft?.content ?? null);
-                setEditing(false);
-              }}
+              className="primary"
+              disabled={busy}
+              onClick={() => void run('Agora esta tradução é sua.', () => api('POST', `/translations/${id}/claim`)).then(reload)}
             >
-              Descartar
+              Assumir
             </button>
-          </>
-        )}
-        {t.permissions.edit && t.status === 'in_review' && !editing && (
-          <button onClick={() => void autoReviewNow()} disabled={busy} title="Corrige idioma, números, datas, glossário e marcadores">
-            Revisão automática
-          </button>
-        )}
-        {t.permissions.submit && dirty && (
-          <button className="primary" onClick={() => void ready()} disabled={busy}>
-            Salvar e marcar como pronta
-          </button>
-        )}
-        {t.permissions.approve && (
-          <button
-            className={t.status === 'awaiting_approval' ? 'primary' : ''}
-            onClick={() => setPanel(panel === 'conclude' ? null : 'conclude')}
-          >
-            Concluir
-          </button>
-        )}
-        {(t.permissions.returnForChanges || (t.permissions.reprocess && t.status === 'in_review')) && (
-          <button onClick={() => setPanel(panel === 'redo' ? null : 'redo')}>Refazer…</button>
-        )}
-        {t.permissions.reprocess && t.status === 'failed' && (
-          <button
-            className="primary"
-            disabled={busy}
-            onClick={() => void run('Documento voltou para a fila.', () => api('POST', `/translations/${id}/reprocess`)).then(reload)}
-          >
-            Processar de novo
-          </button>
-        )}
-        {t.permissions.requestNumbering && (
-          <button onClick={() => setPanel(panel === 'numbering' ? null : 'numbering')}>Alterar ou anular número…</button>
-        )}
-        <span className="spacer" />
-        {t.permissions.download && (
-          <a className="button primary" href={`/api/v1/translations/${id}/final`}>
-            Baixar tradução (DOCX)
+          )}
+          {t.permissions.reassign && t.team && (
+            <ReassignControl teamId={t.team.id} current={t.assignee?.id ?? null} id={id} onDone={reload} />
+          )}
+          {t.permissions.edit && !editing && (
+            <button onClick={() => setEditing(true)} disabled={busy}>
+              Editar texto
+            </button>
+          )}
+          {editing && (
+            <>
+              <button className="primary" onClick={() => void save()} disabled={busy || !dirty}>
+                Salvar alterações
+              </button>
+              <button
+                className="ghost"
+                onClick={() => {
+                  setDraft(data.draft?.content ?? null);
+                  setEditing(false);
+                }}
+              >
+                Descartar
+              </button>
+            </>
+          )}
+          {t.permissions.edit && t.status === 'in_review' && !editing && (
+            <button onClick={() => void autoReviewNow()} disabled={busy} title="Corrige idioma, números, datas, glossário e marcadores">
+              Revisão automática
+            </button>
+          )}
+          {t.permissions.submit && dirty && (
+            <button className="primary" onClick={() => void ready()} disabled={busy}>
+              Salvar e marcar como pronta
+            </button>
+          )}
+          {t.permissions.approve && (
+            <button
+              className={t.status === 'awaiting_approval' ? 'primary' : ''}
+              onClick={() => setPanel(panel === 'conclude' ? null : 'conclude')}
+            >
+              Concluir
+            </button>
+          )}
+          {(t.permissions.returnForChanges || (t.permissions.reprocess && t.status === 'in_review')) && (
+            <button onClick={() => setPanel(panel === 'redo' ? null : 'redo')}>Refazer…</button>
+          )}
+          {t.permissions.reprocess && t.status === 'failed' && (
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => void run('Documento voltou para a fila.', () => api('POST', `/translations/${id}/reprocess`)).then(reload)}
+            >
+              Processar de novo
+            </button>
+          )}
+          {t.permissions.requestNumbering && (
+            <button onClick={() => setPanel(panel === 'numbering' ? null : 'numbering')}>Alterar ou anular número…</button>
+          )}
+          <span className="spacer" />
+          {t.permissions.download && (
+            <a className="button primary" href={`/api/v1/translations/${id}/final`}>
+              Baixar tradução (DOCX)
+            </a>
+          )}
+          {data.draft && !t.permissions.download && (
+            <a className="button" href={`/api/v1/translations/${id}/preview`}>
+              Baixar prévia (DOCX)
+            </a>
+          )}
+          <a className="button" href={`/api/v1/documents/${t.document.id}/original`}>
+            Baixar original
           </a>
+        </div>
+
+        <CorrectionsPanel corrections={data.draft?.corrections ?? []} unresolved={review?.unresolved ?? []} />
+        {panel === 'conclude' && (
+          <ConcludePanel
+            id={id}
+            errors={errors.length}
+            canManageTranslators={me.memberships.some((m) => m.role === 'leader')}
+            sworn={t.useMask}
+            dirty={dirty}
+            onGoTranslators={onGoTranslators}
+            onDone={() => {
+              setPanel(null);
+              setFeedback({ ok: 'Tradução concluída: o download está liberado.' });
+              reload();
+            }}
+          />
         )}
-        {data.draft && !t.permissions.download && (
-          <a className="button" href={`/api/v1/translations/${id}/preview`}>
-            Baixar prévia (DOCX)
-          </a>
+        {panel === 'numbering' && (
+          <NumberingRequestPanel
+            id={id}
+            onDone={() => {
+              setPanel(null);
+              setFeedback({ ok: 'Pedido enviado: o Supervisor da equipe e o Diretor foram avisados.' });
+              reload();
+            }}
+          />
         )}
-        <a className="button" href={`/api/v1/documents/${t.document.id}/original`}>
-          Baixar original
-        </a>
-      </div>
+        {panel === 'redo' && (
+          <RedoPanel
+            id={id}
+            canReturn={t.permissions.returnForChanges}
+            onDone={(text) => {
+              setPanel(null);
+              setFeedback({ ok: text });
+              reload();
+            }}
+          />
+        )}
 
-      <CorrectionsPanel corrections={data.draft?.corrections ?? []} unresolved={review?.unresolved ?? []} />
-      {panel === 'conclude' && (
-        <ConcludePanel
-          id={id}
-          errors={errors.length}
-          canManageTranslators={me.memberships.some((m) => m.role === 'leader')}
-          sworn={t.useMask}
-          dirty={dirty}
-          onGoTranslators={onGoTranslators}
-          onDone={() => {
-            setPanel(null);
-            setFeedback({ ok: 'Tradução concluída: o download está liberado.' });
-            reload();
-          }}
-        />
-      )}
-      {panel === 'numbering' && (
-        <NumberingRequestPanel
-          id={id}
-          onDone={() => {
-            setPanel(null);
-            setFeedback({ ok: 'Pedido enviado: o Supervisor da equipe e o Diretor foram avisados.' });
-            reload();
-          }}
-        />
-      )}
-      {panel === 'redo' && (
-        <RedoPanel
-          id={id}
-          canReturn={t.permissions.returnForChanges}
-          onDone={(text) => {
-            setPanel(null);
-            setFeedback({ ok: text });
-            reload();
-          }}
-        />
-      )}
+        {(t.status === 'in_review' || t.status === 'awaiting_approval') && (
+          <StagesPanel
+            translationId={id}
+            stages={t.stages}
+            checklist={data.checklist}
+            editable={t.permissions.edit || t.permissions.approve}
+            onChange={reload}
+          />
+        )}
+        {t.useMask && t.status === 'approved' && (
+          <NumberingPanel key={`${id}-${t.status}`} translationId={id} editable={false} canAuthorize={false} />
+        )}
 
-      {(t.status === 'in_review' || t.status === 'awaiting_approval') && (
-        <StagesPanel
-          translationId={id}
-          stages={t.stages}
-          checklist={data.checklist}
-          editable={t.permissions.edit || t.permissions.approve}
-          onChange={reload}
-        />
-      )}
-      {t.useMask && t.status === 'approved' && (
-        <NumberingPanel key={`${id}-${t.status}`} translationId={id} editable={false} canAuthorize={false} />
-      )}
+        {t.annulled && (
+          <p className="alert error">
+            <strong>Número anulado</strong> em {dateTime(t.annulled.at)}: {t.annulled.reason}. O número continua registrado no livro e não é
+            reutilizado; a tradução não vale mais.
+          </p>
+        )}
+        {t.pendingNumberingRequest && (
+          <p className="alert info">Há um pedido de alteração ou anulação deste número aguardando decisão (veja em Numeração).</p>
+        )}
+        {t.status === 'failed' && (
+          <p className="alert error">
+            Falha no processamento: {failureLabel[t.failureCode ?? ''] ?? t.failureCode ?? 'erro desconhecido'}.
+          </p>
+        )}
+        {t.reviewComment && t.status === 'in_review' && (
+          <p className="alert warn-box">
+            <strong>Pedido para refazer:</strong> {t.reviewComment}
+          </p>
+        )}
+        {t.patternKnown === false && t.status !== 'approved' && (
+          <p className="alert warn-box">
+            <strong>Tipo de documento novo.</strong> O sistema ainda não tem uma tradução concluída deste tipo para usar como padrão:
+            confira com mais atenção. A primeira conclusão ensina o sistema.
+          </p>
+        )}
+        {t.notice && t.status !== 'approved' && <p className="muted small-text">{t.notice}</p>}
+        {data.draft && t.status !== 'approved' && (errors.length > 0 || warnings.length > 0) && (
+          <details className="checks">
+            <summary>
+              {errors.length ? `${errors.length} ponto(s) para conferir` : 'Nenhum problema'}
+              {warnings.length ? ` · ${warnings.length} aviso(s)` : ''}
+            </summary>
+            <ul>
+              {errors.map((issue, index) => (
+                <li key={`e${index}`} className="error-text">
+                  {issue.message}
+                </li>
+              ))}
+              {warnings.map((issue, index) => (
+                <li key={`w${index}`} className="muted">
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
-      {t.annulled && (
-        <p className="alert error">
-          <strong>Número anulado</strong> em {dateTime(t.annulled.at)}: {t.annulled.reason}. O número continua registrado no livro e não é
-          reutilizado; a tradução não vale mais.
-        </p>
-      )}
-      {t.pendingNumberingRequest && (
-        <p className="alert info">Há um pedido de alteração ou anulação deste número aguardando decisão (veja em Numeração).</p>
-      )}
-      {t.status === 'failed' && (
-        <p className="alert error">Falha no processamento: {failureLabel[t.failureCode ?? ''] ?? t.failureCode ?? 'erro desconhecido'}.</p>
-      )}
-      {t.reviewComment && t.status === 'in_review' && (
-        <p className="alert warn-box">
-          <strong>Pedido para refazer:</strong> {t.reviewComment}
-        </p>
-      )}
-      {t.patternKnown === false && t.status !== 'approved' && (
-        <p className="alert warn-box">
-          <strong>Tipo de documento novo.</strong> O sistema ainda não tem uma tradução concluída deste tipo para usar como padrão: confira
-          com mais atenção. A primeira conclusão ensina o sistema.
-        </p>
-      )}
-      {t.notice && t.status !== 'approved' && <p className="muted small-text">{t.notice}</p>}
-      {data.draft && t.status !== 'approved' && (errors.length > 0 || warnings.length > 0) && (
-        <details className="checks">
-          <summary>
-            {errors.length ? `${errors.length} ponto(s) para conferir` : 'Nenhum problema'}
-            {warnings.length ? ` · ${warnings.length} aviso(s)` : ''}
-          </summary>
-          <ul>
-            {errors.map((issue, index) => (
-              <li key={`e${index}`} className="error-text">
-                {issue.message}
-              </li>
-            ))}
-            {warnings.map((issue, index) => (
-              <li key={`w${index}`} className="muted">
-                {issue.message}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      {editing && (
-        <p className="muted small-text">
-          Clique no texto para editar. Passe o mouse para ver o original. Enter confirma; Shift+Enter quebra a linha.
-        </p>
-      )}
-      {draft ? (
-        <DocumentPreview
-          frame={frame}
-          draft={draft}
-          highlightUntranslated={t.status !== 'approved'}
-          {...(editing ? { onChange: setDraft } : {})}
-        />
-      ) : (
-        t.status !== 'queued' && t.status !== 'processing' && <p className="empty">Ainda não há rascunho para este documento.</p>
-      )}
+        {editing && (
+          <p className="muted small-text">
+            Clique no texto para editar. Passe o mouse para ver o original. Enter confirma; Shift+Enter quebra a linha.
+          </p>
+        )}
+        {draft ? (
+          <DocumentPreview
+            frame={frame}
+            draft={draft}
+            highlightUntranslated={t.status !== 'approved'}
+            {...(editing ? { onChange: setDraft } : {})}
+          />
+        ) : (
+          t.status !== 'queued' && t.status !== 'processing' && <p className="empty">Ainda não há rascunho para este documento.</p>
+        )}
       </details>
     </section>
   );

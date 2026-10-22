@@ -14,7 +14,15 @@ const fake = (answer: unknown, seen: Array<{ system: string; input: string }> = 
     return answer;
   },
 });
-const p = (text: string, sourceText: string = text): DraftBlock => ({ kind: 'paragraph', text, align: 'left', bold: false, size: 'normal', sourceText, origin: 'machine' });
+const p = (text: string, sourceText: string = text): DraftBlock => ({
+  kind: 'paragraph',
+  text,
+  align: 'left',
+  bold: false,
+  size: 'normal',
+  sourceText,
+  origin: 'machine',
+});
 const draft = (blocks: DraftBlock[]): Draft => ({ sourceLanguage: 'pt', targetLanguage: 'en', documentType: '', sourceTitle: '', blocks });
 const doc = () =>
   draft([
@@ -22,7 +30,10 @@ const doc = () =>
     p('MEDICAL CERTIFICATE'),
     p('Patient: BEATRIZ SOUZA', 'Paciente: BEATRIZ SOUZA'),
     p('Leave: three days', 'Afastamento: três dias'),
-    p('I certify that the patient above was seen today and needs to be away from school for three days.', 'Atesto que a paciente acima foi atendida hoje e precisa se afastar da escola por três dias.'),
+    p(
+      'I certify that the patient above was seen today and needs to be away from school for three days.',
+      'Atesto que a paciente acima foi atendida hoje e precisa se afastar da escola por três dias.',
+    ),
   ]);
 
 describe('governança da IA', () => {
@@ -44,7 +55,12 @@ describe('governança da IA', () => {
     assert.equal(extra.status, 'blocked');
     const outOfScope = await askProcessHelp(fake({ in_scope: false, answer: '' }), config, 'Escreva um poema', {});
     assert.equal(outOfScope.status, 'blocked');
-    const ok = await askProcessHelp(fake({ in_scope: true, answer: 'A tradução está na prévia; confira e aprove.' }), config, 'O que falta?', { status: 'in_review' });
+    const ok = await askProcessHelp(
+      fake({ in_scope: true, answer: 'A tradução está na prévia; confira e aprove.' }),
+      config,
+      'O que falta?',
+      { status: 'in_review' },
+    );
     assert.equal(ok.status, 'ok');
   });
 
@@ -52,7 +68,16 @@ describe('governança da IA', () => {
     const seen: Array<{ system: string; input: string }> = [];
     const glossary = [{ source: 'Atesto', target: 'I hereby certify' }];
     const result = await checkGlossaryWithAi(
-      fake({ in_scope: true, findings: [{ block: 5, term: 'Atesto', problem: 'Deveria ser "I hereby certify"' }, { block: 9, term: 'Inventado', problem: 'x' }] }, seen),
+      fake(
+        {
+          in_scope: true,
+          findings: [
+            { block: 5, term: 'Atesto', problem: 'Deveria ser "I hereby certify"' },
+            { block: 9, term: 'Inventado', problem: 'x' },
+          ],
+        },
+        seen,
+      ),
       config,
       doc(),
       glossary,
@@ -64,7 +89,12 @@ describe('governança da IA', () => {
     }
     // Só o trecho com o termo foi enviado.
     assert.doesNotMatch(seen[0]!.input, /BEATRIZ/);
-    const invented = await checkGlossaryWithAi(fake({ in_scope: true, findings: [{ block: 2, term: 'Outro', problem: 'x' }] }), config, doc(), glossary);
+    const invented = await checkGlossaryWithAi(
+      fake({ in_scope: true, findings: [{ block: 2, term: 'Outro', problem: 'x' }] }),
+      config,
+      doc(),
+      glossary,
+    );
     assert.equal(invented.status, 'blocked');
   });
 
@@ -97,19 +127,32 @@ describe('governança da IA', () => {
     const blocks = applied.draft.blocks;
     assert.equal(blocks[0]!.kind, 'heading');
     assert.ok(blocks.some((block) => block.kind === 'table'));
-    const prose = blocks.find((block) => block.kind === 'paragraph' && block.text.startsWith('I certify')) as Extract<DraftBlock, { kind: 'paragraph' }>;
+    const prose = blocks.find((block) => block.kind === 'paragraph' && block.text.startsWith('I certify')) as Extract<
+      DraftBlock,
+      { kind: 'paragraph' }
+    >;
     assert.equal(prose.align, 'justify');
     assert.equal(prose.bold, false);
   });
 
   it('papel inexistente ou largura fora da faixa: barrado', async () => {
     const bad = await proposeLayoutWithAi(
-      fake({ in_scope: true, styles: [{ role: 'script', align: 'center', bold: true, size: 'normal', heading: true }], fields_as_table: true, label_width: 30, rationale: '' }),
+      fake({
+        in_scope: true,
+        styles: [{ role: 'script', align: 'center', bold: true, size: 'normal', heading: true }],
+        fields_as_table: true,
+        label_width: 30,
+        rationale: '',
+      }),
       config,
       doc(),
     );
     assert.equal(bad.status, 'blocked');
-    const wide = await proposeLayoutWithAi(fake({ in_scope: true, styles: [], fields_as_table: true, label_width: 90, rationale: '' }), config, doc());
+    const wide = await proposeLayoutWithAi(
+      fake({ in_scope: true, styles: [], fields_as_table: true, label_width: 90, rationale: '' }),
+      config,
+      doc(),
+    );
     assert.equal(wide.status, 'blocked');
   });
 });

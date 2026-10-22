@@ -202,7 +202,12 @@ export function guardForTranslation(prepared: string, to: Language, glossary: Gl
 /** Nomes de pessoas, cidades e endereços de um conjunto de trechos, para proteger em todos eles. */
 export function properNounsOf(texts: string[]) {
   const places = texts.flatMap(placeNames);
-  return [...texts.flatMap(personNames), ...places, ...places.map((place) => place.toLocaleUpperCase('pt-BR')), ...texts.flatMap(webAddresses)];
+  return [
+    ...texts.flatMap(personNames),
+    ...places,
+    ...places.map((place) => place.toLocaleUpperCase('pt-BR')),
+    ...texts.flatMap(webAddresses),
+  ];
 }
 
 /** Minúsculas com a primeira letra maiúscula, sem mexer nos marcadores de proteção ("[[N0]]"). */
