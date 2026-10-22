@@ -1924,3 +1924,30 @@ h4 {
 .password-field input {
   flex: 1;
 }
+
+/* Áreas com abas: o título da área e as abas no lugar de vários itens de menu. */
+.area-head h2 {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+.area-head {
+  margin-bottom: 14px;
+}
+.area-tabs {
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.area-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.section-hint {
+  margin: 0 0 16px;
+}
+.sidebar-foot button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AiComparisonPanel } from './AiComparison';
 import { AiManagement } from './AiManagement';
 import { api, statusLabel, type Me, type Page, type Session, type User, type UserStatus, setUnauthorizedHandler } from './api';
 import { Audit } from './Audit';
@@ -15,51 +16,55 @@ import { Glossary, TranslationSettingsView } from './TranslationAdmin';
 import { Translations } from './Translations';
 import { Teams } from './Teams';
 import { Translators } from './Translators';
-import { dateTime, Feedback, message, Section, useLoad } from './ui';
+import { dateTime, EmbeddedSection, Feedback, message, Section, useLoad } from './ui';
 
-type View =
-  | 'panel'
-  | 'teamPanel'
-  | 'workspace'
-  | 'history'
-  | 'numbering'
-  | 'translators'
-  | 'translations'
-  | 'documents'
-  | 'downloads'
-  | 'notifications'
-  | 'glossary'
-  | 'rules'
-  | 'patterns'
-  | 'ai'
-  | 'teams'
-  | 'approvals'
-  | 'users'
-  | 'settings'
-  | 'audit'
-  | 'sessions';
+/**
+ * Navegação por papel, compacta: poucas áreas no menu e as telas parecidas como abas dentro delas.
+ * Usuário: traduzir e o próprio histórico. Líder: início, traduções, equipe e ajustes. Diretor: o mesmo, mais a
+ * administração da organização.
+ */
+type AreaKey = 'home' | 'work' | 'history' | 'team' | 'settings' | 'admin' | 'notifications' | 'sessions';
+
+interface Tab {
+  key: string;
+  label: string;
+  count?: number;
+  render: () => ReactNode;
+}
+
+interface Area {
+  key: AreaKey;
+  label: string;
+  title: string;
+  subtitle: string;
+  count?: number;
+  tabs: Tab[];
+}
 
 export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: () => void; onUnauthorized: () => void }) {
   const isDirector = me.user.orgRole === 'director';
   const supervises = me.memberships.some((m) => m.role === 'leader');
-  // Tela inicial de cada papel (plano de hierarquia): Diretor → painel; Supervisor → painel da equipe; Usuário → workspace.
-  const [view, setView] = useState<View>(isDirector ? 'panel' : supervises ? 'teamPanel' : 'workspace');
+  const manages = isDirector || supervises;
+  // Tela inicial de cada papel: liderança → Início; Usuário → Traduzir.
+  const [place, setPlace] = useState<{ area: AreaKey; tab: string }>({ area: manages ? 'home' : 'work', tab: '' });
   const [panelTeam, setPanelTeam] = useState<string | null>(null);
   const [openTranslation, setOpenTranslation] = useState<string | null>(null);
   const [notificationsVersion, setNotificationsVersion] = useState(0);
   const unread = useUnreadCount(notificationsVersion);
   const pending = useLoad(
     () => (isDirector ? api<Page<User>>('GET', '/users?status=pending&limit=100') : Promise.resolve(null)),
-    [isDirector, view],
+    [isDirector, place.area],
   );
+  const go = (area: AreaKey, tab = '') => {
+    setOpenTranslation(null);
+    setPlace({ area, tab });
+  };
   const goToTranslation = (id: string) => {
     setOpenTranslation(id);
-    setView('translations');
+    setPlace({ area: 'work', tab: manages ? 'team' : 'mine' });
   };
-  const go = (next: View) => {
-    if (next === 'translations') setOpenTranslation(null);
-    setView(next);
-  };
+  const goToUpload = () => go('work', 'send');
+  const goToTranslators = () => (manages ? go('team', 'translators') : undefined);
   const leads = me.memberships.filter((m) => m.role === 'leader').length;
   const role = isDirector ? 'Diretor' : leads ? 'Supervisor' : me.memberships.length ? 'Usuário' : 'Sem equipe';
 
@@ -67,27 +72,165 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   useEffect(() => setUnauthorizedHandler(onUnauthorized), [onUnauthorized]);
 
   const pendingCount = pending.data?.items.length ?? 0;
-  const nav: Array<{ key: View; label: string; visible: boolean; count?: number; group?: string }> = [
-    { key: 'panel', label: 'Painel', visible: isDirector },
-    { key: 'teamPanel', label: isDirector ? 'Painel das equipes' : 'Painel da equipe', visible: isDirector || supervises },
-    { key: 'workspace', label: 'Meu workspace', visible: true },
-    { key: 'translations', label: 'Traduções', visible: true },
-    { key: 'documents', label: 'Envios', visible: true },
-    { key: 'history', label: 'Histórico', visible: true },
-    { key: 'downloads', label: 'Downloads', visible: true },
-    { key: 'notifications', label: 'Notificações', visible: true, count: unread },
-    { key: 'numbering', label: 'Numeração', visible: true, group: 'Controle' },
-    { key: 'translators', label: 'Tradutores juramentados', visible: isDirector || supervises },
-    { key: 'audit', label: 'Auditoria', visible: isDirector || supervises },
-    { key: 'glossary', label: 'Glossário', visible: true },
-    { key: 'rules', label: 'Regras de tradução', visible: true },
-    { key: 'patterns', label: 'Padrões de documento', visible: true },
-    { key: 'teams', label: 'Equipes', visible: true },
-    { key: 'ai', label: 'Gerenciamento AI', visible: isDirector || supervises },
-    { key: 'approvals', label: 'Cadastros pendentes', visible: isDirector, count: pendingCount, group: 'Administração' },
-    { key: 'users', label: 'Usuários', visible: isDirector },
-    { key: 'settings', label: 'Configurações', visible: isDirector },
+  const translationNotice = (
+    <AutoTranslationNotice isDirector={isDirector} canManageTranslators={supervises} onGoTranslators={() => goToTranslators()} />
+  );
+  const translations = () => (
+    <>
+      {!openTranslation && translationNotice}
+      <Translations me={me} openId={openTranslation} onOpen={setOpenTranslation} onGoTranslators={() => goToTranslators()} />
+    </>
+  );
+  const workspace = () =>
+    openTranslation ? (
+      translations()
+    ) : (
+      <Workspace me={me} onOpenTranslation={goToTranslation} onUpload={goToUpload} onNotifications={() => go('notifications')} />
+    );
+  const send = () => (
+    <>
+      {translationNotice}
+      <Documents me={me} onOpenTranslation={goToTranslation} />
+    </>
+  );
+
+  const areas: Area[] = [
+    {
+      key: 'home',
+      label: 'Início',
+      title: 'Início',
+      subtitle: isDirector ? 'Como a organização e cada equipe estão indo.' : 'Como a sua equipe está indo.',
+      tabs: [
+        ...(isDirector
+          ? [
+              {
+                key: 'organization',
+                label: 'Organização',
+                render: () => (
+                  <OrganizationPanel
+                    onOpenTeam={(teamId) => {
+                      setPanelTeam(teamId);
+                      setPlace({ area: 'home', tab: 'teams' });
+                    }}
+                  />
+                ),
+              },
+            ]
+          : []),
+        {
+          key: 'teams',
+          label: isDirector ? 'Equipes' : 'Equipe',
+          render: () => <TeamPanel key={panelTeam ?? 'default'} me={me} initialTeamId={panelTeam} />,
+        },
+        { key: 'ai', label: 'Com IA × sem IA', render: () => <AiComparisonPanel me={me} /> },
+      ],
+    },
+    {
+      key: 'work',
+      label: manages ? 'Traduções' : 'Traduzir',
+      title: manages ? 'Traduções' : 'Traduzir',
+      subtitle: manages
+        ? 'O seu trabalho, o da equipe, os envios e o que já foi concluído.'
+        : 'Envie documentos, revise o que está com você e assuma o que a equipe deixou disponível.',
+      tabs: [
+        { key: 'mine', label: 'Meu trabalho', render: workspace },
+        ...(manages ? [{ key: 'team', label: isDirector ? 'Todas as traduções' : 'Da equipe', render: translations }] : []),
+        { key: 'send', label: 'Enviar documentos', render: send },
+        ...(manages ? [{ key: 'done', label: 'Concluídas', render: () => <Downloads me={me} onOpenTranslation={goToTranslation} /> }] : []),
+      ],
+    },
+    {
+      key: 'history',
+      label: 'Meu histórico',
+      title: 'Meu histórico',
+      subtitle: 'O que você já finalizou, com o número da tradução e o arquivo final.',
+      tabs: [{ key: 'history', label: 'Histórico', render: () => <History onOpenTranslation={goToTranslation} /> }],
+    },
+    {
+      key: 'team',
+      label: isDirector ? 'Equipes' : 'Equipe',
+      title: isDirector ? 'Equipes' : 'Equipe',
+      subtitle: 'Pessoas, numeração, tradutores juramentados e o registro do que foi feito.',
+      tabs: [
+        { key: 'people', label: 'Pessoas', render: () => <Teams isDirector={isDirector} selfId={me.user.id} /> },
+        { key: 'numbering', label: 'Numeração', render: () => <Numbering me={me} onOpenTranslation={goToTranslation} /> },
+        { key: 'translators', label: 'Tradutores juramentados', render: () => <Translators canManage={supervises} /> },
+        { key: 'audit', label: 'Auditoria', render: () => <Audit me={me} /> },
+      ],
+    },
+    {
+      key: 'settings',
+      label: 'Ajustes',
+      title: 'Ajustes da tradução',
+      subtitle: 'Como o sistema traduz: termos, regras, tipos de documento e a IA.',
+      tabs: [
+        { key: 'glossary', label: 'Glossário', render: () => <Glossary me={me} /> },
+        {
+          key: 'rules',
+          label: 'Regras',
+          render: () => (
+            <Section title="Regras de tradução" subtitle="Etapas e regras de cada modalidade, por idioma de destino.">
+              <TranslationRulesEditor />
+            </Section>
+          ),
+        },
+        { key: 'patterns', label: 'Tipos de documento', render: () => <Patterns /> },
+        { key: 'ai', label: 'IA', render: () => <AiManagement /> },
+        ...(isDirector ? [{ key: 'machine', label: 'Tradução automática', render: () => <TranslationSettingsView /> }] : []),
+      ],
+    },
+    {
+      key: 'admin',
+      label: 'Administração',
+      title: 'Administração',
+      subtitle: 'Quem entra no sistema e com que papel.',
+      count: pendingCount,
+      tabs: [
+        { key: 'approvals', label: 'Cadastros pendentes', count: pendingCount, render: () => <Approvals onChange={pending.reload} /> },
+        { key: 'users', label: 'Usuários', render: () => <Users selfId={me.user.id} /> },
+      ],
+    },
   ];
+  // Menu de cada papel; Notificações e Minhas sessões ficam no rodapé.
+  const menu: AreaKey[] = isDirector
+    ? ['home', 'work', 'team', 'settings', 'admin']
+    : supervises
+      ? ['home', 'work', 'team', 'settings']
+      : ['work', 'history'];
+  const footer: Area[] = [
+    {
+      key: 'notifications',
+      label: 'Notificações',
+      title: 'Notificações',
+      subtitle: '',
+      count: unread,
+      tabs: [
+        {
+          key: 'notifications',
+          label: 'Notificações',
+          render: () => (
+            <Notifications
+              onOpenTranslation={goToTranslation}
+              onOpenDocuments={goToUpload}
+              onChange={() => setNotificationsVersion((current) => current + 1)}
+            />
+          ),
+        },
+      ],
+    },
+    {
+      key: 'sessions',
+      label: 'Minhas sessões',
+      title: 'Minhas sessões',
+      subtitle: '',
+      tabs: [{ key: 'sessions', label: '', render: () => <Sessions /> }],
+    },
+  ];
+  const visible = areas.filter((area) => menu.includes(area.key));
+  const current = [...visible, ...footer].find((area) => area.key === place.area) ?? visible[0]!;
+  const tab = current.tabs.find((item) => item.key === place.tab) ?? current.tabs[0]!;
+  // Áreas de uma aba só mostram a tela como sempre; com várias, o título da área e as abas.
+  const single = current.tabs.length === 1;
 
   return (
     <div className="shell">
@@ -99,22 +242,22 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           <span className="badge">{role}</span>
         </div>
         <nav>
-          {nav
-            .filter((item) => item.visible)
-            .map((item) => (
-              <div key={item.key} className="nav-item">
-                {item.group && <span className="nav-group">{item.group}</span>}
-                <button className={view === item.key ? 'active' : ''} onClick={() => go(item.key)}>
-                  {item.label}
-                  {!!item.count && <span className="nav-count">{item.count}</span>}
-                </button>
-              </div>
-            ))}
+          {visible.map((area) => (
+            <div key={area.key} className="nav-item">
+              <button className={current.key === area.key ? 'active' : ''} onClick={() => go(area.key)}>
+                {area.label}
+                {!!area.count && <span className="nav-count">{area.count}</span>}
+              </button>
+            </div>
+          ))}
         </nav>
         <div className="sidebar-foot">
-          <button className={`ghost small ${view === 'sessions' ? 'active' : ''}`} onClick={() => go('sessions')}>
-            Minhas sessões
-          </button>
+          {footer.map((area) => (
+            <button key={area.key} className={`ghost small ${current.key === area.key ? 'active' : ''}`} onClick={() => go(area.key)}>
+              {area.label}
+              {!!area.count && <span className="nav-count">{area.count}</span>}
+            </button>
+          ))}
           <button className="ghost" onClick={onLogout}>
             Sair
           </button>
@@ -122,55 +265,33 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       </aside>
       <main className="content">
         {me.user.testAccount && <TestAccountBanner me={me} onDeleted={onLogout} />}
-        {(view === 'translations' || view === 'documents') && !openTranslation && (
-          <AutoTranslationNotice isDirector={isDirector} canManageTranslators={supervises} onGoTranslators={() => go('translators')} />
+        {single ? (
+          tab.render()
+        ) : (
+          <section className="area">
+            <header className="area-head">
+              <h2>{current.title}</h2>
+              <p className="muted">{current.subtitle}</p>
+            </header>
+            <div className="tabs area-tabs" role="tablist" aria-label={current.title}>
+              {current.tabs.map((item) => (
+                <button
+                  key={item.key}
+                  role="tab"
+                  aria-selected={item.key === tab.key}
+                  className={item.key === tab.key ? 'on' : ''}
+                  onClick={() => go(current.key, item.key)}
+                >
+                  {item.label}
+                  {!!item.count && <span className="nav-count">{item.count}</span>}
+                </button>
+              ))}
+            </div>
+            <EmbeddedSection.Provider value={true}>
+              <div role="tabpanel">{tab.render()}</div>
+            </EmbeddedSection.Provider>
+          </section>
         )}
-        {view === 'panel' && (
-          <OrganizationPanel
-            onOpenTeam={(teamId) => {
-              setPanelTeam(teamId);
-              go('teamPanel');
-            }}
-          />
-        )}
-        {view === 'teamPanel' && <TeamPanel key={panelTeam ?? 'default'} me={me} initialTeamId={panelTeam} />}
-        {view === 'workspace' && (
-          <Workspace
-            me={me}
-            onOpenTranslation={goToTranslation}
-            onUpload={() => go('documents')}
-            onNotifications={() => go('notifications')}
-          />
-        )}
-        {view === 'history' && <History onOpenTranslation={goToTranslation} />}
-        {view === 'numbering' && <Numbering me={me} onOpenTranslation={goToTranslation} />}
-        {view === 'translators' && <Translators canManage={supervises} />}
-        {view === 'translations' && (
-          <Translations me={me} openId={openTranslation} onOpen={setOpenTranslation} onGoTranslators={() => go('translators')} />
-        )}
-        {view === 'documents' && <Documents me={me} onOpenTranslation={goToTranslation} />}
-        {view === 'downloads' && <Downloads me={me} onOpenTranslation={goToTranslation} />}
-        {view === 'notifications' && (
-          <Notifications
-            onOpenTranslation={goToTranslation}
-            onOpenDocuments={() => go('documents')}
-            onChange={() => setNotificationsVersion((current) => current + 1)}
-          />
-        )}
-        {view === 'glossary' && <Glossary me={me} />}
-        {view === 'patterns' && <Patterns />}
-        {view === 'ai' && <AiManagement />}
-        {view === 'rules' && (
-          <Section title="Regras de tradução" subtitle="Etapas e regras de cada modalidade, por idioma de destino.">
-            <TranslationRulesEditor />
-          </Section>
-        )}
-        {view === 'teams' && <Teams isDirector={isDirector} selfId={me.user.id} />}
-        {view === 'approvals' && <Approvals onChange={pending.reload} />}
-        {view === 'users' && <Users selfId={me.user.id} />}
-        {view === 'settings' && <TranslationSettingsView />}
-        {view === 'audit' && <Audit me={me} />}
-        {view === 'sessions' && <Sessions />}
       </main>
     </div>
   );
