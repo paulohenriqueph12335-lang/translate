@@ -2477,8 +2477,9 @@ button.action-tile strong {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Sem deslocamentos; cor e transparência continuam confirmando cada ação. */
   * {
-    transition: none !important;
+    transition-property: color, background-color, border-color, opacity !important;
   }
 }
 .badge,
@@ -2494,4 +2495,522 @@ button.action-tile strong {
 }
 .sidebar .identity .badge {
   margin-left: 0;
+}
+
+/* ===================================================================================================================
+ * Ações entre colchetes (ADR do visual em DESIGN.md)
+ * Ação comum: sem caixa, o texto entre colchetes desenhados, como uma nota do tradutor; os colchetes se fecham sobre a
+ * palavra no hover. Ação principal: barra de tinta reta com seta que avança e o traço de inutilização correndo por baixo.
+ * =================================================================================================================== */
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='M0 5h14M10 1l4 4-4 4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E");
+}
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    color 180ms var(--ease-out),
+    background-color 180ms var(--ease-out);
+}
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link)::before,
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link)::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  width: 7px;
+  border: 1.5px solid var(--gray-500);
+  pointer-events: none;
+  transition:
+    transform 200ms var(--ease-out),
+    border-color 200ms var(--ease-out);
+}
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link)::before {
+  left: 3px;
+  border-right: 0;
+}
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link)::after {
+  right: 3px;
+  border-left: 0;
+}
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link):hover:not(
+    :disabled
+  ) {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link):hover:not(
+    :disabled
+  )::before {
+  transform: translateX(4px);
+  border-color: var(--ink);
+}
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link):hover:not(
+    :disabled
+  )::after {
+  transform: translateX(-4px);
+  border-color: var(--ink);
+}
+:is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link):active:not(
+    :disabled
+  ) {
+  transform: translateY(1px);
+}
+button.small:not(.primary, .ghost, .link),
+a.button.small {
+  min-height: 34px;
+  padding: 0 16px;
+  font-size: 13.5px;
+}
+button.small:not(.primary, .ghost, .link)::before,
+button.small:not(.primary, .ghost, .link)::after {
+  top: 6px;
+  bottom: 6px;
+  width: 6px;
+}
+button.danger {
+  color: var(--danger);
+  border: 0;
+}
+button.danger::before,
+button.danger::after {
+  border-color: var(--danger-line) !important;
+}
+button.danger:hover:not(:disabled)::before,
+button.danger:hover:not(:disabled)::after {
+  border-color: var(--danger) !important;
+}
+
+/* Ação principal. */
+button.primary,
+a.button.primary,
+a.button.primary-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 44px;
+  padding: 0 20px 0 22px;
+  border: 0;
+  border-radius: 0;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  text-decoration: none;
+  overflow: hidden;
+  transition: background-color 180ms var(--ease-out);
+}
+button.primary::after,
+a.button.primary::after,
+a.button.primary-link::after {
+  content: '';
+  flex: none;
+  width: 16px;
+  height: 10px;
+  background: currentColor;
+  -webkit-mask: var(--arrow) no-repeat center / contain;
+  mask: var(--arrow) no-repeat center / contain;
+  transition: transform 220ms var(--ease-out);
+}
+button.primary::before,
+a.button.primary::before,
+a.button.primary-link::before {
+  content: '';
+  position: absolute;
+  left: 22px;
+  right: 20px;
+  bottom: 9px;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--on-ink) 55%, transparent) 0 6px, transparent 6px 10px);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 360ms var(--ease-out);
+}
+button.primary:hover:not(:disabled)::after,
+a.button.primary:hover::after,
+a.button.primary-link:hover::after {
+  transform: translateX(4px);
+}
+button.primary:hover:not(:disabled)::before,
+a.button.primary:hover::before,
+a.button.primary-link:hover::before {
+  transform: scaleX(1);
+}
+button.primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+button.primary.small,
+a.button.primary.small {
+  min-height: 34px;
+  gap: 10px;
+  padding: 0 14px 0 16px;
+  font-size: 13.5px;
+}
+button.primary.small::before {
+  left: 16px;
+  right: 14px;
+  bottom: 6px;
+}
+button.primary.small::after {
+  width: 13px;
+  height: 8px;
+}
+
+/* Ação discreta e link: só texto. */
+button.ghost {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+button.ghost:hover:not(:disabled) {
+  color: var(--ink);
+}
+button.link {
+  text-decoration-thickness: 1px;
+  transition: text-decoration-thickness 160ms var(--ease-out);
+}
+button.link:hover:not(:disabled) {
+  text-decoration-thickness: 2px;
+}
+button:disabled,
+a.button[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ===================================================================================================================
+ * Movimento: troca de área e de aba com uma entrada curta; avisos ao vivo no canto.
+ * =================================================================================================================== */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.panel-enter {
+  animation: panel-in 280ms var(--ease-out) both;
+}
+
+.toasts {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right, 0px));
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+.toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  background: var(--ink);
+  color: var(--on-ink);
+  box-shadow: 0 14px 34px -14px rgb(0 0 0 / 45%);
+  pointer-events: auto;
+  animation: toast-in 320ms var(--ease-out) both;
+}
+.toast::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 8px;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--on-ink-muted) 0 6px, transparent 6px 10px);
+  transform-origin: left;
+  animation: toast-timer var(--toast-ms, 7000ms) linear both;
+}
+.toast-body {
+  flex: 1;
+  display: grid !important;
+  gap: 3px;
+  justify-items: start;
+  text-align: left;
+  padding: 14px 8px 20px 16px !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  color: inherit !important;
+  font-weight: 400;
+}
+.toast-body::before,
+.toast-body::after {
+  display: none !important;
+}
+.toast-body strong {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.toast-body .small-text {
+  color: var(--on-ink-muted);
+}
+.toast-body .badge {
+  margin-left: 0;
+  color: var(--on-ink-muted);
+}
+.toast-close {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  margin: 4px 4px 0 0;
+  padding: 0 !important;
+  display: grid;
+  place-items: center;
+  border: 0 !important;
+  background: none !important;
+  color: var(--on-ink-muted) !important;
+}
+.toast-close:hover {
+  color: var(--on-ink) !important;
+}
+.toast-close svg {
+  width: 14px;
+  height: 14px;
+}
+.popup-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0 0 16px;
+}
+
+/* ===================================================================================================================
+ * Responsivo: menu lateral no computador, barra de baixo no celular; alvos de toque de 44px onde o toque é o meio.
+ * =================================================================================================================== */
+@media (max-width: 1100px) and (min-width: 801px) {
+  .shell {
+    grid-template-columns: 220px 1fr;
+  }
+  .sidebar {
+    padding: 24px 14px 16px;
+  }
+  .content {
+    padding: 28px 28px 40px;
+  }
+}
+
+@media (max-width: 800px) {
+  .shell {
+    display: block;
+  }
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+    padding-top: max(10px, env(safe-area-inset-top, 0px));
+    overflow: visible;
+  }
+  .sidebar .wordmark {
+    margin: 0;
+  }
+  .sidebar .wordmark small,
+  .sidebar .identity {
+    display: none;
+  }
+  .sidebar nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    gap: 4px;
+    padding: 6px max(8px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px))
+      max(8px, env(safe-area-inset-left, 0px));
+    background: var(--ink);
+    border-top: 1px solid #2c2b29;
+    overflow: visible;
+  }
+  .sidebar nav .nav-item {
+    flex: 1;
+    min-width: 0;
+  }
+  .sidebar nav button {
+    width: 100%;
+    min-height: 48px;
+    justify-content: center;
+    padding: 6px 4px;
+    font-size: 13px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sidebar-foot {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+  }
+  .sidebar-foot .foot-sessions,
+  .sidebar-foot .foot-popups {
+    display: none;
+  }
+  .sidebar-foot button {
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+  .sidebar-foot button.ghost:last-child {
+    border: 0;
+  }
+  .content {
+    padding: 20px max(16px, env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px))
+      max(16px, env(safe-area-inset-left, 0px));
+  }
+  .area-head h2,
+  .section > header h2 {
+    font-size: 25px;
+  }
+  .area-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 0 16px;
+  }
+  .area-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .area-tabs button {
+    flex: none;
+  }
+  .stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .filters > input,
+  .filters > select,
+  .filters > .search {
+    flex: 1 1 100%;
+  }
+  .toasts {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+  }
+  .alert.test-account {
+    align-items: flex-start;
+  }
+}
+
+@media (pointer: coarse) {
+  :is(button:not([class]), button.small, button.secondary, button.danger, a.button):not(.primary, .ghost, .link, .primary-link),
+  button.primary,
+  a.button.primary {
+    min-height: 44px;
+  }
+  .tabs button {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-enter,
+  .toast {
+    animation-name: fade-only;
+  }
+  .toast::after {
+    animation: none;
+  }
+}
+@keyframes fade-only {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Rodapé do menu: texto claro sobre o preto (as ações discretas são cinza só sobre o papel). */
+.sidebar button.ghost {
+  color: var(--on-ink-muted);
+}
+.sidebar button.ghost:hover:not(:disabled),
+.sidebar button.ghost.active {
+  color: var(--on-ink);
+}
+.sidebar button.ghost.active {
+  color: var(--ink);
+}
+button.primary::before,
+a.button.primary::before,
+a.button.primary-link::before {
+  bottom: 7px;
+}
+.label-short {
+  display: none;
+}
+@media (max-width: 800px) {
+  .sidebar nav .label-full {
+    display: none;
+  }
+  .sidebar nav .label-short {
+    display: inline;
+  }
+}
+@media (max-width: 800px) {
+  /* Nada mais largo que a tela: com sobra lateral, o celular reduz o zoom e a barra de baixo sai da vista. */
+  .date-range {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+    width: 100%;
+  }
+  .date-range input {
+    min-width: 0;
+    width: 100%;
+  }
+  .filters > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .content {
+    overflow-x: clip;
+  }
 }

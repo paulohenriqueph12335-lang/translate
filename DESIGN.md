@@ -47,8 +47,15 @@ A prévia do documento (`.paper`) não segue esta paleta: ela reproduz o Word co
 
 - Cantos de 4px (`--radius`), 2px em contadores, segmentos e etiquetas; filetes de 1px; sem sombras decorativas.
 - Menu lateral preto; item ativo invertido (off-white com texto preto).
-- Botão principal preto; secundário em folha com borda cinza que escurece no hover.
+- **Ações entre colchetes:** a ação comum não tem caixa; o texto fica entre colchetes desenhados (1.5px, cinza) que se
+  fecham sobre a palavra e escurecem no hover. A ação principal é uma barra de tinta reta com seta que avança e o traço
+  de inutilização correndo por baixo no hover. Ações discretas e links são só texto.
 - Abas sublinhadas em preto; filtros segmentados com o ativo em preto.
 - Avisos planos com filete na cor do estado; nada de faixa colorida grossa à esquerda.
 - Foco: contorno de 2px em preto. Seleção de texto em preto com texto off-white.
-- Movimento: só transições de estado de 160ms; nada com `prefers-reduced-motion`.
+- Movimento: estados em 160–220ms com `cubic-bezier(0.16, 1, 0.3, 1)`; troca de área e de aba entra em 280ms; avisos ao
+  vivo entram em 320ms e o traço de inutilização embaixo encolhe até o aviso sumir. Com `prefers-reduced-motion`, sem
+  deslocamentos; cor e transparência continuam.
+- Responsivo: menu lateral acima de 800px (220px entre 801 e 1100px); no celular, barra superior com a marca e barra de
+  navegação embaixo, rótulos curtos e alvos de 44px em telas de toque; nada mais largo que a tela.
+- Notificações: aviso no canto da tela e pop-up do Windows (Notification API, com permissão do navegador).
