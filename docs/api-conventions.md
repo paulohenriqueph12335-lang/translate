@@ -97,7 +97,8 @@ O primeiro Diretor é criado pela linha de comando ([ADR-004](decisions/004-dire
 | `POST /api/v1/translations/:id/accept` | responsável, Supervisor, Diretor | Aprovar o Word ([ADR-017](decisions/017-automatic-flow-patterns.md)): confirma o checklist, marca como pronta e, para quem conclui, conclui (com o tradutor e as páginas do envio) |
 | `GET /api/v1/translations/:id/preview?format=pdf` e `/final?format=pdf` | quem vê a tradução | O mesmo Word em PDF (LibreOffice); `download=true` baixa, sem ele abre na tela |
 | `GET /api/v1/setup` | público | `{ needed }`: o sistema ainda não tem Diretor ([ADR-004](decisions/004-director-bootstrap.md)) |
-| `POST /api/v1/setup` | público, com o código do log da API | `{ code, email, displayName, password, testAccount? }`: cria o primeiro Diretor e já entra; recusa com Diretor existente (`409`) ou código errado (`403`) |
+| `POST /api/v1/setup` | público, com o código do log da API | `{ code, email, displayName, password, testAccount?, demoAccounts? }`: cria o primeiro Diretor e já entra; recusa com Diretor existente (`409`) ou código errado (`403`) |
+| `GET /api/v1/test-accounts`, `POST /api/v1/test-accounts/delete-all` | Diretor | Contas de teste ativas; excluir todas de uma vez devolve `{ removed, setupNeeded }` |
 | `POST /api/v1/users/:id/delete-test-account` | a própria pessoa ou Diretor | Exclui uma conta de teste (dados pessoais, sessões e equipes); devolve `{ setupNeeded }` |
 | `GET /api/v1/document-patterns` | autenticado | Tipos de documento já processados, com veredito (`can`, `review`, `cannot`) e motivos |
 | `POST /api/v1/document-patterns/test?sourceLanguage=&targetLanguage=&mode=` | autenticado | Corpo: o arquivo (binário). Analisa e traduz só para o teste, sem gravar; devolve veredito, motivos, estrutura e o Word da prévia (base64) |

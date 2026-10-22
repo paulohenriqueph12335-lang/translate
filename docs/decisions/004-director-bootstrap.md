@@ -38,6 +38,13 @@ senha padrão):
   de ser Diretor (`deleted_at`, `status = rejected`) e some da lista de usuários; a auditoria e o que ela fez ficam. Sem
   Diretor, a configuração inicial volta com um código novo. Contas definitivas não são excluídas por aqui.
 
+- **Contas de demonstração**: junto com o Diretor de teste, a opção "Criar também Líder e Usuário de teste" cria a
+  "Equipe de Teste" com `lider.teste@exemplo.com` (Líder) e `usuario.teste@exemplo.com` (Usuário), contas de teste com a
+  mesma senha digitada na configuração inicial — nenhuma senha fica no código. O Diretor vê as contas de teste
+  (`GET /api/v1/test-accounts`) e exclui todas de uma vez (`POST /api/v1/test-accounts/delete-all`); a equipe de teste sai
+  junto quando nada depende dela.
+- Os campos de senha do login e da configuração inicial têm "Mostrar" / "Ocultar".
+
 O comando de linha continua valendo.
 
 ## Consequências

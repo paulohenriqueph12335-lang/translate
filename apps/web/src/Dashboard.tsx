@@ -368,17 +368,28 @@ function Sessions() {
   );
 }
 
-/** Conta de teste (ADR-004): lembra que é teste e exclui com um clique; sem Diretor, volta a configuração inicial. */
+/**
+ * Conta de teste (ADR-004): lembra que é teste, mostra as contas de teste (para o Diretor) e exclui com um clique;
+ * sem Diretor, volta a configuração inicial.
+ */
 function TestAccountBanner({ me, onDeleted }: { me: Me; onDeleted: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const director = me.user.orgRole === 'director';
+  const accounts = useLoad(
+    () =>
+      director
+        ? api<{ items: Array<{ id: string; name: string; email: string; role: string }> }>('GET', '/test-accounts')
+        : Promise.resolve(null),
+    [director],
+  );
+  const others = (accounts.data?.items ?? []).filter((item) => item.id !== me.user.id);
   async function remove() {
     const warning = director
-      ? 'Excluir esta conta de teste? Você sai do sistema e, se não houver outro Diretor, volta a tela de configuração inicial para criar a conta definitiva.'
+      ? `Excluir ${others.length ? `todas as ${others.length + 1} contas de teste` : 'esta conta de teste'}? Você sai do sistema e, se não houver outro Diretor, volta a tela de configuração inicial para criar a conta definitiva.`
       : 'Excluir esta conta de teste? Você sai do sistema.';
     if (!window.confirm(warning)) return;
     try {
-      await api('POST', `/users/${me.user.id}/delete-test-account`);
+      await api('POST', director ? '/test-accounts/delete-all' : `/users/${me.user.id}/delete-test-account`);
       onDeleted();
     } catch (caught) {
       setError(message(caught));
@@ -388,9 +399,14 @@ function TestAccountBanner({ me, onDeleted }: { me: Me; onDeleted: () => void })
     <div className="alert test-account" role="status">
       <span>
         <strong>Conta de teste.</strong> Use à vontade; quando terminar, exclua para criar a conta definitiva.
+        {others.length > 0 && (
+          <span className="block-line small-text">
+            Outras contas de teste (mesma senha que a sua): {others.map((item) => `${item.role} – ${item.email}`).join(' · ')}
+          </span>
+        )}
       </span>
       <button className="small" onClick={() => void remove()}>
-        Excluir conta de teste
+        {director && others.length ? 'Excluir contas de teste' : 'Excluir conta de teste'}
       </button>
       {error && <span className="error-text">{error}</span>}
     </div>

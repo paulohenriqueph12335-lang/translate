@@ -1916,3 +1916,11 @@ h4 {
 .form label.check {
   display: block;
 }
+.password-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.password-field input {
+  flex: 1;
+}

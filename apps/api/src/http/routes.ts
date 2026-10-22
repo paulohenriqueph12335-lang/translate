@@ -163,6 +163,8 @@ export function registerRoutes(
         displayName: z.string().trim().min(1).max(120),
         password: z.string().min(PASSWORD_MIN).max(PASSWORD_MAX),
         testAccount: z.boolean().default(false),
+        // Também Líder e Usuário de teste, numa equipe de teste, com a mesma senha.
+        demoAccounts: z.boolean().default(false),
       }),
       request.body,
     );
@@ -217,6 +219,16 @@ export function registerRoutes(
       return { user: await services.users.changeStatus(ctx, id, action) };
     });
   }
+
+  app.get('/api/v1/test-accounts', async (request) => services.setup.listTestAccounts(auth(request)));
+
+  // Todas as contas de teste de uma vez (Diretor); quem pediu também sai, se for de teste.
+  app.post('/api/v1/test-accounts/delete-all', async (request, reply) => {
+    const ctx = auth(request);
+    const result = await services.setup.deleteAllTestAccounts(ctx);
+    if (request.auth!.user.testAccount) clearSessionCookie(reply);
+    return result;
+  });
 
   // Conta de teste: a própria pessoa ou um Diretor exclui; sem Diretor, volta a configuração inicial.
   app.post('/api/v1/users/:id/delete-test-account', async (request, reply) => {

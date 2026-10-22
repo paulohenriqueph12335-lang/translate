@@ -1,5 +1,24 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type InputHTMLAttributes } from 'react';
 import { api, ApiError, type Me } from './api';
+
+/** Campo de senha com "Mostrar" / "Ocultar", para quem quiser conferir o que digitou. */
+export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span className="password-field">
+      <input {...props} type={visible ? 'text' : 'password'} />
+      <button
+        type="button"
+        className="link small-text"
+        aria-pressed={visible}
+        aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
+        onClick={() => setVisible((current) => !current)}
+      >
+        {visible ? 'Ocultar' : 'Mostrar'}
+      </button>
+    </span>
+  );
+}
 
 export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -58,8 +77,7 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
         )}
         <label>
           Senha
-          <input
-            type="password"
+          <PasswordInput
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             required
             minLength={mode === 'signup' ? 12 : 1}
@@ -110,7 +128,15 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
  * configuração aparece só no log da API, então só quem tem acesso ao computador onde o sistema roda consegue usar.
  */
 export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
-  const [form, setForm] = useState({ code: '', displayName: '', email: '', password: '', confirm: '', testAccount: true });
+  const [form, setForm] = useState({
+    code: '',
+    displayName: '',
+    email: '',
+    password: '',
+    confirm: '',
+    testAccount: true,
+    demoAccounts: true,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (key: keyof typeof form) => (value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
@@ -131,6 +157,7 @@ export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
           email: form.email,
           password: form.password,
           testAccount: form.testAccount,
+          demoAccounts: form.testAccount && form.demoAccounts,
         }),
       );
     } catch (caught) {
@@ -185,8 +212,7 @@ export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
         </label>
         <label>
           Senha
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             required
             minLength={12}
@@ -198,8 +224,7 @@ export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
         </label>
         <label>
           Confirme a senha
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             required
             minLength={12}
@@ -214,6 +239,16 @@ export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
             Pode ser excluída depois com um botão; aí o sistema volta para esta tela e você cria a conta definitiva.
           </small>
         </label>
+        {form.testAccount && (
+          <label className="check">
+            <input type="checkbox" checked={form.demoAccounts} onChange={(e) => set('demoAccounts')(e.target.checked)} /> Criar também Líder
+            e Usuário de teste
+            <small className="muted block-line">
+              Na "Equipe de Teste", com a mesma senha: lider.teste@exemplo.com e usuario.teste@exemplo.com. Todas as contas de teste saem
+              juntas com um botão.
+            </small>
+          </label>
+        )}
         {error && (
           <div className="alert error" role="alert">
             {error}
