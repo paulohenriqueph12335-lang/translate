@@ -31,10 +31,12 @@ const KIND_TONE: Record<string, string> = {
 };
 
 export function Notifications({
+  notificationsEnabled,
   onOpenTranslation,
   onOpenDocuments,
   onChange,
 }: {
+  notificationsEnabled: boolean;
   onOpenTranslation: (id: string) => void;
   onOpenDocuments: () => void;
   onChange: () => void;
@@ -63,7 +65,7 @@ export function Notifications({
 
   return (
     <Section title="Notificações" subtitle="Documentos prontos, tipos novos, pedidos para refazer, conclusões e falhas.">
-      <PopupSettings />
+      <PopupSettings enabled={notificationsEnabled} />
       <div className="filters">
         <Segmented
           label="Mostrar"

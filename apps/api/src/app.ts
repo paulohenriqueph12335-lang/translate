@@ -41,7 +41,7 @@ export interface AppDeps {
   pool: Pool;
   logger?: FastifyServerOptions['logger'];
   now?: () => Date;
-  rateLimits?: { login: RateLimitOptions; signup: RateLimitOptions };
+  rateLimits?: { login: RateLimitOptions; signup: RateLimitOptions; password?: RateLimitOptions };
   /** Armazenamento de objetos; padrão é o S3 configurado. Testes injetam falhas por aqui. */
   storage?: ObjectStorage;
   /** Provedores gratuitos para a revisão automática; padrão é o do ambiente. Testes injetam um falso. */
@@ -57,7 +57,11 @@ interface RateLimitOptions {
   windowMs: number;
 }
 
-const defaultRateLimits = { login: { limit: 10, windowMs: 15 * 60_000 }, signup: { limit: 5, windowMs: 60 * 60_000 } };
+const defaultRateLimits = {
+  login: { limit: 10, windowMs: 15 * 60_000 },
+  signup: { limit: 5, windowMs: 60 * 60_000 },
+  password: { limit: 5, windowMs: 15 * 60_000 },
+};
 
 export async function buildApp({
   config,
@@ -167,6 +171,7 @@ export async function buildApp({
     config,
     loginLimiter: createRateLimiter(rateLimits.login),
     signupLimiter: createRateLimiter(rateLimits.signup),
+    passwordLimiter: createRateLimiter(rateLimits.password ?? defaultRateLimits.password),
   });
 
   // Sem Diretor, o código da configuração inicial já sai no log quando a API sobe.

@@ -4,16 +4,16 @@ Testes devem ser acrescentados junto com a funcionalidade e usar documentos sint
 
 ## Camadas planejadas
 
-| Tipo | Verifica |
-| --- | --- |
-| Unitário | Regras, validação, transições de estado e políticas de acesso |
-| Integração | API/worker com PostgreSQL e armazenamento S3 |
-| Contrato | Esquemas e adaptadores de provedor/formatos |
-| Segurança | Isolamento de usuários/equipes, upload, sessão e downloads |
-| Documental | Texto, estilos, tabelas, imagens, slides e conteúdo protegido |
-| Recuperação | Retomada, idempotência, falhas e limites de retentativa |
-| E2E | Fluxo de cadastro/aprovação até download |
-| Carga | Concorrência, CPU, memória, tamanho de lote e documentos |
+| Tipo        | Verifica                                                      |
+| ----------- | ------------------------------------------------------------- |
+| Unitário    | Regras, validação, transições de estado e políticas de acesso |
+| Integração  | API/worker com PostgreSQL e armazenamento S3                  |
+| Contrato    | Esquemas e adaptadores de provedor/formatos                   |
+| Segurança   | Isolamento de usuários/equipes, upload, sessão e downloads    |
+| Documental  | Texto, estilos, tabelas, imagens, slides e conteúdo protegido |
+| Recuperação | Retomada, idempotência, falhas e limites de retentativa       |
+| E2E         | Fluxo de cadastro/aprovação até download                      |
+| Carga       | Concorrência, CPU, memória, tamanho de lote e documentos      |
 
 ## Critérios por alteração
 
@@ -47,6 +47,8 @@ O Gerenciamento AI (ADR-021) tem testes unitários em `packages/core/src/ai/gove
 A configuração inicial e a conta de teste (ADR-004, revisão de 2026-10-22) estão em `apps/api/src/setup.integration.test.ts`: código anunciado sem Diretor, código errado e senha curta recusados, Diretor de teste criado e já conectado, configuração fechada com Diretor existente, quem pode excluir, e exclusão que derruba a sessão, libera o e-mail, guarda a auditoria e reabre a configuração com código novo. As contas de demonstração (Líder e Usuário de teste na Equipe de Teste, exclusão de todas de uma vez e recriação com os mesmos e-mails) estão em `setup-demo.integration.test.ts`.
 
 ### Simulação e carga no sistema local
+
+As configurações pessoais ([ADR-024](decisions/024-personal-settings.md)) são cobertas por `apps/api/src/account-settings.integration.test.ts`: padrões, persistência e isolamento das preferências, PATCH concorrente, validação, autenticação/CSRF, senha atual incorreta, política da senha nova, limite de tentativas, auditoria sem segredos, preservação da sessão atual e revogação das outras, inclusive com login concorrente. `apps/web/src/notification-policy.test.ts` cobre baseline silenciosa, deduplicação, intervalos de 5/15/60 minutos, leitura antes do aviso e cache por usuário ou indisponível. Rode `corepack pnpm --filter @tradutor/web test` para esses testes da interface. Temas claro/noturno, persistência após recarga, sincronização entre abas, desativação e formulário de senha foram conferidos no navegador com uma conta fictícia em banco separado, em desktop e largura de 320 px.
 
 Com o Compose no ar e as contas de teste em `docs/exemplos-simulados/.credenciais-simulacao.json` (fora do Git):
 

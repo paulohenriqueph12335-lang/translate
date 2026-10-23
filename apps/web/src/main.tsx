@@ -4,7 +4,10 @@ import { api, ApiError, type Me } from './api';
 import { AuthScreen, SetupScreen } from './AuthScreen';
 import { Dashboard } from './Dashboard';
 import { UpdateBanner } from './UpdateBanner';
+import { initializeTheme } from './theme';
 import './style.css';
+
+initializeTheme();
 
 function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
@@ -45,7 +48,7 @@ function App() {
         {setupNeeded ? <SetupScreen onLogin={setMe} /> : <AuthScreen onLogin={setMe} />}
       </>
     );
-  return <Dashboard me={me} onLogout={logout} onUnauthorized={expire} />;
+  return <Dashboard key={me.user.id} me={me} onLogout={logout} onUnauthorized={expire} />;
 }
 
 createRoot(document.getElementById('root')!).render(

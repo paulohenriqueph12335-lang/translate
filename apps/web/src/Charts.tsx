@@ -5,12 +5,12 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
  * tintas de um documento juramentado; o que passa de duas séries vira cinza ("Outros"). Toda série tem legenda ou
  * rótulo direto, dica ao passar o mouse e tabela equivalente.
  */
-export const INK_BLUE = '#2f5a96';
-export const SEPIA = '#b5782b';
-export const SERIES = [INK_BLUE, SEPIA, '#8a857c'] as const;
+export const INK_BLUE = 'var(--chart-blue)';
+export const SEPIA = 'var(--chart-sepia)';
+export const SERIES = [INK_BLUE, SEPIA, 'var(--chart-gray)'] as const;
 /** Desfechos: acerto em azul-caneta, refeita no vermelho de erro, justificada no ocre de alerta (validado para daltonismo). */
-export const OUTCOME_COLORS = [INK_BLUE, '#9b3027', '#b98a2e'] as const;
-const OTHER = '#dcd8d0';
+export const OUTCOME_COLORS = [INK_BLUE, 'var(--chart-danger)', 'var(--chart-warn)'] as const;
+const OTHER = 'var(--chart-other)';
 
 type Tip = { x: number; y: number; text: string } | null;
 

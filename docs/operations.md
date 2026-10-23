@@ -27,6 +27,15 @@ docker compose run --rm -it api corepack pnpm --filter @tradutor/api bootstrap:d
 
 Entre em <http://localhost:5173>. Novos cadastros ficam pendentes até um Diretor aprovar em **Aprovações**. Veja [ADR-004](decisions/004-director-bootstrap.md).
 
+## Configurações da conta
+
+Todos os perfis encontram **Configurações** no rodapé do menu:
+
+- **Preferências**: ative ou desative os avisos e escolha recebê-los assim que chegarem, a cada 5 minutos, 15 minutos ou uma hora. Salve as notificações. A central continua disponível com os avisos desativados. Os avisos funcionam com a aplicação aberta; pop-ups do sistema também exigem permissão do navegador.
+- **Aparência**, na mesma aba: escolha Claro, Modo noturno ou Acompanhar o sistema e salve. A preferência acompanha a conta. As prévias dos documentos mantêm o papel branco.
+- **Alterar senha**: informe a senha atual, a nova senha (12 a 256 caracteres) e a confirmação. Ao atualizar, os outros dispositivos saem da conta e a sessão atual continua aberta.
+- **Minhas sessões**: consulte e encerre acessos dos seus dispositivos.
+
 ## Tradução juramentada
 
 1. Como Supervisor, abra **Tradutores juramentados**, cadastre cada tradutor (nome, matrícula, idiomas) e envie a **máscara em Word** dele no armazenamento de máscaras, com os marcadores `{{texto}}`, `{{numero}}`, `{{data}}` etc. no lugar certo; cada envio vira uma edição numerada, e dá para voltar a uma edição anterior (o PDF do tradutor pode ser guardado como referência). Sem tradutor com máscara, nenhuma tradução pode ser concluída. Na conclusão, escolhe-se o tradutor e digita-se o número, o livro e a folha.

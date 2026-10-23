@@ -6,7 +6,7 @@ import { Audit } from './Audit';
 import { AutoTranslationNotice } from './AutoTranslationNotice';
 import { Documents } from './Documents';
 import { Downloads } from './Downloads';
-import { LiveNotifications, usePopupPermission } from './LiveNotifications';
+import { LiveNotifications } from './LiveNotifications';
 import { Notifications, useUnreadCount } from './Notifications';
 import { Numbering } from './Numbering';
 import { OrganizationPanel, TeamPanel } from './Panels';
@@ -17,6 +17,8 @@ import { Glossary, TranslationSettingsView } from './TranslationAdmin';
 import { Translations } from './Translations';
 import { Teams } from './Teams';
 import { Translators } from './Translators';
+import { Settings, PasswordSettings } from './Settings';
+import { useUserPreferences } from './preferences';
 import { dateTime, EmbeddedSection, Wordmark, Feedback, message, Section, useLoad } from './ui';
 
 /**
@@ -24,7 +26,7 @@ import { dateTime, EmbeddedSection, Wordmark, Feedback, message, Section, useLoa
  * Usuário: traduzir e o próprio histórico. Líder: início, traduções, equipe e ajustes. Diretor: o mesmo, mais a
  * administração da organização.
  */
-type AreaKey = 'home' | 'work' | 'history' | 'team' | 'settings' | 'admin' | 'notifications' | 'sessions';
+type AreaKey = 'home' | 'work' | 'history' | 'team' | 'settings' | 'admin' | 'notifications' | 'account';
 
 interface Tab {
   key: string;
@@ -54,7 +56,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const [openTranslation, setOpenTranslation] = useState<string | null>(null);
   const [notificationsVersion, setNotificationsVersion] = useState(0);
   const unread = useUnreadCount(notificationsVersion);
-  const popups = usePopupPermission();
+  const preferences = useUserPreferences(me.user.id);
   const pending = useLoad(
     () => (isDirector ? api<Page<User>>('GET', '/users?status=pending&limit=100') : Promise.resolve(null)),
     [isDirector, place.area],
@@ -196,7 +198,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       ],
     },
   ];
-  // Menu de cada papel; Notificações e Minhas sessões ficam no rodapé.
+  // Configurações pessoais e notificações estão ao alcance de todos os perfis.
   const menu: AreaKey[] = isDirector
     ? ['home', 'work', 'team', 'settings', 'admin']
     : supervises
@@ -215,6 +217,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           label: 'Notificações',
           render: () => (
             <Notifications
+              notificationsEnabled={preferences.data?.notificationsEnabled ?? false}
               onOpenTranslation={goToTranslation}
               onOpenDocuments={goToUpload}
               onChange={() => setNotificationsVersion((current) => current + 1)}
@@ -224,11 +227,28 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       ],
     },
     {
-      key: 'sessions',
-      label: 'Minhas sessões',
-      title: 'Minhas sessões',
-      subtitle: '',
-      tabs: [{ key: 'sessions', label: '', render: () => <Sessions /> }],
+      key: 'account',
+      label: 'Configurações',
+      title: 'Configurações',
+      subtitle: 'Preferências e segurança da sua conta.',
+      tabs: [
+        {
+          key: 'preferences',
+          label: 'Preferências',
+          render: () => (
+            <Settings
+              preferences={preferences.data}
+              loading={preferences.loading}
+              saving={preferences.saving}
+              error={preferences.error}
+              onReload={preferences.reload}
+              onSave={preferences.update}
+            />
+          ),
+        },
+        { key: 'password', label: 'Alterar senha', render: () => <PasswordSettings email={me.user.email} /> },
+        { key: 'sessions', label: 'Minhas sessões', render: () => <Sessions /> },
+      ],
     },
   ];
   const visible = areas.filter((area) => menu.includes(area.key));
@@ -258,11 +278,6 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           ))}
         </nav>
         <div className="sidebar-foot">
-          {popups.permission === 'default' && (
-            <button className="ghost small foot-popups" onClick={() => void popups.request()}>
-              Ativar pop-ups no Windows
-            </button>
-          )}
           {footer.map((area) => (
             <button
               key={area.key}
@@ -280,6 +295,8 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       </aside>
       <main className="content">
         <LiveNotifications
+          userId={me.user.id}
+          preferences={preferences.data}
           onOpenTranslation={goToTranslation}
           onOpenNotifications={() => go('notifications')}
           onNew={() => setNotificationsVersion((value) => value + 1)}

@@ -25,6 +25,7 @@ Decisões que mudam limites, dependências ou operação ficam registradas como 
 - [ADR-021 — Gerenciamento AI: o Gemini como gestor de processo e orientador técnico, com escopo restrito](021-ai-governance.md)
 - [ADR-022 — Escolha com IA ou sem IA por pessoa e comparação dos protocolos](022-ai-choice-comparison.md)
 - [ADR-023 — Navegação compacta por papel](023-compact-navigation.md)
+- [ADR-024 — Configurações pessoais, aparência e troca de senha](024-personal-settings.md)
 
 ## Modelo para novas decisões
 
@@ -35,7 +36,10 @@ Decisões que mudam limites, dependências ou operação ficam registradas como 
 - Data: AAAA-MM-DD
 
 ## Contexto
+
 ## Decisão
+
 ## Consequências
+
 ## Alternativas consideradas
 ```

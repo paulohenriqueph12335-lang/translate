@@ -27,6 +27,7 @@ import {
   TranslationRules,
 } from '@tradutor/core/translation';
 import { PASSWORD_MAX, PASSWORD_MIN } from '../modules/identity/passwords.js';
+import { UserPreferences, UserPreferencesPatch } from '../modules/identity/preferences.js';
 import type { IdentityService } from '../modules/identity/service.js';
 import type { SetupService } from '../modules/identity/setup.js';
 import { pageQuery } from '../modules/pagination.js';
@@ -106,7 +107,7 @@ const requestContext = (request: FastifyRequest): RequestContext => {
 
 export function registerRoutes(
   app: FastifyInstance,
-  deps: { services: Services; config: Config; loginLimiter: RateLimiter; signupLimiter: RateLimiter },
+  deps: { services: Services; config: Config; loginLimiter: RateLimiter; signupLimiter: RateLimiter; passwordLimiter: RateLimiter },
 ) {
   const { services, config } = deps;
 
@@ -186,6 +187,32 @@ export function registerRoutes(
   app.get('/api/v1/auth/me', async (request) => {
     const ctx = auth(request);
     return { user: request.auth!.user, memberships: await services.identity.listMemberships(ctx.actor.id) };
+  });
+
+  app.get('/api/v1/auth/preferences', async (request) => services.identity.getOwnPreferences(auth(request)));
+
+  app.put('/api/v1/auth/preferences', async (request) => {
+    const ctx = auth(request);
+    return services.identity.updateOwnPreferences(ctx, parse(UserPreferences, request.body));
+  });
+
+  app.patch('/api/v1/auth/preferences', async (request) => {
+    const ctx = auth(request);
+    return services.identity.updateOwnPreferences(ctx, parse(UserPreferencesPatch, request.body));
+  });
+
+  app.post('/api/v1/auth/password', async (request, reply) => {
+    const ctx = auth(request);
+    limit(deps.passwordLimiter, [`ip:${request.ip}`, `user:${ctx.actor.id}`]);
+    const body = parse(
+      z.strictObject({
+        currentPassword: z.string().min(1).max(PASSWORD_MAX),
+        newPassword: z.string().min(PASSWORD_MIN, `Use pelo menos ${PASSWORD_MIN} caracteres`).max(PASSWORD_MAX),
+      }),
+      request.body,
+    );
+    await services.identity.changeOwnPassword(ctx, body);
+    return reply.code(204).send();
   });
 
   app.get('/api/v1/auth/sessions', async (request) => ({ items: await services.identity.listOwnSessions(auth(request)) }));

@@ -7,7 +7,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "prettier --check src index.html package.json tsconfig.json vite.config.ts",
-    "test": "node --test"
+    "test": "node --experimental-strip-types --test src/*.test.ts"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",
