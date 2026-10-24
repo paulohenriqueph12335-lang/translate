@@ -1074,7 +1074,10 @@ export function registerRoutes(
           .string()
           .regex(/^[a-f0-9]{64}$/)
           .optional(),
-        version: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+        version: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       }),
       request.query,
     );

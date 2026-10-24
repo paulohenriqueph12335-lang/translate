@@ -1832,7 +1832,10 @@ export function createTranslationService({
       ...(input.expected ? { expected: { [jobId]: input.expected } } : {}),
     });
 
-  const outputVersion = (row: JobRow) => createHash('sha256').update(JSON.stringify([row.output_key,row.current_revision,row.output_sha256?.toString('hex') ?? null])).digest('hex');
+  const outputVersion = (row: JobRow) =>
+    createHash('sha256')
+      .update(JSON.stringify([row.output_key, row.current_revision, row.output_sha256?.toString('hex') ?? null]))
+      .digest('hex');
 
   async function downloadManifest(ctx: AuthenticatedContext, jobId: string) {
     const row = await loadJob(pool, ctx, jobId);
@@ -1842,7 +1845,11 @@ export function createTranslationService({
     const name = await protocolOutputName(pool, row.document_id, outputFileName(row.document_name, rules));
     const artifact = row.output_sha256?.toString('hex') ?? null;
     const versionToken = outputVersion(row);
-    const query = new URLSearchParams({ ...(row.current_revision ? {revision:String(row.current_revision)} : {}), version:versionToken, ...(artifact ? { artifact } : {}) });
+    const query = new URLSearchParams({
+      ...(row.current_revision ? { revision: String(row.current_revision) } : {}),
+      version: versionToken,
+      ...(artifact ? { artifact } : {}),
+    });
     return {
       version: 1,
       translationId: row.id,
