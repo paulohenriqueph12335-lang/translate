@@ -157,11 +157,40 @@ export interface DocumentSearchItem extends Omit<DocumentItem, 'translations'> {
   }>;
 }
 
+export type DocumentCategory =
+  | 'birth_certificate'
+  | 'marriage_certificate'
+  | 'death_certificate'
+  | 'identity'
+  | 'driver_license'
+  | 'school_record'
+  | 'diploma'
+  | 'apostille'
+  | 'professional_certificate'
+  | 'contract'
+  | 'invoice'
+  | 'generic';
+export interface DocumentCategoryOption {
+  value: DocumentCategory;
+  label: string;
+  description?: string;
+}
+export interface DocumentClassification {
+  category: DocumentCategory;
+  label: string;
+  suggestedCategory: DocumentCategory;
+  confidence: number;
+  basis: 'title' | 'opening_text' | 'unrecognized';
+  source: 'automatic' | 'human';
+  correctedAt: string | null;
+}
+
 export interface Batch {
   id: string;
   name: string | null;
   protocol: string | null;
   protocolOmissionReason: string | null;
+  documentCategory: DocumentCategory | null;
   inspectionMode: 'all' | 'sample';
   inspectionSampleSize: number | null;
   /** `null` enquanto o lote do Diretor aguarda direcionamento. */
@@ -365,6 +394,7 @@ export interface TranslationSummary {
   pendingNumberingRequest: string | null;
   documentType: string | null;
   sourceTitle: string | null;
+  classification: DocumentClassification;
   /** `false`: tipo de documento ainda não aprendido; `null`: ainda não processado. */
   patternKnown: boolean | null;
   createdAt: string;
@@ -388,6 +418,7 @@ export interface TranslationSummary {
     /** Aprovar o Word: leva à próxima fase (ADR-017). */
     accept: boolean;
     registerNewFormat: boolean;
+    classify: boolean;
   };
 }
 
@@ -453,6 +484,7 @@ export interface AutoReviewResult {
 export interface TranslationFacets {
   statusCounts: Partial<Record<TranslationStatus, number>>;
   documentTypes: string[];
+  documentCategories: Array<DocumentCategoryOption & { count: number }>;
   tags: string[];
   approvers: Array<{ id: string; name: string }>;
 }
@@ -549,6 +581,9 @@ export interface NotificationItem {
   kind: string;
   title: string;
   body: string | null;
+  category?: 'workflow' | 'review' | 'failures' | 'assignments' | 'numbering' | 'administration';
+  severity?: 'info' | 'warning' | 'error' | 'critical';
+  reason?: string;
   team: { id: string; name: string } | null;
   batchId: string | null;
   documentId: string | null;
@@ -564,7 +599,12 @@ export const notificationKindLabel: Record<string, string> = {
   translation_returned: 'Refazer',
   translation_approved: 'Concluído',
   translation_failed: 'Falha no processamento',
-  batch_assigned: 'Lote direcionado',
+  batch_assigned: 'Envio de tradução direcionado',
+  review_blocked: 'Novo formato necessário',
+  processing_stalled: 'Processamento parado',
+  approval_waiting: 'Conclusão pendente há 24h',
+  download_waiting: 'Documento pronto sem download',
+  unassigned_work: 'Documento sem responsável',
   translation_assigned: 'Atribuída a você',
   quota_warning: 'Cota em 80%',
   quota_exhausted: 'Cota esgotada',

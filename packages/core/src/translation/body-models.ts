@@ -35,7 +35,8 @@ interface ModelSpec {
 export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   birth_certificate: {
     label: 'Certidão de nascimento',
-    keywords: /CERTIDAO DE NASCIMENTO|REGISTRO DE NASCIMENTO|BIRTH CERTIFICATE|ACTE DE NAISSANCE|ATTO DI NASCITA|ACTA DE NACIMIENTO/,
+    keywords:
+      /CERTIDAO DE NASCIMENTO|REGISTRO DE NASCIMENTO|BIRTH CERTIFICATE|ACTE DE NAISSANCE|(?:ATTO|CERTIFICATO) DI NASCITA|ACTA DE NACIMIENTO/,
     keyValue: true,
     type: {
       en: 'BIRTH CERTIFICATE',
@@ -47,7 +48,7 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   },
   marriage_certificate: {
     label: 'Certidão de casamento',
-    keywords: /CERTIDAO DE CASAMENTO|MARRIAGE CERTIFICATE|ACTE DE MARIAGE|ATTO DI MATRIMONIO|ACTA DE MATRIMONIO/,
+    keywords: /CERTIDAO DE CASAMENTO|MARRIAGE CERTIFICATE|ACTE DE MARIAGE|(?:ATTO|CERTIFICATO) DI MATRIMONIO|ACTA DE MATRIMONIO/,
     keyValue: true,
     type: {
       en: 'MARRIAGE CERTIFICATE',
@@ -59,7 +60,7 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   },
   death_certificate: {
     label: 'Certidão de óbito',
-    keywords: /CERTIDAO DE OBITO|DEATH CERTIFICATE|ACTE DE DECES|ATTO DI MORTE|ACTA DE DEFUNCION/,
+    keywords: /CERTIDAO DE OBITO|DEATH CERTIFICATE|ACTE DE DECES|(?:ATTO|CERTIFICATO) DI MORTE|ACTA DE DEFUNCION/,
     keyValue: true,
     type: { en: 'DEATH CERTIFICATE', pt: 'CERTIDÃO DE ÓBITO', fr: 'ACTE DE DÉCÈS', it: 'CERTIFICATO DI MORTE', es: 'ACTA DE DEFUNCIÓN' },
   },
@@ -103,19 +104,20 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   },
   diploma: {
     label: 'Diploma',
-    keywords: /\bDIPLOMA\b|CERTIFICADO DE CONCLUSAO/,
+    keywords: /\bDIPLOM[AE]\b|CERTIFICADO DE CONCLUSAO/,
     keyValue: false,
     type: { en: 'DIPLOMA', pt: 'DIPLOMA', fr: 'DIPLÔME', it: 'DIPLOMA', es: 'DIPLOMA' },
   },
   apostille: {
     label: 'Apostila',
-    keywords: /\bAPOSTIL(A|LE)\b|CONVENCAO DA HAIA|CONVENTION DE LA HAYE/,
+    keywords: /\bAPOSTIL(A|LA|LE)\b|CONVENCAO DA HAIA|CONVENTION DE LA HAYE/,
     keyValue: false,
     type: { en: 'APOSTILLE', pt: 'APOSTILA', fr: 'APOSTILLE', it: 'APOSTILLE', es: 'APOSTILLA' },
   },
   professional_certificate: {
     label: 'Certidão de conselho profissional',
-    keywords: /CONSELHO (REGIONAL|FEDERAL|FICTICIO) DE|CERTIDAO DE (INSCRICAO|REGULARIDADE)/,
+    keywords:
+      /CONSELHO (REGIONAL|FEDERAL|FICTICIO) DE|CERTIDAO DE (INSCRICAO|REGULARIDADE)|CERTIFICATE OF REGISTRATION|CERTIFICAT D.INSCRIPTION|CERTIFICATO DI ISCRIZIONE|CERTIFICADO DE INSCRIPCION/,
     keyValue: true,
     type: {
       en: 'CERTIFICATE OF REGISTRATION',
@@ -166,6 +168,20 @@ export function classifyDocument(draft: Draft, sourceText: string | null): BodyM
     'contract',
   ];
   return order.find((model) => BODY_MODEL_SPECS[model].keywords.test(head)) ?? 'generic';
+}
+
+/** Evidência explicável das mesmas regras usadas na diagramação; a pontuação não é probabilidade estatística. */
+export function suggestDocumentCategory(draft: Draft, sourceText: string | null) {
+  const category = classifyDocument(draft, sourceText);
+  if (category === 'generic') return { category, confidence: 0, basis: 'unrecognized' as const };
+  const title = fold(draft.sourceTitle);
+  const titleMatch = BODY_MODEL_SPECS[category].keywords.test(title);
+  const candidates = BODY_MODELS.filter((model) => model !== 'generic' && BODY_MODEL_SPECS[model].keywords.test(title));
+  return {
+    category,
+    confidence: titleMatch ? (candidates.length > 1 ? 80 : 95) : 70,
+    basis: titleMatch ? ('title' as const) : ('opening_text' as const),
+  };
 }
 
 type Table = Extract<DraftBlock, { kind: 'table' }>;

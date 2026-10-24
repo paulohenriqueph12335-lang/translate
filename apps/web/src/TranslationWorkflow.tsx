@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm } from './ConfirmDialog';
 import {
   api,
   LANGUAGES,
@@ -86,6 +87,7 @@ export function InspectionGate({
   busy: boolean;
   onDone: () => void;
 }) {
+  const confirm = useConfirm();
   const [rejecting, setRejecting] = useState(false);
   const [stages, setStages] = useState<Stage[]>([]);
   const [comment, setComment] = useState('');
@@ -96,6 +98,12 @@ export function InspectionGate({
   const attempts = t.reviewLifecycle?.consecutiveRejections ?? 0;
   const canInspect = t.permissions.accept || t.permissions.edit || t.permissions.approve;
   async function reject() {
+    const completed = t.status === 'awaiting_approval';
+    if (
+      completed &&
+      !(await confirm('Este documento já está pronto. Deseja devolvê-lo para correção? Será necessária uma nova conferência e aprovação.'))
+    )
+      return;
     setSending(true);
     setError(null);
     try {
@@ -106,6 +114,7 @@ export function InspectionGate({
         comment: comment.trim(),
         scope: t.batch.inspectionMode ?? 'all',
         reprocess,
+        ...(completed ? { confirmCompleted: true } : {}),
       });
       onReviewed(false);
       setRejecting(false);
@@ -193,6 +202,7 @@ export function InspectionGate({
 }
 
 export function LanguageCorrection({ t, me, onDone }: { t: TranslationSummary; me: Me; onDone: () => void }) {
+  const confirm = useConfirm();
   const [source, setSource] = useState(t.sourceLanguage);
   const [target, setTarget] = useState(t.targetLanguage);
   const [reason, setReason] = useState('');
@@ -207,9 +217,9 @@ export function LanguageCorrection({ t, me, onDone }: { t: TranslationSummary; m
     const completed = t.status === 'approved' || t.status === 'awaiting_approval';
     if (
       completed &&
-      !window.confirm(
+      !(await confirm(
         'Este documento já está pronto. Tem certeza de que deseja corrigir os idiomas? O arquivo final atual será invalidado e uma nova tradução precisará ser revisada e aprovada.',
-      )
+      ))
     )
       return;
     setBusy(true);

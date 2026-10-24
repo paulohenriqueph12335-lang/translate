@@ -17,11 +17,16 @@ import {
   splitPair,
   modeLabel,
   type TranslationMode,
+  type DocumentCategory,
 } from './api';
 import { ModeSelect, PairSelect } from './Modes';
 import { ArchiveDownloadButtons, useBatchProtocol } from './Flow';
 import { DocumentTags, StatusBadge } from './Translations';
 import { dateTime, Feedback, message, SearchInput, Section, Segmented, TagInput, useDebounced, useLoad } from './ui';
+import { useConfirm } from './ConfirmDialog';
+import { DocumentCategorySelect, useDocumentCategories } from './DocumentClassification';
+import { TranslationSteps } from './TranslationSteps';
+import { LanguagePairPicker } from './LanguagePairPicker';
 
 const CONCURRENCY = 3;
 /** Formatos aceitos pela tradução juramentada nesta fase (ADR-007). */
@@ -40,15 +45,18 @@ export function Documents({
   me,
   onOpenTranslation,
   initialSearch = '',
+  initialBatchId = null,
 }: {
   me: Me;
   onOpenTranslation: (id: string) => void;
   initialSearch?: string;
+  initialBatchId?: string | null;
 }) {
   const isDirector = me.user.orgRole === 'director';
-  const { data: teamsData } = useLoad(() => api<{ items: Team[] }>('GET', '/teams'), []);
-  const { data: limits } = useLoad(() => api<UploadLimits>('GET', '/batches/limits'), []);
-  const [selected, setSelected] = useState<string | null>(null);
+  const { data: teamsData, error: teamsError, reload: reloadTeams } = useLoad(() => api<{ items: Team[] }>('GET', '/teams'), []);
+  const { data: limits, error: limitsError, reload: reloadLimits } = useLoad(() => api<UploadLimits>('GET', '/batches/limits'), []);
+  const [selected, setSelected] = useState<string | null>(initialBatchId);
+  useEffect(() => setSelected(initialBatchId), [initialBatchId]);
   const [creating, setCreating] = useState(false);
   const [version, setVersion] = useState(0);
   const [uploads, setUploads] = useState<UploadState>({ files: new Map(), progress: new Map(), errors: new Map() });
@@ -83,23 +91,45 @@ export function Documents({
 
   // Supervisor e Usuário enviam para a própria equipe; quem envia é o responsável pela tradução.
   const myTeams = teams.filter((team) => team.myRole !== null);
-  const canCreate = isDirector || myTeams.length > 0;
-  const subtitle = isDirector
-    ? 'Seus lotes ficam aguardando direcionamento até você escolher a equipe; a equipe assume as traduções.'
-    : canCreate
-      ? 'Lotes enviados por você vão direto para a sua equipe, e as traduções ficam sob sua responsabilidade.'
-      : 'Entre em uma equipe para enviar documentos.';
+  const hasTeamAccess = isDirector || myTeams.length > 0;
+  const prerequisitesReady = !!teamsData && !!limits;
+  const canCreate = prerequisitesReady && hasTeamAccess;
+  const subtitle =
+    teamsError || limitsError
+      ? 'Não foi possível carregar os dados necessários ao novo envio.'
+      : !prerequisitesReady
+        ? 'Carregando equipes e limites de envio…'
+        : isDirector
+          ? 'Inicie uma nova tradução e direcione os documentos para a equipe responsável.'
+          : canCreate
+            ? 'Inicie uma nova tradução para a sua equipe e acompanhe o envio e a produção de cada documento.'
+            : 'Entre em uma equipe para enviar documentos.';
 
   return (
-    <Section title="Envios" subtitle={subtitle}>
+    <Section title="Nova tradução" subtitle={subtitle}>
+      <Feedback error={teamsError ? `Não foi possível carregar suas equipes: ${teamsError}` : null} />
+      <Feedback error={limitsError ? `Não foi possível carregar os limites de envio: ${limitsError}` : null} />
+      {((!teamsData && !teamsError) || (!limits && !limitsError)) && <p role="status">Carregando dados de envio…</p>}
+      {(teamsError || limitsError) && (
+        <button
+          type="button"
+          className="small"
+          onClick={() => {
+            reloadTeams();
+            reloadLimits();
+          }}
+        >
+          Tentar carregar novamente
+        </button>
+      )}
       {canCreate && !creating && (
         <div className="toolbar">
           <button className="primary" onClick={() => setCreating(true)}>
-            Novo lote
+            Nova tradução
           </button>
         </div>
       )}
-      {creating && limits && (
+      {creating && prerequisitesReady && limits && (
         <NewBatch
           isDirector={isDirector}
           teams={myTeams}
@@ -116,10 +146,10 @@ export function Documents({
           }}
         />
       )}
-      {!canCreate && teams.length === 0 && (
+      {prerequisitesReady && !hasTeamAccess && (
         <p className="empty">Você ainda não participa de equipes. Peça a um Supervisor ou ao Diretor para incluí-lo.</p>
       )}
-      <div className="split wide">
+      <div className="split wide documents-workspace">
         <History
           teams={teams}
           isDirector={isDirector}
@@ -162,6 +192,9 @@ function NewBatch({
 }) {
   const [teamId, setTeamId] = useState(teams.length === 1 ? teams[0]!.id : '');
   const [name, setName] = useState('');
+  const [step, setStep] = useState(0);
+  const [documentCategory, setDocumentCategory] = useState<DocumentCategory | ''>('');
+  const categories = useDocumentCategories();
   // Todo documento armazenado é processado sozinho (ADR-010); o par define os idiomas.
   const [pair, setPair] = useState('pt-en');
   // Modalidade (ADR-015): define as etapas e as regras de tradução do lote.
@@ -190,6 +223,14 @@ function NewBatch({
   const total = valid.reduce((sum, file) => sum + file.size, 0);
   const tooMany = files.length > limits.maxBatchFiles;
   const tooBig = total > limits.maxBatchMb * 1024 * 1024;
+  const filesReady = valid.length > 0 && !tooMany && !tooBig;
+  const ready = filesReady && protocol.ready && (isDirector || !!teamId);
+  const nextReady = [filesReady, protocol.ready, isDirector || !!teamId, ready][step];
+  const advance = () => {
+    if (!nextReady || busy) return;
+    setError(null);
+    setStep((current) => Math.min(current + 1, 3));
+  };
 
   const add = (list: FileList | null) => {
     // Copia já: o FileList é esvaziado quando o campo é limpo, antes de o React aplicar a atualização.
@@ -209,6 +250,11 @@ function NewBatch({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (step < 3) {
+      advance();
+      return;
+    }
+    if (!ready || busy) return;
     if (!protocol.ready) {
       setError('Informe o protocolo ou sua justificativa e escolha a inspeção para remessas grandes.');
       return;
@@ -225,6 +271,7 @@ function NewBatch({
           mode,
           ...(tags.length ? { tags } : {}),
           ...(name.trim() ? { name: name.trim() } : {}),
+          ...(documentCategory ? { documentCategory } : {}),
           files: files.map((file) => ({ name: file.name, size: file.size })),
           ...protocol.payload,
         },
@@ -240,120 +287,213 @@ function NewBatch({
 
   return (
     <form className="card new-batch" onSubmit={submit}>
-      <h3>Novo lote</h3>
-      {protocol.fields}
-      <div className="filters">
-        {isDirector ? (
-          <span className="muted small-text">O lote ficará aguardando direcionamento; escolha a equipe depois do envio.</span>
-        ) : teams.length === 1 ? (
-          <span className="muted small-text">
-            Equipe: <strong>{teams[0]!.name}</strong>
-          </span>
-        ) : (
-          <label className="inline">
-            Equipe
-            <select required value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-              <option value="" disabled>
-                Escolha…
-              </option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </label>
+      <h3>Nova tradução</h3>
+      <p className="muted small-text">Escolha os documentos, identifique o envio e confira as opções antes de iniciar a tradução.</p>
+      <TranslationSteps step={step} onChange={setStep} disabled={busy} />
+      <fieldset className="translation-step-fields" disabled={busy}>
+        {step === 1 && (
+          <>
+            {protocol.fields}
+            <label>
+              Nome do envio (opcional)
+              <input maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <DocumentCategorySelect
+              value={documentCategory}
+              onChange={setDocumentCategory}
+              categories={categories.data?.categories ?? []}
+            />
+            <Feedback error={categories.error} />
+            <fieldset className="tags-field" style={{ border: 0, padding: 0, minWidth: 0 }}>
+              <legend>
+                Etiquetas <small className="muted">Opcionais; ajudam a pesquisar e organizar os documentos.</small>
+              </legend>
+              <TagInput value={tags} onChange={setTags} suggestions={suggestions.data?.items.map((item) => item.tag) ?? []} />
+            </fieldset>
+          </>
         )}
-        <input placeholder="Nome do lote (opcional)" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
-        <label className="inline">
-          Traduzir de
-          <PairSelect value={pair} onChange={setPair} />
-        </label>
-      </div>
-      <div className="tags-field">
-        <span className="field-label">Modalidade</span>
-        <ModeSelect value={mode} onChange={setMode} />
-      </div>
-      <label className="tags-field">
-        Etiquetas{' '}
-        <small className="muted">(opcional; ajudam a classificar e a reconhecer o tipo do documento antes do processamento)</small>
-        <TagInput value={tags} onChange={setTags} suggestions={suggestions.data?.items.map((item) => item.tag) ?? []} />
-      </label>
+        {step === 2 && (
+          <>
+            <div className="filters">
+              {isDirector ? (
+                <span className="muted small-text">O envio aguardará direcionamento; escolha a equipe após iniciar a tradução.</span>
+              ) : teams.length === 1 ? (
+                <span className="muted small-text">
+                  Equipe: <strong>{teams[0]!.name}</strong>
+                </span>
+              ) : (
+                <label className="inline">
+                  Equipe
+                  <select required value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                    <option value="" disabled>
+                      Escolha…
+                    </option>
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <div className="inline">
+                <span>Traduzir de</span>
+                <PairSelect value={pair} onChange={setPair} />
+              </div>
+            </div>
+            <div className="tags-field">
+              <span className="field-label">Modalidade</span>
+              <ModeSelect value={mode} onChange={setMode} />
+            </div>
+          </>
+        )}
 
-      <div
-        className={`dropzone ${dragging ? 'over' : ''}`}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        onClick={() => input.current?.click()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && input.current?.click()}
-      >
-        <strong>Arraste arquivos aqui ou clique para escolher</strong>
-        <span className="muted">
-          {limits.extensions.map((ext) => ext.toUpperCase()).join(', ')} · até {limits.maxFileMb} MB por arquivo · até{' '}
-          {limits.maxBatchFiles} arquivos
-        </span>
-        <input
-          ref={input}
-          type="file"
-          multiple
-          hidden
-          accept={limits.extensions.map((ext) => `.${ext}`).join(',')}
-          onChange={(e) => {
-            add(e.target.files);
-            e.target.value = '';
-          }}
-        />
-      </div>
+        {step === 0 && (
+          <>
+            <div
+              className={`dropzone ${dragging ? 'over' : ''}`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={onDrop}
+              onClick={() => input.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && input.current?.click()}
+            >
+              <strong>Arraste arquivos aqui ou clique para escolher</strong>
+              <span className="muted">
+                {limits.extensions.map((ext) => ext.toUpperCase()).join(', ')} · até {limits.maxFileMb} MB por arquivo · até{' '}
+                {limits.maxBatchFiles} arquivos
+              </span>
+              <input
+                ref={input}
+                type="file"
+                multiple
+                hidden
+                accept={limits.extensions.map((ext) => `.${ext}`).join(',')}
+                onChange={(e) => {
+                  add(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+            </div>
 
-      {files.length > 0 && (
-        <>
-          <div className="count">
-            <span>
-              {files.length} arquivo(s) · {formatBytes(total)} válidos
-              {files.length !== valid.length && ` · ${files.length - valid.length} serão recusados`}
-            </span>
-            <button type="button" className="link" onClick={() => setFiles([])}>
-              Limpar
-            </button>
-          </div>
-          <ul className="list compact files">
-            {files.map((file, index) => {
-              const problem = problemOf(file);
-              return (
-                <li key={`${file.name}-${index}`}>
-                  <div>
-                    <strong>{file.name}</strong>
-                    <span className={problem ? 'warn-text' : 'muted'}>
-                      {formatBytes(file.size)}
-                      {problem ? ` · ${problem}` : ''}
-                    </span>
-                  </div>
-                  <button type="button" className="small" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>
-                    Remover
+            {files.length > 0 && (
+              <>
+                <div className="count">
+                  <span>
+                    {files.length} arquivo(s) · {formatBytes(total)} válidos
+                    {files.length !== valid.length && ` · ${files.length - valid.length} serão recusados`}
+                  </span>
+                  <button type="button" className="link" onClick={() => setFiles([])}>
+                    Limpar
                   </button>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-      {tooMany && <Feedback error={`Um lote aceita no máximo ${limits.maxBatchFiles} arquivos.`} />}
-      {tooBig && <Feedback error={`O lote passa de ${limits.maxBatchMb} MB.`} />}
+                </div>
+                <ul className="list compact files">
+                  {files.map((file, index) => {
+                    const problem = problemOf(file);
+                    return (
+                      <li key={`${file.name}-${index}`}>
+                        <div>
+                          <strong>{file.name}</strong>
+                          <span className={problem ? 'warn-text' : 'muted'}>
+                            {formatBytes(file.size)}
+                            {problem ? ` · ${problem}` : ''}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="small"
+                          onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}
+                        >
+                          Remover
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+            {tooMany && <Feedback error={`Um envio aceita no máximo ${limits.maxBatchFiles} arquivos.`} />}
+            {tooBig && <Feedback error={`O envio passa de ${limits.maxBatchMb} MB.`} />}
+          </>
+        )}
+        {step === 3 && (
+          <div className="translation-send-summary">
+            <h4>Confira sua nova tradução</h4>
+            <dl>
+              <div>
+                <dt>Documentos</dt>
+                <dd>
+                  {files.length} arquivo(s) · {formatBytes(total)} válidos
+                  {files.length !== valid.length && ` · ${files.length - valid.length} serão recusados`}
+                </dd>
+              </div>
+              <div>
+                <dt>Identificação</dt>
+                <dd>{name.trim() || 'Sem nome adicional'}</dd>
+              </div>
+              <div>
+                <dt>Protocolo</dt>
+                <dd>{protocol.description}</dd>
+              </div>
+              <div>
+                <dt>Tipo e modelo</dt>
+                <dd>{categories.data?.categories.find((item) => item.value === documentCategory)?.label ?? 'Automático por documento'}</dd>
+              </div>
+              <div>
+                <dt>Idiomas</dt>
+                <dd>{LANGUAGE_PAIRS.find((item) => item.value === pair)?.label}</dd>
+              </div>
+              <div>
+                <dt>Modalidade</dt>
+                <dd>{modeLabel[mode]}</dd>
+              </div>
+              <div>
+                <dt>Equipe</dt>
+                <dd>{isDirector ? 'Direcionar após o envio' : teams.find((team) => team.id === teamId)?.name}</dd>
+              </div>
+              <div>
+                <dt>Inspeção</dt>
+                <dd>{protocol.payload.inspectionMode === 'sample' ? 'Amostra inicial de 10 documentos' : 'Todos os documentos'}</dd>
+              </div>
+            </dl>
+            <details>
+              <summary>Arquivos deste envio</summary>
+              <ul>
+                {files.map((file, index) => (
+                  <li key={`${file.name}-${index}`}>
+                    {file.name} · {formatBytes(file.size)}
+                  </li>
+                ))}
+              </ul>
+            </details>
+            <p className="muted small-text">
+              O protocolo e a opção de inspeção serão registrados na auditoria. Após o envio, acompanhe cada documento abaixo.
+            </p>
+          </div>
+        )}
+      </fieldset>
       <Feedback error={error} />
       <div className="actions">
-        <button
-          className="primary"
-          disabled={busy || !protocol.ready || (!isDirector && !teamId) || valid.length === 0 || tooMany || tooBig}
-        >
-          {busy ? 'Criando…' : `Criar lote e enviar ${valid.length} arquivo(s)`}
-        </button>
-        <button type="button" className="ghost" onClick={onCancel}>
+        {step > 0 && (
+          <button type="button" disabled={busy} onClick={() => setStep((current) => current - 1)}>
+            Voltar
+          </button>
+        )}
+        {step < 3 ? (
+          <button type="button" className="primary" disabled={busy || !nextReady} onClick={advance}>
+            Continuar
+          </button>
+        ) : (
+          <button type="submit" className="primary" disabled={busy || !ready}>
+            {busy ? 'Iniciando…' : `Iniciar tradução de ${valid.length} arquivo(s)`}
+          </button>
+        )}
+        <button type="button" className="ghost" disabled={busy} onClick={onCancel}>
           Cancelar
         </button>
       </div>
@@ -418,7 +558,7 @@ function History({
   return (
     <div className="stack">
       <div className="filters">
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, lote, pessoa ou arquivo" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, envio, pessoa ou arquivo" />
         {showTeamFilter && (
           <select aria-label="Equipe" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
             <option value="">Todas as equipes</option>
@@ -431,7 +571,7 @@ function History({
           </select>
         )}
         <Segmented
-          label="Estado do lote"
+          label="Estado do envio"
           value={status}
           options={[
             ['all', 'Todos'],
@@ -465,7 +605,7 @@ function History({
             <div>
               <strong>
                 {batch.protocol ? `${batch.protocol} – ` : ''}
-                {batch.name ?? `Lote de ${dateTime(batch.createdAt)}`}{' '}
+                {batch.name ?? `Tradução de ${dateTime(batch.createdAt)}`}{' '}
                 <span className={`badge ${batch.status === 'open' ? 'warn' : ''}`}>
                   {batch.status === 'open' ? 'Envio pendente' : 'Envio concluído'}
                 </span>
@@ -482,7 +622,9 @@ function History({
           </li>
         ))}
       </ul>
-      {items.length === 0 && <p className="empty">{filtered ? 'Nenhum lote corresponde aos filtros.' : 'Nenhum lote enviado ainda.'}</p>}
+      {items.length === 0 && (
+        <p className="empty">{filtered ? 'Nenhum envio corresponde aos filtros.' : 'Nenhuma tradução enviada ainda.'}</p>
+      )}
       {cursor && (
         <button className="ghost" onClick={() => void load(cursor)}>
           Carregar mais
@@ -534,6 +676,7 @@ function BatchDetail({
   onChange: () => void;
   onSend: (entries: Array<[string, File]>) => void;
 }) {
+  const confirm = useConfirm();
   const { data, error } = useLoad(() => api<{ batch: Batch; documents: DocumentItem[] }>('GET', `/batches/${batchId}`), [batchId, version]);
   const [filter, setFilter] = useState<DocFilter>('all');
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
@@ -541,7 +684,8 @@ function BatchDetail({
   const [pickingFor, setPickingFor] = useState<string | null>(null);
   const [target, setTarget] = useState('');
 
-  if (!data) return <div className="card detail">{error ? <Feedback error={error} /> : <p className="muted">Carregando…</p>}</div>;
+  if (!data)
+    return <div className="card detail batch-detail">{error ? <Feedback error={error} /> : <p className="muted">Carregando…</p>}</div>;
   const { batch, documents } = data;
   const isOwner = batch.owner.id === me.user.id;
   const isDirector = me.user.orgRole === 'director';
@@ -576,10 +720,10 @@ function BatchDetail({
   }
 
   return (
-    <div className="card detail">
+    <div className="card detail batch-detail">
       <h3>
         {batch.protocol ? `${batch.protocol} – ` : ''}
-        {batch.name ?? `Lote de ${dateTime(batch.createdAt)}`}
+        {batch.name ?? `Tradução de ${dateTime(batch.createdAt)}`}
       </h3>
       <p className="muted small-text">
         {batch.team?.name ?? 'Sem equipe'} · enviado por {batch.owner.displayName} · {dateTime(batch.createdAt)} ·{' '}
@@ -607,7 +751,7 @@ function BatchDetail({
 
       {isDirector && (
         <div className={`assign ${batch.team ? '' : 'pending'}`}>
-          <span>{batch.team ? `Direcionado para ${batch.team.name}` : 'Este lote aguarda direcionamento para uma equipe.'}</span>
+          <span>{batch.team ? `Direcionado para ${batch.team.name}` : 'Este envio aguarda direcionamento para uma equipe.'}</span>
           <select aria-label="Equipe de destino" value={target} onChange={(e) => setTarget(e.target.value)}>
             <option value="">Escolha a equipe…</option>
             {teams
@@ -621,15 +765,15 @@ function BatchDetail({
           <button
             className="small primary"
             disabled={!target}
-            onClick={() => {
+            onClick={async () => {
               if (
                 hasReadyDocuments &&
-                !window.confirm(
+                !(await confirm(
                   'Esta remessa já possui documentos prontos. Tem certeza de que deseja alterar a equipe responsável e os acessos a esses documentos?',
-                )
+                ))
               )
                 return;
-              void run(batch.team ? 'Lote redirecionado.' : 'Lote direcionado; a equipe já pode trabalhar com ele.', async () => {
+              void run(batch.team ? 'Envio redirecionado.' : 'Envio direcionado; a equipe já pode trabalhar nos documentos.', async () => {
                 await api('POST', `/batches/${batch.id}/assign`, {
                   teamId: target,
                   ...(hasReadyDocuments ? { confirmCompleted: true } : {}),
@@ -668,7 +812,8 @@ function BatchDetail({
       </div>
       <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
 
-      <div className="table-wrap">
+      <p className="batch-table-hint muted small-text">Deslize a tabela para ver o estado e as ações de cada documento.</p>
+      <div className="table-wrap batch-documents-table" role="region" aria-label="Documentos da remessa" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -731,18 +876,19 @@ function BatchDetail({
                       </button>
                     ))}
                     {doc.status === 'stored' && TRANSLATABLE.has(doc.format ?? '') && (
-                      <select
+                      <LanguagePairPicker
                         className="small"
-                        aria-label="Traduzir"
+                        label="Traduzir"
+                        any="Outro idioma…"
                         value=""
-                        onChange={(e) => {
-                          const [sourceLanguage, targetLanguage] = e.target.value.split('-');
+                        onChange={async (value) => {
+                          const [sourceLanguage, targetLanguage] = value.split('-');
                           if (!sourceLanguage) return;
                           if (
                             doc.translations?.some((translation) => translation.status === 'approved') &&
-                            !window.confirm(
+                            !(await confirm(
                               'Este documento já possui uma tradução pronta. Tem certeza de que deseja criar uma nova tradução em outro idioma?',
-                            )
+                            ))
                           )
                             return;
                           void run('Tradução para o outro idioma iniciada.', async () => {
@@ -754,14 +900,7 @@ function BatchDetail({
                             onOpenTranslation(started.translation.id);
                           });
                         }}
-                      >
-                        <option value="">Outro idioma…</option>
-                        {LANGUAGE_PAIRS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     )}
                     {canResend && (
                       <button

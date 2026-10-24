@@ -1006,10 +1006,188 @@ label.check.grow {
 .split.wide {
   grid-template-columns: minmax(280px, 1fr) minmax(0, 1.6fr);
 }
+.documents-workspace,
+.documents-workspace > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.documents-workspace {
+  overflow-wrap: anywhere;
+}
+.batch-detail .assign > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.batch-documents-table {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.batch-documents-table:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.batch-table-hint {
+  display: none;
+}
+@media (max-width: 600px) {
+  .batch-detail {
+    padding: 20px 16px;
+  }
+  .batch-table-hint {
+    display: block;
+  }
+}
 .new-batch {
   display: grid;
   gap: 12px;
   margin-bottom: 20px;
+}
+.translation-setup-steps {
+  display: grid;
+  grid-auto-flow: row;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.translation-setup-steps button {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  min-width: 0;
+  text-align: left;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.translation-setup-steps button[aria-current='step'] {
+  border-color: var(--ink);
+  background: var(--gray-100);
+}
+.translation-setup-steps button > span {
+  font-family: var(--mono);
+  font-weight: 700;
+}
+.translation-step-fields,
+.classification-fields {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.translation-step-fields :is(input, select, textarea),
+.classification-fields :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+.translation-send-summary,
+.document-classification {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.translation-send-summary h4,
+.document-classification h3 {
+  margin-top: 0;
+}
+.translation-send-summary dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.translation-send-summary dl > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+.translation-send-summary dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+.translation-send-summary dd {
+  margin: 6px 0 0;
+}
+.document-classification {
+  margin: 16px 0;
+}
+.document-classification summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.document-quick-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 14px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.secondary-options,
+.secondary-actions {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.secondary-options {
+  padding: 14px 16px;
+  margin: 14px 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+}
+.secondary-options > summary,
+.secondary-actions > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.secondary-actions > summary {
+  padding: 6px 0;
+  font-size: 13px;
+}
+.secondary-options[open] > summary {
+  margin-bottom: 14px;
+}
+.secondary-actions[open] > .actions {
+  margin: 8px 0;
+}
+.workspace-news .list {
+  margin-top: 14px;
+}
+.classification-fields {
+  margin-top: 16px;
+}
+.notification-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: 12px;
+}
+.notification-category {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  overflow-wrap: anywhere;
+}
+.notification-category :is(h4, p) {
+  margin: 0;
+}
+.notification-category label {
+  min-width: 0;
+  max-width: 100%;
+}
+.notification-category label.check input {
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .translation-setup-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .translation-send-summary dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .new-batch h3 {
   margin: 0;
@@ -3064,6 +3242,55 @@ button.action-tile strong {
   /* Sem deslocamentos; cor e transparência continuam confirmando cada ação. */
   * {
     transition-property: color, background-color, border-color, opacity !important;
+  }
+}
+
+/* Salvamento e entregas mantêm nomes, mensagens e alternativas legíveis em telas pequenas. */
+.save-download {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.save-download > button,
+.save-download .alert {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.final-delivery {
+  padding: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.final-delivery > .actions > .save-download {
+  flex: 1 1 130px;
+}
+.delivery-dialog,
+.dashboard-dialog[aria-label='Salvar arquivos da tradução'] {
+  width: min(760px, calc(100vw - 32px));
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .final-delivery > .actions,
+  .final-delivery .archive-controls > .actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .final-delivery .actions button {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .delivery-dialog,
+  .dashboard-dialog[aria-label='Salvar arquivos da tradução'] {
+    padding: 12px;
+    max-height: calc(100dvh - 24px);
   }
 }
 .badge,

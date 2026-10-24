@@ -9,10 +9,11 @@ import {
   type Team,
   type TranslationFacets,
   type TranslationSummary,
-  LANGUAGE_PAIRS,
 } from './api';
 import { StatusBadge } from './Translations';
 import { ArchiveDownloadButtons } from './Flow';
+import { LanguagePairPicker } from './LanguagePairPicker';
+import { DeliveryMenu, SaveDownloadButton } from './DeliveryActions';
 import {
   dateTime,
   DateRange,
@@ -130,14 +131,7 @@ function ConcludedTranslations({
             </option>
           ))}
         </select>
-        <select aria-label="Idiomas" value={pair} onChange={(e) => setPair(e.target.value)}>
-          <option value="">Todos os idiomas</option>
-          {LANGUAGE_PAIRS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <LanguagePairPicker label="Idiomas" value={pair} onChange={setPair} any="Todos os idiomas" />
         <select aria-label="Concluída por" value={approvedBy} onChange={(e) => setApprovedBy(e.target.value)}>
           <option value="">Concluída por qualquer pessoa</option>
           {facets?.approvers.map((person) => (
@@ -246,15 +240,12 @@ function ConcludedTranslations({
                   <span className="muted small-text block-line">{item.approvedBy}</span>
                 </td>
                 <td className="actions">
-                  <a className="button small primary" href={`/api/v1/translations/${item.id}/final?format=docx&download=true`}>
-                    Word
-                  </a>
-                  <a className="button small" href={`/api/v1/translations/${item.id}/final?format=pdf&download=true`}>
-                    PDF
-                  </a>
-                  <a className="button small" href={`/api/v1/documents/${item.document.id}/original`}>
-                    Original
-                  </a>
+                  <DeliveryMenu
+                    translationId={item.id}
+                    version={item.updatedAt}
+                    batchId={item.batch.id}
+                    original={{ id: item.document.id, name: item.document.name }}
+                  />
                 </td>
               </tr>
             ))}
@@ -373,19 +364,24 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
                         {item.number ? ` nº ${item.number}` : ''}
                       </button>{' '}
                       <StatusBadge status={item.status} />
-                      {item.status === 'approved' && (
-                        <a className="button small" href={`/api/v1/translations/${item.id}/final`}>
-                          Baixar
-                        </a>
-                      )}
+                      {item.status === 'approved' && <DeliveryMenu translationId={item.id} original={{ id: doc.id, name: doc.name }} />}
                     </span>
                   ))}
                 </span>
               )}
             </div>
-            <a className="button small" href={`/api/v1/documents/${doc.id}/original`}>
-              Original
-            </a>
+            <SaveDownloadButton
+              url={`/api/v1/documents/${doc.id}/original`}
+              name={doc.name}
+              mimeType={
+                doc.format === 'pdf'
+                  ? 'application/pdf'
+                  : doc.format === 'docx'
+                    ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    : 'application/octet-stream'
+              }
+              label="Salvar original"
+            />
           </li>
         ))}
       </ul>

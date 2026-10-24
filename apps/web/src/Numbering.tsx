@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api, requestStatusLabel, roleLabel, type Me, type NumberingOverview, type NumberingRequest } from './api';
 import { Meter } from './Charts';
 import { dateTime, Feedback, message, Section, Segmented, useLoad } from './ui';
+import { useConfirm } from './ConfirmDialog';
 
 /**
  * Numeração (plano de hierarquia): o Diretor define o total da organização e o teto das equipes; o Supervisor, a cota
@@ -183,6 +184,7 @@ function QuotaEditor({ value, max, onSave }: { value: number | null; max: number
 }
 
 function Requests({ onOpenTranslation, onChange }: { onOpenTranslation: (id: string) => void; onChange: () => void }) {
+  const confirm = useConfirm();
   const [status, setStatus] = useState<'pending' | 'all'>('pending');
   const [version, setVersion] = useState(0);
   const { data, error } = useLoad(
@@ -255,10 +257,10 @@ function Requests({ onOpenTranslation, onChange }: { onOpenTranslation: (id: str
                 <>
                   <button
                     className="small primary"
-                    onClick={() =>
-                      window.confirm(
+                    onClick={async () =>
+                      (await confirm(
                         'Tem certeza de que deseja alterar a numeração deste documento concluído? A nova versão e a decisão ficarão registradas na auditoria.',
-                      ) && act('Pedido autorizado.', () => api('POST', `/numbering-requests/${request.id}/decide`, { approve: true }))
+                      )) && act('Pedido autorizado.', () => api('POST', `/numbering-requests/${request.id}/decide`, { approve: true }))
                     }
                   >
                     Autorizar
@@ -279,8 +281,8 @@ function Requests({ onOpenTranslation, onChange }: { onOpenTranslation: (id: str
               {request.permissions.revert && (
                 <button
                   className="small"
-                  onClick={() =>
-                    window.confirm('Desfazer esta decisão e voltar a numeração anterior?') &&
+                  onClick={async () =>
+                    (await confirm('Desfazer esta decisão e voltar a numeração anterior?')) &&
                     void act('Decisão revertida.', () => api('POST', `/numbering-requests/${request.id}/revert`))
                   }
                 >

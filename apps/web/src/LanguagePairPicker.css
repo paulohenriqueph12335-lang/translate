@@ -1,0 +1,109 @@
+.language-pair-picker {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: min(240px, 100%);
+  max-width: 100%;
+  vertical-align: middle;
+}
+.language-pair-field {
+  position: relative;
+  width: 100%;
+}
+.language-pair-field input {
+  width: 100%;
+  min-width: 0;
+  padding-right: 64px;
+  text-overflow: ellipsis;
+}
+.language-pair-field .pair-clear,
+.language-pair-field .pair-open {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+  font-size: 18px;
+  border-radius: 4px;
+}
+.language-pair-field .pair-clear {
+  right: 30px;
+}
+.language-pair-field .pair-open {
+  right: 3px;
+}
+.language-pair-field button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.language-pair-popup {
+  position: fixed;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  background: var(--sheet);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 36px #0003;
+  overflow: hidden;
+}
+.language-pair-popup ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.language-pair-popup li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: normal;
+  font-size: 13px;
+}
+.language-pair-popup li.active {
+  background: var(--gray-50);
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+}
+.language-pair-popup small {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.language-pair-hint {
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+}
+.language-pair-hint:last-child {
+  border-top: 1px solid var(--rule);
+  border-bottom: 0;
+}
+.pair-screenreader {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .language-pair-picker {
+    width: 100%;
+    min-width: 0;
+  }
+  .language-pair-popup li {
+    min-height: 44px;
+  }
+}

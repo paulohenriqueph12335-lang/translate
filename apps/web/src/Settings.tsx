@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from './api';
-import { PopupSettings } from './LiveNotifications';
+import { SmartNotificationSettings } from './SmartNotificationSettings';
 import type { UserPreferences } from './preferences';
 import { Feedback, message, Section } from './ui';
 
@@ -19,32 +19,12 @@ export function Settings({
   onReload: () => void;
   onSave: (patch: Partial<UserPreferences>) => Promise<void>;
 }) {
-  const [enabled, setEnabled] = useState(true);
-  const [frequency, setFrequency] = useState<UserPreferences['notificationFrequency']>('immediate');
   const [theme, setTheme] = useState<UserPreferences['theme']>('light');
-  const [notificationFeedback, setNotificationFeedback] = useState<{ error?: string; ok?: string }>({});
   const [themeFeedback, setThemeFeedback] = useState<{ error?: string; ok?: string }>({});
-
-  useEffect(() => {
-    if (!preferences) return;
-    setEnabled(preferences.notificationsEnabled);
-    setFrequency(preferences.notificationFrequency);
-  }, [preferences?.notificationsEnabled, preferences?.notificationFrequency]);
 
   useEffect(() => {
     if (preferences) setTheme(preferences.theme);
   }, [preferences?.theme]);
-
-  async function saveNotifications(event: FormEvent) {
-    event.preventDefault();
-    setNotificationFeedback({});
-    try {
-      await onSave({ notificationsEnabled: enabled, notificationFrequency: frequency });
-      setNotificationFeedback({ ok: 'Preferências de notificações salvas.' });
-    } catch (caught) {
-      setNotificationFeedback({ error: message(caught) });
-    }
-  }
 
   async function saveTheme(event: FormEvent) {
     event.preventDefault();
@@ -72,52 +52,7 @@ export function Settings({
       )}
       {preferences && (
         <div className="settings-grid">
-          <section className="card settings-card" aria-labelledby="notification-settings-title">
-            <h3 id="notification-settings-title">Notificações</h3>
-            <p className="muted settings-copy">Escolha quando receber os avisos na tela e os pop-ups do sistema.</p>
-            <form className="settings-form" onSubmit={(event) => void saveNotifications(event)}>
-              <label className="settings-row">
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  disabled={saving}
-                  onChange={(event) => {
-                    setEnabled(event.target.checked);
-                    setNotificationFeedback({});
-                  }}
-                />
-                <span>Ativar notificações</span>
-              </label>
-              <label>
-                Frequência dos avisos
-                <select
-                  value={frequency}
-                  disabled={!enabled || saving}
-                  onChange={(event) => {
-                    setFrequency(event.target.value as UserPreferences['notificationFrequency']);
-                    setNotificationFeedback({});
-                  }}
-                >
-                  <option value="immediate">Assim que chegarem</option>
-                  <option value="5m">A cada 5 minutos</option>
-                  <option value="15m">A cada 15 minutos</option>
-                  <option value="1h">A cada hora</option>
-                </select>
-              </label>
-              <p className="muted settings-hint">
-                Os avisos funcionam enquanto o sistema está aberto. As notificações continuam disponíveis no menu, mesmo com os avisos
-                desativados.
-              </p>
-              <Feedback error={notificationFeedback.error ?? null} ok={notificationFeedback.ok ?? null} />
-              <button
-                className="primary"
-                disabled={saving || (enabled === preferences.notificationsEnabled && frequency === preferences.notificationFrequency)}
-              >
-                {saving ? 'Salvando…' : 'Salvar notificações'}
-              </button>
-            </form>
-            <PopupSettings enabled={preferences.notificationsEnabled} />
-          </section>
+          <SmartNotificationSettings />
           <section className="card settings-card" aria-labelledby="appearance-settings-title">
             <h3 id="appearance-settings-title">Aparência</h3>
             <p className="muted settings-copy">Use o modo noturno para trabalhar com uma interface escura.</p>

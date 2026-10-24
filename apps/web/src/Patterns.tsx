@@ -12,10 +12,12 @@ import {
   type PatternTest,
   type PatternVerdict,
   type TranslationMode,
+  type DocumentCategory,
 } from './api';
 import { PairSelect } from './Modes';
 import { PdfPreview } from './PdfPreview';
 import { dateTime, Feedback, message, Section, useLoad } from './ui';
+import { DocumentCategorySelect, useDocumentCategories } from './DocumentClassification';
 
 const TONE: Record<PatternVerdict, string> = { can: '', review: 'warn', cannot: 'danger' };
 type LayoutPreset = 'source' | 'left' | 'justify' | 'center';
@@ -120,36 +122,60 @@ function PatternTester() {
   const [result, setResult] = useState<ReviewedPatternTest | null>(null);
   const [trial, setTrial] = useState<PatternTrial | null>(null);
   const [layoutPreset, setLayoutPreset] = useState<LayoutPreset>('source');
+  const [generatedPreset, setGeneratedPreset] = useState<LayoutPreset | null>(null);
+  const [documentCategory, setDocumentCategory] = useState<DocumentCategory | ''>('');
+  const [generatedCategory, setGeneratedCategory] = useState<DocumentCategory | '' | null>(null);
+  const categories = useDocumentCategories();
+  const [reviewBusy, setReviewBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const operating = useRef(false);
+  const request = useRef<AbortController | null>(null);
+  const locked = busy || reviewBusy;
+  const previewCurrent = !result || (generatedPreset === layoutPreset && generatedCategory === documentCategory);
+
+  useEffect(() => () => request.current?.abort(), []);
 
   async function test() {
-    if (!file) return;
+    if (!file || operating.current) return;
+    operating.current = true;
+    const controller = new AbortController();
+    request.current = controller;
+    const requestedPreset = layoutPreset;
+    const requestedCategory = documentCategory;
     setBusy(true);
     setError(null);
     try {
       const [sourceLanguage, targetLanguage] = splitPair(pair);
       const response = await fetch(
-        `/api/v1/document-patterns/test?sourceLanguage=${sourceLanguage}&targetLanguage=${targetLanguage}&mode=${mode}&includePreview=true&layoutPreset=${layoutPreset}`,
+        `/api/v1/document-patterns/test?sourceLanguage=${sourceLanguage}&targetLanguage=${targetLanguage}&mode=${mode}&includePreview=true&layoutPreset=${layoutPreset}${documentCategory ? `&documentCategory=${documentCategory}` : ''}`,
         {
           method: 'POST',
           headers: { 'X-CSRF-Protection': '1', 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
           body: file,
+          signal: controller.signal,
         },
       );
       const data = await response.json();
+      if (controller.signal.aborted || request.current !== controller) return;
       if (!response.ok) {
         if (data?.error?.details?.trial) setTrial(data.error.details.trial as PatternTrial);
         throw new ApiError(response.status, data?.error?.code ?? 'ERROR', data?.error?.message ?? 'Falha no teste');
       }
       setResult(data as ReviewedPatternTest);
+      setGeneratedPreset((data.trial?.layoutPreset as LayoutPreset | undefined) ?? requestedPreset);
+      setGeneratedCategory(requestedCategory);
       if (data.trial) {
         setTrial(data.trial as PatternTrial);
         setLayoutPreset(data.trial.layoutPreset as LayoutPreset);
       }
     } catch (caught) {
-      setError(message(caught));
+      if (!controller.signal.aborted && request.current === controller) setError(message(caught));
     } finally {
-      setBusy(false);
+      if (request.current === controller) {
+        request.current = null;
+        operating.current = false;
+        setBusy(false);
+      }
     }
   }
 
@@ -172,7 +198,12 @@ function PatternTester() {
         O arquivo e seu texto não são guardados. O sistema registra a identificação por digest, a diagramação sem conteúdo e as decisões de
         revisão do ensaio; nenhuma tradução de produção é criada.
       </p>
-      <div className="filters">
+      <fieldset
+        className="filters"
+        aria-label="Parâmetros do ensaio"
+        disabled={locked}
+        style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+      >
         <button type="button" onClick={() => input.current?.click()}>
           {file ? file.name : 'Escolher arquivo'}
         </button>
@@ -182,9 +213,13 @@ function PatternTester() {
           hidden
           accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png"
           onChange={(event) => {
+            if (operating.current) return;
             setFile(event.target.files?.[0] ?? null);
             setResult(null);
             setTrial(null);
+            setGeneratedPreset(null);
+            setGeneratedCategory(null);
+            setDocumentCategory('');
             setLayoutPreset('source');
             event.target.value = '';
           }}
@@ -192,9 +227,12 @@ function PatternTester() {
         <PairSelect
           value={pair}
           onChange={(value) => {
+            if (operating.current) return;
             setPair(value);
             setResult(null);
             setTrial(null);
+            setGeneratedPreset(null);
+            setGeneratedCategory(null);
             setLayoutPreset('source');
           }}
         />
@@ -202,9 +240,12 @@ function PatternTester() {
           aria-label="Modalidade"
           value={mode}
           onChange={(e) => {
+            if (operating.current) return;
             setMode(e.target.value as TranslationMode);
             setResult(null);
             setTrial(null);
+            setGeneratedPreset(null);
+            setGeneratedCategory(null);
             setLayoutPreset('source');
           }}
         >
@@ -214,11 +255,20 @@ function PatternTester() {
             </option>
           ))}
         </select>
+        <DocumentCategorySelect
+          value={documentCategory}
+          categories={categories.data?.categories ?? []}
+          onChange={(value) => {
+            if (!operating.current) setDocumentCategory(value);
+          }}
+        />
         <select
           aria-label="Diagramação do ensaio"
           value={layoutPreset}
           disabled={busy || trial?.blocked || trial?.requiresRegeneration}
-          onChange={(e) => setLayoutPreset(e.target.value as LayoutPreset)}
+          onChange={(e) => {
+            if (!operating.current) setLayoutPreset(e.target.value as LayoutPreset);
+          }}
         >
           {layoutOptions.map(([value, label]) => (
             <option key={value} value={value}>
@@ -229,8 +279,16 @@ function PatternTester() {
         <button className="primary" disabled={!file || busy || trial?.blocked} onClick={() => void test()}>
           {busy ? 'Testando…' : trial ? 'Gerar Word e comparar novamente' : 'Testar'}
         </button>
-      </div>
-      <Feedback error={error} />
+      </fieldset>
+      <Feedback error={error ?? categories.error} />
+      {!previewCurrent && (
+        <p className="alert info" role="status">
+          As opções de modelo ou diagramação mudaram. O Word abaixo ainda usa «
+          {categories.data?.categories.find((item) => item.value === generatedCategory)?.label ?? 'Identificação automática'} ·{' '}
+          {layoutOptions.find(([value]) => value === generatedPreset)?.[1]}». Gere o Word novamente para aplicar a seleção e liberar a
+          revisão.
+        </p>
+      )}
       {result && (
         <div className={`pattern-result ${result.verdict}`}>
           <div className="word-head">
@@ -296,6 +354,11 @@ function PatternTester() {
           result={result}
           trial={trial}
           busy={busy}
+          previewCurrent={previewCurrent}
+          onBusy={(value) => {
+            operating.current = value;
+            setReviewBusy(value);
+          }}
           onTrial={(value) => {
             setTrial(value);
             setLayoutPreset(value.layoutPreset);
@@ -313,6 +376,8 @@ function PatternComparison({
   result,
   trial,
   busy,
+  previewCurrent,
+  onBusy,
   onTrial,
   onGenerate,
 }: {
@@ -320,6 +385,8 @@ function PatternComparison({
   result: PatternTest | null;
   trial: PatternTrial | null;
   busy: boolean;
+  previewCurrent: boolean;
+  onBusy: (busy: boolean) => void;
   onTrial: (trial: PatternTrial) => void;
   onGenerate: () => void;
 }) {
@@ -332,6 +399,7 @@ function PatternComparison({
   const [failedStages, setFailedStages] = useState<Stage[]>([]);
   const [reviewed, setReviewed] = useState(false);
   const [sending, setSending] = useState(false);
+  const submitting = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [formatName, setFormatName] = useState('');
   const [explanation, setExplanation] = useState('');
@@ -357,9 +425,11 @@ function PatternComparison({
     setReason('');
     setFailedStages([]);
     setError(null);
-  }, [trial?.id, trial?.revision, trial?.formatGeneration]);
+  }, [trial?.id, trial?.revision, trial?.formatGeneration, previewCurrent]);
   async function inspect(decision: 'approved' | 'rejected') {
-    if (!trial) return;
+    if (!trial || busy || submitting.current || !previewCurrent) return;
+    submitting.current = true;
+    onBusy(true);
     setSending(true);
     setError(null);
     try {
@@ -373,11 +443,15 @@ function PatternComparison({
     } catch (caught) {
       setError(message(caught));
     } finally {
+      submitting.current = false;
       setSending(false);
+      onBusy(false);
     }
   }
   async function registerFormat() {
-    if (!trial) return;
+    if (!trial || busy || submitting.current) return;
+    submitting.current = true;
+    onBusy(true);
     setSending(true);
     setError(null);
     try {
@@ -394,7 +468,9 @@ function PatternComparison({
     } catch (caught) {
       setError(message(caught));
     } finally {
+      submitting.current = false;
       setSending(false);
+      onBusy(false);
     }
   }
   const decode = (value: string, type: string) =>
@@ -502,7 +578,7 @@ function PatternComparison({
                 <input
                   type="checkbox"
                   checked={reviewed}
-                  disabled={busy || sending || !result?.previewDocx}
+                  disabled={busy || sending || !previewCurrent || !result?.previewDocx}
                   onChange={(e) => setReviewed(e.target.checked)}
                 />
                 Comparei o original e o Word desta revisão.
@@ -528,19 +604,19 @@ function PatternComparison({
               </fieldset>
               <label>
                 Comentário ou motivo da reprovação
-                <textarea rows={3} maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)} />
+                <textarea rows={3} maxLength={2000} value={reason} disabled={busy || sending} onChange={(e) => setReason(e.target.value)} />
               </label>
               <div className="actions">
                 <button
                   className="primary"
-                  disabled={busy || sending || !reviewed || failedStages.length > 0}
+                  disabled={busy || sending || !previewCurrent || !reviewed || failedStages.length > 0}
                   onClick={() => void inspect('approved')}
                 >
                   Aprovar revisão do ensaio
                 </button>
                 <button
                   className="danger"
-                  disabled={busy || sending || !reviewed || !failedStages.length || reason.trim().length < 3}
+                  disabled={busy || sending || !previewCurrent || !reviewed || !failedStages.length || reason.trim().length < 3}
                   onClick={() => void inspect('rejected')}
                 >
                   Reprovar e registrar as fases
@@ -559,15 +635,28 @@ function PatternComparison({
               <div className="form">
                 <label>
                   Nome do formato
-                  <input value={formatName} minLength={3} maxLength={120} onChange={(e) => setFormatName(e.target.value)} />
+                  <input
+                    value={formatName}
+                    minLength={3}
+                    maxLength={120}
+                    disabled={busy || sending}
+                    onChange={(e) => setFormatName(e.target.value)}
+                  />
                 </label>
                 <label>
                   Motivo e alterações propostas
-                  <textarea rows={3} value={explanation} minLength={5} maxLength={2000} onChange={(e) => setExplanation(e.target.value)} />
+                  <textarea
+                    rows={3}
+                    value={explanation}
+                    minLength={5}
+                    maxLength={2000}
+                    disabled={busy || sending}
+                    onChange={(e) => setExplanation(e.target.value)}
+                  />
                 </label>
                 <label>
                   Diagramação que será aplicada no Word
-                  <select value={newPreset} onChange={(e) => setNewPreset(e.target.value as LayoutPreset)}>
+                  <select value={newPreset} disabled={busy || sending} onChange={(e) => setNewPreset(e.target.value as LayoutPreset)}>
                     {layoutOptions.map(([value, label]) => (
                       <option value={value} key={value}>
                         {label}

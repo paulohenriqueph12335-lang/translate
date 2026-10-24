@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, queryString, type SwornTranslator, type Team, type TeamMember } from './api';
 import { dateTime, Feedback, message, SearchInput, Segmented, useDebounced, useLoad } from './ui';
+import { useConfirm } from './ConfirmDialog';
 
 /** Regras de numeração por tradutor (ADR-014): painel e administração do Supervisor, preenchimento do usuário. */
 
@@ -817,6 +818,7 @@ export function NumberingPanel({
   defaultPages?: number | null;
   completed?: boolean;
 }) {
+  const confirm = useConfirm();
   const translators = useLoad(() => api<{ items: SwornTranslator[] }>('GET', '/sworn-translators?active=true'), []);
   const ready = (translators.data?.items ?? []).filter((item) => item.ready);
   const [translatorId, setTranslatorId] = useState('');
@@ -895,7 +897,7 @@ export function NumberingPanel({
     if (!translatorId) return;
     if (
       completed &&
-      !window.confirm('Este documento já está pronto. Deseja alterar a numeração? Será necessário conferir a nova versão do Word.')
+      !(await confirm('Este documento já está pronto. Deseja alterar a numeração? Será necessário conferir a nova versão do Word.'))
     )
       return;
     setBusy(true);
@@ -924,7 +926,7 @@ export function NumberingPanel({
   }
 
   async function authorize() {
-    if (completed && !window.confirm('Este documento já está pronto. Deseja alterar a autorização de protocolo zerado?')) return;
+    if (completed && !(await confirm('Este documento já está pronto. Deseja alterar a autorização de protocolo zerado?'))) return;
     try {
       setState(await api('POST', `/translations/${translationId}/numbering/authorize-zero-protocol`, { confirmCompleted: completed }));
     } catch (caught) {

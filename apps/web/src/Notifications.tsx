@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, notificationKindLabel, queryString, type NotificationItem } from './api';
 import { PopupSettings } from './LiveNotifications';
+import { useNotificationSettings } from './notification-preferences';
 import { dateTime, Feedback, message, PagedFooter, Section, Segmented, usePaged } from './ui';
 
 /** Quantidade de notificações não lidas, atualizada periodicamente e quando `version` muda. */
@@ -31,21 +32,24 @@ const KIND_TONE: Record<string, string> = {
 };
 
 export function Notifications({
-  notificationsEnabled,
   onOpenTranslation,
   onOpenDocuments,
   onChange,
 }: {
-  notificationsEnabled: boolean;
   onOpenTranslation: (id: string) => void;
-  onOpenDocuments: () => void;
+  onOpenDocuments: (batchId?: string) => void;
   onChange: () => void;
 }) {
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
   const [kind, setKind] = useState('');
+  const [category, setCategory] = useState('');
+  const settings = useNotificationSettings();
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const list = usePaged<NotificationItem>(`/notifications${queryString({ limit: 30, unread: filter === 'unread', kind })}`, version);
+  const list = usePaged<NotificationItem>(
+    `/notifications${queryString({ limit: 30, unread: filter === 'unread', kind, category })}`,
+    version,
+  );
 
   async function markRead(ids?: string[]) {
     try {
@@ -60,12 +64,14 @@ export function Notifications({
   function open(item: NotificationItem) {
     if (!item.readAt) void markRead([item.id]);
     if (item.translationId) onOpenTranslation(item.translationId);
-    else if (item.batchId) onOpenDocuments();
+    else if (item.batchId) onOpenDocuments(item.batchId);
   }
 
   return (
     <Section title="Notificações" subtitle="Documentos prontos, tipos novos, pedidos para refazer, conclusões e falhas.">
-      <PopupSettings enabled={notificationsEnabled} />
+      <PopupSettings
+        enabled={Boolean(settings.data?.notificationsEnabled && Object.values(settings.data.categories).some((item) => item.browser))}
+      />
       <div className="filters">
         <Segmented
           label="Mostrar"
@@ -84,12 +90,20 @@ export function Notifications({
             </option>
           ))}
         </select>
+        <select aria-label="Assunto da notificação" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="">Todos os assuntos</option>
+          {settings.data?.catalog.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
+            </option>
+          ))}
+        </select>
         <span className="spacer" />
         <button className="small" onClick={() => void markRead()}>
           Marcar todas como lidas
         </button>
       </div>
-      <Feedback error={error ?? list.error} />
+      <Feedback error={error ?? list.error ?? settings.error} />
       <ul className="list selectable notifications">
         {list.items.map((item) => (
           <li key={item.id} className={item.readAt ? 'read' : 'unread'} onClick={() => open(item)}>
@@ -99,6 +113,7 @@ export function Notifications({
                 {item.title}
               </strong>
               {item.body && <span>{item.body}</span>}
+              {item.reason && <span className="small-text">Por que recebi: {item.reason}</span>}
               <span className="muted small-text">
                 {dateTime(item.createdAt)}
                 {item.team ? ` · ${item.team.name}` : ''}

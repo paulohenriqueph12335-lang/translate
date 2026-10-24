@@ -19,8 +19,8 @@ import { Teams } from './Teams';
 import { Translators } from './Translators';
 import { Settings, PasswordSettings } from './Settings';
 import { useUserPreferences } from './preferences';
-import { SmartSearch } from './SmartSearch';
-import { DashboardWidgets } from './DashboardWidgets';
+import { SmartSearch, type DocumentsSearchTarget } from './SmartSearch';
+import { PerformancePanel } from './PerformancePanel';
 import { dateTime, EmbeddedSection, Wordmark, Feedback, message, Section, useLoad } from './ui';
 
 /**
@@ -52,10 +52,10 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const isDirector = me.user.orgRole === 'director';
   const supervises = me.memberships.some((m) => m.role === 'leader');
   const manages = isDirector || supervises;
-  // Tela inicial de cada papel: liderança → Início; Usuário → Traduzir.
+  // Todos os perfis têm início; as métricas pessoais são filtradas também na API.
   const [place, setPlace] = useState<{ area: AreaKey; tab: string }>({ area: 'home', tab: '' });
   const [auditSearch, setAuditSearch] = useState('');
-  const [documentSearch, setDocumentSearch] = useState('');
+  const [documentTarget, setDocumentTarget] = useState<DocumentsSearchTarget>({});
   const [reportSearch, setReportSearch] = useState('');
   const [panelTeam, setPanelTeam] = useState<string | null>(null);
   const [openTranslation, setOpenTranslation] = useState<string | null>(null);
@@ -101,7 +101,12 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const send = () => (
     <>
       {translationNotice}
-      <Documents me={me} initialSearch={documentSearch} onOpenTranslation={goToTranslation} />
+      <Documents
+        me={me}
+        initialSearch={documentTarget.q ?? ''}
+        initialBatchId={documentTarget.batchId ?? null}
+        onOpenTranslation={goToTranslation}
+      />
     </>
   );
 
@@ -110,31 +115,18 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       key: 'home',
       label: 'Início',
       title: 'Início',
-      subtitle: isDirector ? 'Como a organização e cada equipe estão indo.' : 'Como a sua equipe está indo.',
+      subtitle: isDirector
+        ? 'Como a organização e cada equipe estão indo.'
+        : manages
+          ? 'Como a sua equipe está indo.'
+          : 'Seu desenvolvimento e as suas entregas.',
       tabs: [
         ...(!manages
           ? [
               {
                 key: 'mine',
                 label: 'Meu início',
-                render: () => (
-                  <Section title="Início" subtitle="Seu trabalho e os documentos que precisam de atenção.">
-                    <DashboardWidgets
-                      userId={me.user.id}
-                      namespace="member"
-                      widgets={[
-                        { id: 'workspace', title: 'Meu trabalho e pendências', content: workspace(), defaultVisible: true, wide: true },
-                        {
-                          id: 'history',
-                          title: 'Histórico de entregas',
-                          content: <History onOpenTranslation={goToTranslation} />,
-                          defaultVisible: false,
-                          wide: true,
-                        },
-                      ]}
-                    />
-                  </Section>
-                ),
+                render: () => <PerformancePanel me={me} personal onOpenTranslation={goToTranslation} />,
               },
             ]
           : []),
@@ -154,6 +146,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
                   />
                 ),
               },
+              { key: 'quality', label: 'Erros × acertos', render: () => <PerformancePanel me={me} onOpenTranslation={goToTranslation} /> },
             ]
           : []),
         ...(manages
@@ -164,6 +157,11 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
                 render: () => <TeamPanel key={panelTeam ?? 'default'} me={me} initialTeamId={panelTeam} initialSearch={reportSearch} />,
               },
               { key: 'ai', label: 'Com IA × sem IA', render: () => <AiComparisonPanel me={me} /> },
+              {
+                key: 'personal',
+                label: 'Meu desenvolvimento',
+                render: () => <PerformancePanel me={me} personal onOpenTranslation={goToTranslation} />,
+              },
             ]
           : []),
       ],
@@ -178,7 +176,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       tabs: [
         { key: 'mine', label: 'Meu trabalho', render: workspace },
         ...(manages ? [{ key: 'team', label: isDirector ? 'Todas as traduções' : 'Da equipe', render: translations }] : []),
-        { key: 'send', label: 'Enviar documentos', render: send },
+        { key: 'send', label: 'Nova tradução', render: send },
         { key: 'done', label: 'Entregas e ZIP', render: () => <Downloads me={me} onOpenTranslation={goToTranslation} /> },
       ],
     },
@@ -258,9 +256,11 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           label: 'Notificações',
           render: () => (
             <Notifications
-              notificationsEnabled={preferences.data?.notificationsEnabled ?? false}
               onOpenTranslation={goToTranslation}
-              onOpenDocuments={goToUpload}
+              onOpenDocuments={(batchId) => {
+                setDocumentTarget(batchId ? { batchId } : {});
+                goToUpload();
+              }}
               onChange={() => setNotificationsVersion((current) => current + 1)}
             />
           ),
@@ -337,7 +337,6 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       <main className="content">
         <LiveNotifications
           userId={me.user.id}
-          preferences={preferences.data}
           onOpenTranslation={goToTranslation}
           onOpenNotifications={() => go('notifications')}
           onNew={() => setNotificationsVersion((value) => value + 1)}
@@ -361,8 +360,8 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
                   setAuditSearch(q);
                   go('team', 'audit');
                 }}
-                onOpenDocuments={(q) => {
-                  setDocumentSearch(q);
+                onOpenDocuments={(target) => {
+                  setDocumentTarget(target);
                   go('work', 'send');
                 }}
                 onOpenReports={(q) => {

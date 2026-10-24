@@ -139,6 +139,7 @@ describe('Operador marca como pronto; Líder/Diretor conclui ou pede para refaze
     const returned = await c.lider!.post(`/api/v1/translations/${ids.job}/return`, {
       comment: 'Conferir as notas.',
       failedStages: ['review'],
+      confirmCompleted: true,
     });
     assert.equal(returned.body.translation.status, 'in_review');
     const notice = (await c.op!.get('/api/v1/notifications?kind=translation_returned')).body.items[0];
@@ -157,6 +158,7 @@ describe('Operador marca como pronto; Líder/Diretor conclui ou pede para refaze
       comment: 'Gerar de novo.',
       reprocess: true,
       failedStages: ['layout'],
+      confirmCompleted: true,
     });
     assert.equal(again.body.translation.status, 'queued');
     await processNextJob(processing());
@@ -235,6 +237,7 @@ describe('filtros, downloads e associação entre original e tradução', () => 
     );
     assert.deepEqual((await c.opb!.get('/api/v1/translation-facets')).body, {
       documentTypes: [],
+      documentCategories: [],
       tags: [],
       approvers: [],
       statusCounts: {},

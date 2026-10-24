@@ -72,7 +72,21 @@ export function createSearchService({ pool }: ServiceDeps) {
       LEFT JOIN users person ON person.id=j.assignee_id
       WHERE ($1::uuid[] IS NULL OR b.team_id=ANY($1::uuid[]))`;
     const documentText = `concat_ws(' ',d.display_name,b.protocol,b.name,b.no_protocol_reason,t.name,owner.display_name,person.display_name,
-      d.error_code,j.failure_code,j.document_type,j.number_label,j.source_title,j.source_language,j.target_language,j.status,${statusText},
+      d.error_code,j.failure_code,j.document_type,j.document_category,
+      CASE j.document_category
+        WHEN 'birth_certificate' THEN 'certidão nascimento'
+        WHEN 'marriage_certificate' THEN 'certidão casamento'
+        WHEN 'death_certificate' THEN 'certidão óbito'
+        WHEN 'identity' THEN 'identidade CIN RG'
+        WHEN 'driver_license' THEN 'carteira motorista habilitação CNH'
+        WHEN 'school_record' THEN 'histórico escolar acadêmico'
+        WHEN 'diploma' THEN 'diploma'
+        WHEN 'apostille' THEN 'apostila'
+        WHEN 'professional_certificate' THEN 'certidão conselho profissional'
+        WHEN 'contract' THEN 'contrato'
+        WHEN 'invoice' THEN 'fatura extrato'
+        ELSE 'documento geral' END,
+      j.number_label,j.source_title,j.source_language,j.target_language,j.status,${statusText},
       ${languageText('j.source_language')},${languageText('j.target_language')},j.review_comment,j.failed_stages::text,
       CASE WHEN 'correction'=ANY(j.failed_stages) THEN 'correção correcao' END,
       CASE WHEN 'translation'=ANY(j.failed_stages) THEN 'tradução traducao' END,

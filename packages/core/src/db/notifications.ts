@@ -19,21 +19,24 @@ export interface NotificationEntry {
   batchId?: string | null;
   documentId?: string | null;
   translationId?: string | null;
+  /** Identidade de um lembrete persistente; null mantém os eventos individuais do histórico. */
+  dedupeKey?: string | null;
 }
 
 /** Cria uma notificação para cada destinatário, sem repetir pessoas. Retorna quantas foram criadas. */
 export async function notify(db: Queryable, audience: NotificationAudience, entry: NotificationEntry) {
   const users = (audience.users ?? []).filter((id): id is string => !!id);
   const result = await db.query(
-    `INSERT INTO notifications (user_id, kind, title, body, team_id, batch_id, document_id, translation_id)
-     SELECT u.id, $1, $2, $3, $4, $5, $6, $7 FROM users u
+    `INSERT INTO notifications (user_id, kind, title, body, team_id, batch_id, document_id, translation_id, dedupe_key)
+     SELECT u.id, $1, $2, $3, $4, $5, $6, $7, $13 FROM users u
       WHERE u.status = 'active' AND u.id IS DISTINCT FROM $8::uuid
         AND (
           ($9 AND EXISTS (SELECT 1 FROM team_memberships m WHERE m.user_id = u.id AND m.team_id = $4 AND m.role = 'leader'))
           OR ($10 AND EXISTS (SELECT 1 FROM team_memberships m WHERE m.user_id = u.id AND m.team_id = $4 AND m.role = 'operator'))
           OR ($11 AND u.org_role = 'director')
           OR u.id = ANY($12::uuid[])
-        )`,
+        )
+     ON CONFLICT (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
     [
       entry.kind,
       entry.title,
@@ -47,6 +50,7 @@ export async function notify(db: Queryable, audience: NotificationAudience, entr
       audience.operators ?? false,
       audience.directors ?? false,
       users,
+      entry.dedupeKey ?? null,
     ],
   );
   return result.rowCount ?? 0;

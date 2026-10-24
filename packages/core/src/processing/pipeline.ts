@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream';
+import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { recordAudit } from '../db/audit.js';
 import { notify } from '../db/notifications.js';
@@ -6,6 +7,7 @@ import { withTransaction, type Queryable } from '../db/pool.js';
 import type { ObjectStorage } from '../storage/object-storage.js';
 import type { GlossaryTerm } from '../translation/checks.js';
 import type { Draft, Language } from '../translation/draft.js';
+import { suggestDocumentCategory, type BodyModel } from '../translation/body-models.js';
 import type { MemoryLookup } from '../translation/machine/machine-draft.js';
 import { checklistOf, loadRules, type Mode } from '../translation/profiles.js';
 import type { MachineProviderName, MachineProviderSetting, MachineTranslator } from '../translation/machine/providers.js';
@@ -38,6 +40,9 @@ interface ClaimedJob {
   translation_mode: Mode;
   attempts: number;
   max_attempts: number;
+  leaseOwner: string;
+  document_category: BodyModel | null;
+  classification_source: 'automatic' | 'human';
 }
 
 /** Erro definitivo: o trabalho falha sem novas tentativas. */
@@ -67,10 +72,11 @@ export async function claimNextJob(deps: ProcessingDeps): Promise<ClaimedJob | n
   const leaseMs = deps.leaseMs ?? 10 * 60_000;
   return withTransaction(deps.pool, async (db) => {
     const candidate = await db.query<ClaimedJob>(
-      `SELECT id, document_id, source_language, target_language, requested_mode, translation_mode, attempts, max_attempts
+      `SELECT id, document_id, source_language, target_language, requested_mode, translation_mode, attempts, max_attempts,
+              document_category,classification_source
          FROM translation_jobs
         WHERE consecutive_rejections < 3 AND ((status = 'queued' AND run_after <= now()) OR (status = 'processing' AND lease_expires_at < now()))
-        ORDER BY run_after, created_at
+        ORDER BY run_after, created_at, id
         LIMIT 1
         FOR UPDATE SKIP LOCKED`,
     );
@@ -94,13 +100,14 @@ export async function claimNextJob(deps: ProcessingDeps): Promise<ClaimedJob | n
       await notifyFailure(db, job.id, 'attempts_exhausted');
       return null;
     }
+    const leaseOwner = `${deps.workerId}:${randomUUID()}`;
     await db.query(
       `UPDATE translation_jobs SET status = 'processing', attempts = attempts + 1, lease_owner = $2,
               lease_expires_at = now() + make_interval(secs => $3), updated_at = now()
         WHERE id = $1`,
-      [job.id, deps.workerId, leaseMs / 1000],
+      [job.id, leaseOwner, leaseMs / 1000],
     );
-    return { ...job, attempts: job.attempts + 1 };
+    return { ...job, attempts: job.attempts + 1, leaseOwner };
   });
 }
 
@@ -115,7 +122,7 @@ export async function processNextJob(deps: ProcessingDeps) {
       .query(
         `UPDATE translation_jobs SET lease_expires_at = now() + make_interval(secs => $3)
           WHERE id = $1 AND status = 'processing' AND lease_owner = $2`,
-        [job.id, deps.workerId, leaseMs / 1000],
+        [job.id, job.leaseOwner, leaseMs / 1000],
       )
       .catch(() => undefined);
   }, leaseMs / 3);
@@ -132,21 +139,25 @@ export async function processNextJob(deps: ProcessingDeps) {
       ...(permanent ? {} : { error: String(error) }),
     });
     if (permanent || exhausted) {
-      await deps.pool.query(
-        `UPDATE translation_jobs SET status = 'failed', failure_code = $3, lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
-          WHERE id = $1 AND lease_owner = $2`,
-        [job.id, deps.workerId, code],
-      );
-      const teamId = await jobTeam(deps.pool, job.id);
-      await recordAudit(deps.pool, {
-        actorUserId: null,
-        action: 'translation.failed',
-        targetType: 'translation',
-        targetId: job.id,
-        ...(teamId ? { teamId } : {}),
-        metadata: { code },
+      await withTransaction(deps.pool, async (db) => {
+        const failed = await db.query(
+          `UPDATE translation_jobs SET status = 'failed', failure_code = $3, lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+          WHERE id = $1 AND status='processing' AND lease_owner = $2 RETURNING id`,
+          [job.id, job.leaseOwner, code],
+        );
+        // A tentativa perdeu o lease: não registra erro nem avisa sobre um trabalho que outra tentativa já concluiu.
+        if (!failed.rowCount) return;
+        const teamId = await jobTeam(db, job.id);
+        await recordAudit(db, {
+          actorUserId: null,
+          action: 'translation.failed',
+          targetType: 'translation',
+          targetId: job.id,
+          ...(teamId ? { teamId } : {}),
+          metadata: { code },
+        });
+        await notifyFailure(db, job.id, code);
       });
-      await notifyFailure(deps.pool, job.id, code);
     } else {
       await requeue(deps, job, code);
     }
@@ -157,12 +168,24 @@ export async function processNextJob(deps: ProcessingDeps) {
 }
 
 async function requeue(deps: ProcessingDeps, job: ClaimedJob, code: string) {
-  await deps.pool.query(
-    `UPDATE translation_jobs SET status = 'queued', failure_code = $3, run_after = now() + make_interval(secs => $4),
+  await withTransaction(deps.pool, async (db) => {
+    const retried = await db.query(
+      `UPDATE translation_jobs SET status = 'queued', failure_code = $3, run_after = now() + make_interval(secs => $4),
             lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
-      WHERE id = $1 AND lease_owner = $2`,
-    [job.id, deps.workerId, code, backoffMs(job.attempts) / 1000],
-  );
+      WHERE id = $1 AND status='processing' AND lease_owner = $2 RETURNING id`,
+      [job.id, job.leaseOwner, code, backoffMs(job.attempts) / 1000],
+    );
+    if (!retried.rowCount) return;
+    const teamId = await jobTeam(db, job.id);
+    await recordAudit(db, {
+      actorUserId: null,
+      action: 'translation.retry_scheduled',
+      targetType: 'translation',
+      targetId: job.id,
+      ...(teamId ? { teamId } : {}),
+      metadata: { code, attempt: job.attempts, maxAttempts: job.max_attempts, retryAfterSeconds: backoffMs(job.attempts) / 1000 },
+    });
+  });
 }
 
 async function readAll(stream: Readable) {
@@ -262,6 +285,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
     known,
     translator,
     knowledge: await loadLayoutKnowledge(pool),
+    ...(job.classification_source === 'human' && job.document_category ? { documentCategory: job.document_category } : {}),
     ...(translator
       ? {}
       : {
@@ -276,23 +300,8 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
     await requeue(deps, job, `machine_${translator.name}`);
     return;
   }
-  if (result.stats && translator) {
-    await recordAudit(pool, {
-      actorUserId: null,
-      action: 'translation.machine_translated',
-      targetType: 'translation',
-      targetId: job.id,
-      ...(doc.team_id ? { teamId: doc.team_id } : {}),
-      metadata: {
-        provider: translator.name,
-        external: translator.external,
-        sourceLanguage: job.source_language,
-        targetLanguage: job.target_language,
-        ...result.stats,
-      },
-    });
-  }
   const { draft, origin, notice, corrections, issues } = result;
+  const classification = suggestDocumentCategory(draft, extractedText);
   // Tradução e revisão são automáticas: o checklist das etapas fica confirmado pela revisão automática e a prévia sai
   // direto para quem aprova o Word.
   // Sem texto lido ou sem tradução automática não há o que a revisão automática atestar: o checklist fica para a pessoa.
@@ -312,14 +321,14 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
   const patternKnown = example !== null;
   const typeName = draft.sourceTitle || draft.documentType;
 
-  await withTransaction(pool, async (db) => {
+  const committed = await withTransaction(pool, async (db) => {
     const owned = await db.query<{ next: number }>(
       `SELECT coalesce((SELECT max(revision) FROM translation_drafts WHERE job_id = $1), 0) + 1 AS next
          FROM translation_jobs WHERE id = $1 AND status = 'processing' AND lease_owner = $2 FOR UPDATE`,
-      [job.id, deps.workerId],
+      [job.id, job.leaseOwner],
     );
     // Outro worker assumiu o trabalho (lease vencido): descarta este resultado.
-    if (!owned.rowCount) return;
+    if (!owned.rowCount) return false;
     const revision = owned.rows[0]!.next;
     await db.query(
       `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, corrections) VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -329,6 +338,8 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
       `UPDATE translation_jobs SET status = 'in_review', current_revision = $2, extracted_text = $3, source_title = nullif($4, ''),
               assist_notice = $5, pattern_known = $6, document_type = nullif($7, ''), failure_code = NULL,
               page_count = $8, stage_checks = $9::jsonb,
+              document_category=CASE WHEN classification_source='human' THEN document_category ELSE $10 END,
+              suggested_document_category=$10,classification_confidence=$11,classification_basis=$12,
               processed_at = coalesce(processed_at, now()), lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
         WHERE id = $1`,
       [
@@ -341,8 +352,26 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
         draft.documentType.slice(0, 200),
         extraction?.pages ?? null,
         JSON.stringify(checks),
+        classification.category,
+        classification.confidence,
+        classification.basis,
       ],
     );
+    if (result.stats && translator)
+      await recordAudit(db, {
+        actorUserId: null,
+        action: 'translation.machine_translated',
+        targetType: 'translation',
+        targetId: job.id,
+        ...(doc.team_id ? { teamId: doc.team_id } : {}),
+        metadata: {
+          provider: translator.name,
+          external: translator.external,
+          sourceLanguage: job.source_language,
+          targetLanguage: job.target_language,
+          ...result.stats,
+        },
+      });
     await recordAudit(db, {
       actorUserId: null,
       action: 'translation.drafted',
@@ -356,6 +385,10 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
         errors: issues.filter((issue) => issue.severity === 'error').length,
         warnings: issues.length,
         corrections: corrections.length,
+        classification: {
+          ...classification,
+          selectedCategory: job.classification_source === 'human' ? job.document_category : classification.category,
+        },
       },
     });
     const link = { batchId: doc.batch_id, documentId: job.document_id, translationId: job.id };
@@ -383,7 +416,9 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
         },
       );
     }
+    return true;
   });
+  if (!committed) return;
   deps.log?.('info', 'Rascunho pronto para revisão', { jobId: job.id, origin, patternKnown });
   // O sistema travou na diagramação (tipo novo sem documento parecido, ou tabela que não fecha): a IA propõe uma
   // combinação em segundo plano, sem segurar a tradução, que já está na prévia.

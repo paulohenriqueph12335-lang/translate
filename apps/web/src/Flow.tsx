@@ -3,9 +3,12 @@ import {
   api,
   ApiError,
   formatBytes,
+  modeLabel,
+  pairLabel,
   splitPair,
   uploadContent,
   type Batch,
+  type DocumentCategory,
   type DocumentItem,
   type SwornTranslator,
   type Team,
@@ -17,6 +20,9 @@ import { ModeSelect, PairSelect } from './Modes';
 import { Feedback, message, useLoad } from './ui';
 import { captureUpload, planUploadRetries, type UploadSnapshot } from './upload-plan';
 import { PdfPreview } from './PdfPreview';
+import { DocumentCategorySelect, useDocumentCategories } from './DocumentClassification';
+import { TranslationSteps } from './TranslationSteps';
+import { FinalDelivery } from './DeliveryActions';
 
 /**
  * Fluxo automático (ADR-017): coloca o documento e o sistema traduz, revisa e entrega a prévia em Word; quem aprova
@@ -35,6 +41,7 @@ export function useBatchProtocol(fileCount: number) {
     : /^[\p{L}\p{N}][\p{L}\p{N} ._-]{2,79}$/u.test(protocol.trim());
   return {
     ready: validProtocol && (fileCount < 20 || !!inspection),
+    description: withoutProtocol ? `Sem protocolo: ${reason.trim()}` : protocol.trim(),
     payload: {
       ...(withoutProtocol ? { protocolOmissionReason: reason.trim() } : { protocol: protocol.trim() }),
       inspectionMode: fileCount >= 20 ? inspection : 'all',
@@ -117,6 +124,10 @@ export function NewTranslation({
   const [useMask, setUseMask] = useState(true);
   const [translatorId, setTranslatorId] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState('');
+  const [documentCategory, setDocumentCategory] = useState<DocumentCategory | ''>('');
+  const categories = useDocumentCategories();
   const protocol = useBatchProtocol(files.length);
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState<Map<string, number>>(new Map());
@@ -129,6 +140,26 @@ export function NewTranslation({
   const [createdIds, setCreatedIds] = useState<string[]>([]);
   const sworn = mode === 'sworn';
   const accepted = limits.data?.extensions ?? ['pdf', 'docx', 'pptx', 'jpg', 'jpeg', 'png'];
+  const fileProblem = (file: File) =>
+    !file.size
+      ? 'Arquivo vazio'
+      : limits.data && file.size > limits.data.maxFileMb * 1024 * 1024
+        ? `Acima de ${limits.data.maxFileMb} MB`
+        : null;
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  const filesReady =
+    !!limits.data &&
+    files.length > 0 &&
+    files.length <= limits.data.maxBatchFiles &&
+    totalBytes <= limits.data.maxBatchMb * 1024 * 1024 &&
+    files.every((file) => !fileProblem(file));
+  const readyToSend = filesReady && protocol.ready && (isDirector || !!teamId);
+  const nextReady = [filesReady, protocol.ready, isDirector || !!teamId, readyToSend][step];
+  const advance = () => {
+    if (!nextReady || busy || locked) return;
+    setError(null);
+    setStep((current) => Math.min(3, current + 1));
+  };
 
   const add = (list: FileList | null) => {
     if (busy || locked) return;
@@ -138,6 +169,7 @@ export function NewTranslation({
 
   async function start() {
     if (busy) return;
+    if (!readyToSend) return;
     if (!protocol.ready) {
       setError('Informe o protocolo ou sua justificativa e escolha a inspeção para remessas grandes.');
       return;
@@ -155,6 +187,8 @@ export function NewTranslation({
           mode,
           ...(sworn ? { useMask } : {}),
           ...(sworn && useMask && translatorId ? { translatorId } : {}),
+          ...(documentCategory ? { documentCategory } : {}),
+          ...(name.trim() ? { name: name.trim() } : {}),
           files: files.map((file) => ({ name: file.name, size: file.size })),
           ...protocol.payload,
         },
@@ -206,132 +240,225 @@ export function NewTranslation({
     <div className="card new-translation">
       <h3>Nova tradução</h3>
       <p className="muted small-text">
-        Coloque o documento: o sistema traduz, revisa e mostra o Word pronto. Você confere e aprova; o Word final sai em seguida.
+        Siga as etapas para iniciar. O sistema produz a tradução e você compara o original e o Word antes da aprovação.
       </p>
+      <TranslationSteps step={step} onChange={setStep} disabled={busy || locked} />
       <fieldset disabled={busy || locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <div
-          className={`dropzone ${dragging ? 'over' : ''}`}
-          onDragOver={(event: DragEvent) => {
-            event.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event: DragEvent) => {
-            event.preventDefault();
-            setDragging(false);
-            add(event.dataTransfer.files);
-          }}
-          onClick={() => input.current?.click()}
-          role="button"
-          tabIndex={busy || locked ? -1 : 0}
-          aria-disabled={busy || locked}
-          onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && input.current?.click()}
-        >
-          <strong>{files.length ? `${files.length} arquivo(s) escolhido(s)` : 'Arraste o documento aqui ou clique para escolher'}</strong>
-          <span className="muted">
-            {accepted.map((ext) => ext.toUpperCase()).join(', ')}
-            {limits.data ? ` · até ${limits.data.maxFileMb} MB` : ''}
-          </span>
-          <input
-            ref={input}
-            type="file"
-            multiple
-            hidden
-            accept={accepted.map((ext) => `.${ext}`).join(',')}
-            onChange={(event) => {
-              add(event.target.files);
-              event.target.value = '';
-            }}
-          />
-        </div>
-        {files.length > 0 && (
-          <ul className="list compact files">
-            {files.map((file, index) => (
-              <li key={`${file.name}-${index}`}>
-                <div>
-                  <strong>{file.name}</strong>
-                  <span className="muted">{formatBytes(file.size)}</span>
-                </div>
-                {!busy && !locked && (
-                  <button type="button" className="small" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>
-                    Remover
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+        {step === 0 && (
+          <>
+            <div
+              className={`dropzone ${dragging ? 'over' : ''}`}
+              onDragOver={(event: DragEvent) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(event: DragEvent) => {
+                event.preventDefault();
+                setDragging(false);
+                add(event.dataTransfer.files);
+              }}
+              onClick={() => input.current?.click()}
+              role="button"
+              tabIndex={busy || locked ? -1 : 0}
+              aria-disabled={busy || locked}
+              onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && input.current?.click()}
+            >
+              <strong>
+                {files.length ? `${files.length} arquivo(s) escolhido(s)` : 'Arraste o documento aqui ou clique para escolher'}
+              </strong>
+              <span className="muted">
+                {accepted.map((ext) => ext.toUpperCase()).join(', ')}
+                {limits.data ? ` · até ${limits.data.maxFileMb} MB` : ''}
+              </span>
+              <input
+                ref={input}
+                type="file"
+                multiple
+                hidden
+                accept={accepted.map((ext) => `.${ext}`).join(',')}
+                onChange={(event) => {
+                  add(event.target.files);
+                  event.target.value = '';
+                }}
+              />
+            </div>
+            {files.length > 0 && (
+              <ul className="list compact files">
+                {files.map((file, index) => (
+                  <li key={`${file.name}-${index}`}>
+                    <div>
+                      <strong>{file.name}</strong>
+                      <span className={fileProblem(file) ? 'warn-text' : 'muted'}>
+                        {formatBytes(file.size)}
+                        {fileProblem(file) ? ` · ${fileProblem(file)}` : ''}
+                      </span>
+                    </div>
+                    {!busy && !locked && (
+                      <button type="button" className="small" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>
+                        Remover
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {limits.data && files.length > limits.data.maxBatchFiles && (
+              <Feedback error={`Um envio aceita até ${limits.data.maxBatchFiles} arquivos.`} />
+            )}
+            {limits.data && totalBytes > limits.data.maxBatchMb * 1024 * 1024 && (
+              <Feedback error={`O envio ultrapassa ${limits.data.maxBatchMb} MB.`} />
+            )}
+            <Feedback error={limits.error} />
+          </>
         )}
 
-        <div className="filters top-gap">
-          {!isDirector && teams.length > 1 && (
-            <label className="inline">
-              Equipe
-              <select required value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-                <option value="" disabled>
-                  Escolha…
-                </option>
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
+        {step === 1 && (
+          <div className="translation-step-fields">
+            {protocol.fields}
+            <label>
+              Nome do envio (opcional)
+              <input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
             </label>
-          )}
-          <label className="inline">
-            Traduzir de
-            <PairSelect value={pair} onChange={setPair} />
-          </label>
-        </div>
-        {protocol.fields}
-        <div className="tags-field">
-          <span className="field-label">Modalidade</span>
-          <ModeSelect value={mode} onChange={setMode} />
-        </div>
-        {sworn && (
-          <div className="tags-field mask-choice">
-            <span className="field-label">Máscara do tradutor</span>
-            <div className="mode-options" role="radiogroup" aria-label="Máscara do tradutor">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={useMask}
-                className={`mode-option ${useMask ? 'on' : ''}`}
-                onClick={() => setUseMask(true)}
-              >
-                <strong>Com máscara</strong>
-                <span className="muted small-text">
-                  Timbre, abertura e encerramento do tradutor, com número, livro e folha pela regra dele.
-                </span>
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={!useMask}
-                className={`mode-option ${!useMask ? 'on' : ''}`}
-                onClick={() => setUseMask(false)}
-              >
-                <strong>Sem máscara</strong>
-                <span className="muted small-text">Só o documento traduzido no layout do original, sem tradutor nem numeração.</span>
-              </button>
-            </div>
-            {useMask && (
-              <label className="top-gap">
-                Tradutor juramentado
-                <select value={translatorId} onChange={(e) => setTranslatorId(e.target.value)}>
-                  <option value="">Escolher depois, na prévia</option>
-                  {ready.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                      {item.languages ? ` (${item.languages})` : ''}
+            <DocumentCategorySelect
+              value={documentCategory}
+              onChange={setDocumentCategory}
+              categories={categories.data?.categories ?? []}
+            />
+            <Feedback error={categories.error} />
+          </div>
+        )}
+        {step === 2 && (
+          <>
+            <div className="filters top-gap">
+              {!isDirector && teams.length > 1 && (
+                <label className="inline">
+                  Equipe
+                  <select required value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                    <option value="" disabled>
+                      Escolha…
                     </option>
-                  ))}
-                </select>
-                {translators.data && !ready.length && (
-                  <small className="warn-text">Nenhum tradutor com máscara pronta: cadastre em Tradutores juramentados.</small>
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <div className="inline">
+                <span>Traduzir de</span>
+                <PairSelect value={pair} onChange={setPair} />
+              </div>
+            </div>
+            <div className="tags-field">
+              <span className="field-label">Modalidade</span>
+              <ModeSelect value={mode} onChange={setMode} />
+            </div>
+            {sworn && (
+              <div className="tags-field mask-choice">
+                <span className="field-label">Máscara do tradutor</span>
+                <div className="mode-options" role="radiogroup" aria-label="Máscara do tradutor">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={useMask}
+                    className={`mode-option ${useMask ? 'on' : ''}`}
+                    onClick={() => setUseMask(true)}
+                  >
+                    <strong>Com máscara</strong>
+                    <span className="muted small-text">
+                      Timbre, abertura e encerramento do tradutor, com número, livro e folha pela regra dele.
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={!useMask}
+                    className={`mode-option ${!useMask ? 'on' : ''}`}
+                    onClick={() => setUseMask(false)}
+                  >
+                    <strong>Sem máscara</strong>
+                    <span className="muted small-text">Só o documento traduzido no layout do original, sem tradutor nem numeração.</span>
+                  </button>
+                </div>
+                {useMask && (
+                  <label className="top-gap">
+                    Tradutor juramentado
+                    <select value={translatorId} onChange={(e) => setTranslatorId(e.target.value)}>
+                      <option value="">Escolher depois, na prévia</option>
+                      {ready.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                          {item.languages ? ` (${item.languages})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {translators.data && !ready.length && (
+                      <small className="warn-text">Nenhum tradutor com máscara pronta: cadastre em Tradutores juramentados.</small>
+                    )}
+                  </label>
                 )}
-              </label>
+              </div>
             )}
+          </>
+        )}
+        {step === 3 && (
+          <div className="translation-send-summary">
+            <h4>Confira sua nova tradução</h4>
+            <dl>
+              <div>
+                <dt>Documentos</dt>
+                <dd>
+                  {files.length} arquivo(s) · {formatBytes(totalBytes)}
+                </dd>
+              </div>
+              <div>
+                <dt>Identificação</dt>
+                <dd>{name.trim() || 'Sem nome adicional'}</dd>
+              </div>
+              <div>
+                <dt>Protocolo</dt>
+                <dd>{protocol.description}</dd>
+              </div>
+              <div>
+                <dt>Tipo e modelo</dt>
+                <dd>{categories.data?.categories.find((item) => item.value === documentCategory)?.label ?? 'Automático por documento'}</dd>
+              </div>
+              <div>
+                <dt>Idiomas</dt>
+                <dd>{pairLabel(...splitPair(pair))}</dd>
+              </div>
+              <div>
+                <dt>Modalidade</dt>
+                <dd>
+                  {modeLabel[mode]}
+                  {sworn ? (useMask ? ' · com máscara' : ' · sem máscara') : ''}
+                </dd>
+              </div>
+              <div>
+                <dt>Equipe</dt>
+                <dd>{isDirector ? 'Direcionar após o envio' : teams.find((team) => team.id === teamId)?.name}</dd>
+              </div>
+              <div>
+                <dt>Inspeção</dt>
+                <dd>{protocol.payload.inspectionMode === 'sample' ? 'Amostra inicial de 10 documentos' : 'Todos os documentos'}</dd>
+              </div>
+            </dl>
+            <details>
+              <summary>Arquivos deste envio</summary>
+              <ul>
+                {files.map((file, index) => (
+                  <li key={`${file.name}-${index}`}>
+                    {file.name} · {formatBytes(file.size)}
+                  </li>
+                ))}
+              </ul>
+            </details>
+            <p className="muted small-text">
+              Ao iniciar, o protocolo e a opção de inspeção serão auditados. Você poderá acompanhar o processamento e conferir o resultado
+              na próxima fase.
+            </p>
           </div>
         )}
       </fieldset>
@@ -348,13 +475,20 @@ export function NewTranslation({
       )}
       <Feedback error={error} />
       <div className="actions">
-        <button
-          className="primary"
-          disabled={busy || permanentFailure || !files.length || !protocol.ready || (!isDirector && !teamId)}
-          onClick={() => void start()}
-        >
-          {busy ? 'Enviando…' : locked ? 'Retomar envio' : 'Traduzir'}
-        </button>
+        {step > 0 && (
+          <button type="button" disabled={busy || locked} onClick={() => setStep((current) => current - 1)}>
+            Voltar
+          </button>
+        )}
+        {step < 3 ? (
+          <button type="button" className="primary" disabled={busy || locked || !nextReady} onClick={advance}>
+            Continuar
+          </button>
+        ) : (
+          <button className="primary" disabled={busy || permanentFailure || !readyToSend} onClick={() => void start()}>
+            {busy ? 'Enviando…' : locked ? 'Retomar envio' : 'Iniciar tradução'}
+          </button>
+        )}
         {permanentFailure && createdIds.length > 0 && <button onClick={() => onStarted(createdIds)}>Abrir traduções válidas</button>}
         <button type="button" className="ghost" disabled={busy} onClick={onCancel}>
           Cancelar
@@ -423,10 +557,12 @@ export function WordPanel({
   canAccept?: boolean;
 }) {
   const final = t.status === 'approved' && t.permissions.download;
+  const [showComparison, setShowComparison] = useState(false);
+  useEffect(() => setShowComparison(false), [t.id, t.updatedAt, revision]);
   const base = final ? `/api/v1/translations/${t.id}/final` : `/api/v1/translations/${t.id}/preview`;
   // A revisão no endereço força recarregar quando o rascunho muda.
   const pinned = !final && revision ? `&revision=${revision}` : '';
-  const pdf = `${base}?format=pdf${pinned}`;
+  const pdf = `${base}?format=pdf${pinned}${final ? `#${encodeURIComponent(t.updatedAt)}` : ''}`;
   return (
     <div className="card word-panel">
       <div className="word-head">
@@ -443,12 +579,16 @@ export function WordPanel({
           </span>
         </div>
         <div className="actions">
-          <a className="button" href={`${base}?format=docx${pinned}`}>
-            Baixar Word
-          </a>
-          <a className="button" href={`${pdf}&download=true`}>
-            Baixar PDF
-          </a>
+          {!final && (
+            <a className="button" href={`${base}?format=docx${pinned}`}>
+              Baixar Word
+            </a>
+          )}
+          {!final && (
+            <a className="button" href={`${pdf}&download=true`}>
+              Baixar PDF
+            </a>
+          )}
           {t.permissions.accept && (
             <button className="primary" disabled={busy || !canAccept} onClick={onAccept}>
               {t.status === 'awaiting_approval' || t.permissions.approve ? 'Aprovar e concluir' : 'Aprovar Word'}
@@ -456,13 +596,29 @@ export function WordPanel({
           )}
         </div>
       </div>
-      <DocumentComparison
-        originalDocumentId={t.document.id}
-        originalName={t.document.name}
-        translatedUrl={pdf}
-        translatedDownloadUrl={`${base}?format=docx${pinned}`}
-        translatedTitle={final ? 'Word final' : 'Prévia em Word'}
-      />
+      {final && <FinalDelivery translationId={t.id} version={t.updatedAt} batchId={t.batch.id} />}
+      {final ? (
+        <details open={showComparison} onToggle={(event) => setShowComparison(event.currentTarget.open)}>
+          <summary>Comparar documento concluído com o original</summary>
+          {showComparison && (
+            <DocumentComparison
+              originalDocumentId={t.document.id}
+              originalName={t.document.name}
+              translatedUrl={pdf}
+              translatedDownloadUrl={`${base}?format=docx`}
+              translatedTitle="Word final"
+            />
+          )}
+        </details>
+      ) : (
+        <DocumentComparison
+          originalDocumentId={t.document.id}
+          originalName={t.document.name}
+          translatedUrl={pdf}
+          translatedDownloadUrl={`${base}?format=docx${pinned}`}
+          translatedTitle={final ? 'Word final' : 'Prévia em Word'}
+        />
+      )}
     </div>
   );
 }
@@ -553,66 +709,4 @@ function ComparisonPreview({ title, url, downloadUrl }: { title: string; url: st
   );
 }
 
-/** Download autenticado por POST: evita URLs enormes e mantém a seleção fora do histórico do navegador. */
-export function ArchiveDownloadButtons({
-  translationIds,
-  batchId,
-  disabled = false,
-}: {
-  translationIds?: string[];
-  batchId?: string;
-  disabled?: boolean;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  async function download(format: 'docx' | 'pdf') {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/v1/translation-archives', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Protection': '1' },
-        body: JSON.stringify({ ...(batchId ? { batchId } : { translationIds }), format }),
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
-        throw new Error(body?.error?.message ?? 'Não foi possível preparar o ZIP.');
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      const encodedName = /filename\*=UTF-8''([^;]+)/i.exec(response.headers.get('content-disposition') ?? '')?.[1];
-      anchor.download = encodedName ? decodeURIComponent(encodedName) : `Traduções-${format === 'docx' ? 'Word' : 'PDF'}.zip`;
-      document.body.append(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    } catch (caught) {
-      setError(message(caught));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="archive-controls">
-      <div className="actions">
-        <button
-          className="small"
-          disabled={busy || disabled || (!batchId && !translationIds?.length)}
-          onClick={() => void download('docx')}
-        >
-          {busy ? 'Preparando ZIP…' : 'Baixar ZIP Word'}
-        </button>
-        <button className="small" disabled={busy || disabled || (!batchId && !translationIds?.length)} onClick={() => void download('pdf')}>
-          Baixar ZIP PDF
-        </button>
-      </div>
-      <small className="muted">
-        Até 100 documentos, 50 MB por documento e 128 MB por ZIP. Pastas por protocolo, par de idiomas e formato.
-      </small>
-      <Feedback error={error} />
-    </div>
-  );
-}
+export { ArchiveDownloadButtons } from './ArchiveDownloadButtons';

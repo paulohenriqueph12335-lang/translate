@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, type Page } from './api';
 
 export const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -13,16 +13,29 @@ export const normalize = (value: string) =>
 
 /** Carrega dados e expõe recarga; erros viram mensagem exibível. */
 export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(() => {
-    setError(null);
-    load()
-      .then(setData)
-      .catch((caught: unknown) => setError(message(caught)));
-  }, deps);
-  useEffect(reload, [reload]);
-  return { data, error, reload };
+  const scope = useMemo(() => Symbol('load'), deps);
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const loader = useRef(load);
+  loader.current = load;
+  const [version, setVersion] = useState(0);
+  const [result, setResult] = useState<{ scope: symbol; data: T | null; error: string | null } | null>(null);
+  const reload = useCallback(() => setVersion((value) => value + 1), []);
+  useEffect(() => {
+    let active = true;
+    loader
+      .current()
+      .then((data) => {
+        if (active && currentScope.current === scope) setResult({ scope, data, error: null });
+      })
+      .catch((caught: unknown) => {
+        if (active && currentScope.current === scope) setResult({ scope, data: null, error: message(caught) });
+      });
+    return () => {
+      active = false;
+    };
+  }, [scope, version]);
+  return { data: result?.scope === scope ? result.data : null, error: result?.scope === scope ? result.error : null, reload };
 }
 
 export function useDebounced<T>(value: T, delayMs = 300) {
@@ -138,6 +151,12 @@ export function SearchInput({ value, onChange, placeholder }: { value: string; o
  * o cursor é acrescentado aqui.
  */
 export function usePaged<T>(path: string | null, version = 0) {
+  const scope = `${path ?? ''}\u0000${version}`;
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const loadedScope = useRef<string | null>(null);
+  const sequence = useRef(0);
+  const busy = useRef(false);
   const [items, setItems] = useState<T[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -146,27 +165,57 @@ export function usePaged<T>(path: string | null, version = 0) {
   const load = useCallback(
     async (from: string | null) => {
       if (!path) return;
+      if (from && busy.current) return;
+      const ticket = ++sequence.current;
+      busy.current = true;
       setLoading(true);
       try {
         const separator = path.includes('?') ? '&' : '?';
         const page = await api<Page<T>>('GET', from ? `${path}${separator}cursor=${encodeURIComponent(from)}` : path);
+        if (ticket !== sequence.current || currentScope.current !== scope) return;
+        loadedScope.current = scope;
         setItems((current) => (from ? [...current, ...page.items] : page.items));
         setCursor(page.nextCursor);
         setError(null);
       } catch (caught) {
-        setError(message(caught));
+        if (ticket === sequence.current && currentScope.current === scope) {
+          loadedScope.current = scope;
+          setError(message(caught));
+        }
       } finally {
-        setLoading(false);
+        if (ticket === sequence.current && currentScope.current === scope) {
+          busy.current = false;
+          setLoading(false);
+        }
       }
     },
-    [path],
+    [path, scope],
   );
 
   useEffect(() => {
+    setItems([]);
+    setCursor(null);
+    setError(null);
+    setLoading(false);
+    busy.current = false;
     void load(null);
-  }, [load, version]);
+    return () => {
+      ++sequence.current;
+      busy.current = false;
+    };
+  }, [load]);
 
-  return { items, error, loading, hasMore: cursor !== null, more: () => void load(cursor), reload: () => void load(null) };
+  const current = loadedScope.current === scope;
+  return {
+    items: current ? items : [],
+    error: current ? error : null,
+    loading: loading || (!!path && !current),
+    hasMore: current && cursor !== null,
+    more: () => {
+      if (current && cursor) void load(cursor);
+    },
+    reload: () => void load(null),
+  };
 }
 
 /** Botão "Carregar mais" e estado vazio de uma lista paginada. */

@@ -30,6 +30,9 @@ import {
   type MachineTranslator,
   type Language,
   type TranslatorProfile,
+  BODY_MODELS,
+  BODY_MODEL_SPECS,
+  type BodyModel,
 } from '@tradutor/core/translation';
 import {
   canApproveTranslation,
@@ -84,6 +87,12 @@ interface JobRow {
   tags: string[];
   pattern_known: boolean | null;
   document_type: string | null;
+  document_category: BodyModel | null;
+  suggested_document_category: BodyModel | null;
+  classification_confidence: number;
+  classification_basis: 'title' | 'opening_text' | 'unrecognized';
+  classification_source: 'automatic' | 'human';
+  classification_at: Date | null;
   submitted_by_name: string | null;
   approved_by: string | null;
   assignee_id: string | null;
@@ -239,6 +248,15 @@ function summary(row: JobRow, actor: Actor, at = new Date()) {
     annulled: row.annulled_at ? { at: row.annulled_at.toISOString(), reason: row.annulled_reason } : null,
     pendingNumberingRequest: row.pending_request_id,
     documentType: row.document_type,
+    classification: {
+      category: row.document_category ?? 'generic',
+      label: BODY_MODEL_SPECS[row.document_category ?? 'generic'].label,
+      suggestedCategory: row.suggested_document_category ?? 'generic',
+      confidence: row.classification_confidence,
+      basis: row.classification_basis,
+      source: row.classification_source,
+      correctedAt: row.classification_at?.toISOString() ?? null,
+    },
     sourceTitle: row.source_title,
     /** `false`: o sistema ainda não tinha uma tradução concluída deste tipo (ADR-010); `null`: ainda não processado. */
     patternKnown: row.pattern_known,
@@ -290,6 +308,7 @@ function summary(row: JobRow, actor: Actor, at = new Date()) {
       changeLanguages: !['processing', 'cancelled'].includes(row.status) && (canEdit || canApprove) && !blocked,
       inspect: ['in_review', 'awaiting_approval'].includes(row.status) && (canEdit || canApprove) && !blocked,
       registerNewFormat: row.status === 'in_review' && (canEdit || canApprove),
+      classify: !['processing', 'cancelled'].includes(row.status) && (canEdit || canApprove),
       download: issued && !row.annulled_at,
       /** Pedir alteração ou anulação do número: o responsável ou quem decide, sem pedido em aberto. */
       requestNumbering:
@@ -341,6 +360,7 @@ export interface InspectionInput {
   comment?: string;
   scope?: 'all' | 'sample';
   reprocess?: boolean;
+  confirmCompleted?: boolean;
 }
 
 export interface CompletedChangeInput {
@@ -365,6 +385,7 @@ export interface TranslationListQuery {
   targetLanguage?: Language;
   tag?: string;
   documentType?: string;
+  documentCategory?: BodyModel;
   /** Modalidade (ADR-015). */
   translationMode?: Mode;
   patternKnown?: boolean;
@@ -731,8 +752,14 @@ export function createTranslationService({
     },
   ) {
     if (input.sourceLanguage === input.targetLanguage) throw new AppError(400, 'VALIDATION_FAILED', 'Idiomas de origem e destino iguais');
-    const found = await pool.query<{ status: string; detected_format: string | null; team_id: string | null; owner_id: string }>(
-      `SELECT d.status, d.detected_format, b.team_id, b.owner_id FROM documents d JOIN batches b ON b.id = d.batch_id WHERE d.id = $1`,
+    const found = await pool.query<{
+      status: string;
+      detected_format: string | null;
+      team_id: string | null;
+      owner_id: string;
+      document_category: BodyModel | null;
+    }>(
+      `SELECT d.status, d.detected_format, b.team_id, b.owner_id,b.document_category FROM documents d JOIN batches b ON b.id = d.batch_id WHERE d.id = $1`,
       [documentId],
     );
     const doc = found.rows[0];
@@ -753,12 +780,18 @@ export function createTranslationService({
     try {
       const id = await withTransaction(pool, async (db) => {
         const created = await db.query<{ id: string }>(
-          `INSERT INTO translation_jobs (document_id, source_language, target_language, requested_mode, requested_by, assignee_id, translation_mode)
-           VALUES ($1, $2, $3, $4, $5, $5, coalesce($6, (SELECT b.translation_mode FROM documents d JOIN batches b ON b.id = d.batch_id WHERE d.id = $1)))
+          `INSERT INTO translation_jobs (document_id, source_language, target_language, requested_mode, requested_by, assignee_id, translation_mode,use_mask,preferred_translator_id)
+           SELECT d.id, $2, $3, $4, $5, $5, coalesce($6,b.translation_mode),b.use_mask,b.preferred_translator_id
+           FROM documents d JOIN batches b ON b.id=d.batch_id WHERE d.id=$1
            RETURNING id`,
           [documentId, input.sourceLanguage, input.targetLanguage, input.mode, ctx.actor.id, input.translationMode ?? null],
         );
         const jobId = created.rows[0]!.id;
+        if (doc.document_category)
+          await db.query(
+            `UPDATE translation_jobs SET document_category=$2,classification_source='human',classification_by=$3,classification_at=now() WHERE id=$1`,
+            [jobId, doc.document_category, ctx.actor.id],
+          );
         await audit(db, ctx, { id: jobId, team_id: doc.team_id }, 'translation.requested', {
           sourceLanguage: input.sourceLanguage,
           targetLanguage: input.targetLanguage,
@@ -796,6 +829,7 @@ export function createTranslationService({
     if (query.targetLanguage) conditions.push(`j.target_language = ${param(query.targetLanguage)}`);
     if (query.tag) conditions.push(`${param(query.tag)} = ANY(d.tags)`);
     if (query.documentType) conditions.push(`j.document_type = ${param(query.documentType)}`);
+    if (query.documentCategory) conditions.push(`coalesce(j.document_category,'generic') = ${param(query.documentCategory)}`);
     if (query.translationMode) conditions.push(`j.translation_mode = ${param(query.translationMode)}`);
     if (query.patternKnown !== undefined) conditions.push(`j.pattern_known IS ${query.patternKnown ? 'TRUE' : 'FALSE'}`);
     if (query.approvedBy) conditions.push(`j.approved_by = ${param(query.approvedBy)}`);
@@ -865,6 +899,39 @@ export function createTranslationService({
     };
   }
 
+  /** Corrige a organização e o modelo da próxima geração, preservando o binário já conferido ou emitido. */
+  async function classify(
+    ctx: AuthenticatedContext,
+    jobId: string,
+    input: { category: BodyModel; reason: string; confirmCompleted?: boolean },
+  ) {
+    if (!BODY_MODELS.includes(input.category) || input.reason.trim().length < 5 || input.reason.trim().length > 2000)
+      throw new AppError(400, 'VALIDATION_FAILED', 'Escolha um tipo e explique o motivo da correção');
+    await withTransaction(pool, async (db) => {
+      const row = await loadJob(db, ctx, jobId, true);
+      const batch = { teamId: row.team_id, ownerId: row.owner_id };
+      if (!canEditTranslation(ctx.actor, batch, row.assignee_id) && !canApproveTranslation(ctx.actor, batch))
+        throw forbidden('Somente o responsável ou a liderança classifica este documento');
+      if (['processing', 'cancelled'].includes(row.status)) throw conflict('Aguarde o processamento antes de corrigir o tipo');
+      requireChangeConfirmation(row, input);
+      if (row.document_category === input.category && row.classification_source === 'human') return;
+      await db.query(
+        `UPDATE translation_jobs SET document_category=$2,classification_source='human',classification_by=$3,classification_at=now(),last_activity_at=now(),updated_at=now() WHERE id=$1`,
+        [jobId, input.category, ctx.actor.id],
+      );
+      await audit(db, ctx, row, 'translation.classification_changed', {
+        from: row.document_category,
+        to: input.category,
+        reason: input.reason.trim(),
+        suggestedCategory: row.suggested_document_category,
+        confidence: row.classification_confidence,
+        confirmedCompleted: input.confirmCompleted === true,
+        appliesTo: 'next_generation',
+      });
+    });
+    return get(ctx, jobId);
+  }
+
   /** Valores existentes para os filtros (tipos, etiquetas e quem concluiu), dentro do que o ator vê. */
   async function facets(ctx: AuthenticatedContext) {
     const params: unknown[] = [];
@@ -875,7 +942,7 @@ export function createTranslationService({
     const conditions = visibility(ctx.actor, param);
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const from = `FROM translation_jobs j JOIN documents d ON d.id = j.document_id JOIN batches b ON b.id = d.batch_id`;
-    const [types, tags, approvers, statuses] = await Promise.all([
+    const [types, tags, approvers, statuses, categories] = await Promise.all([
       pool.query<{ value: string }>(
         `SELECT DISTINCT j.document_type AS value ${from} ${where} ${where ? 'AND' : 'WHERE'} j.document_type IS NOT NULL ORDER BY 1 LIMIT 200`,
         params,
@@ -889,9 +956,14 @@ export function createTranslationService({
         `SELECT j.status,count(*)::int AS count ${from} ${where} GROUP BY j.status`,
         params,
       ),
+      pool.query<{ value: BodyModel; count: number }>(
+        `SELECT coalesce(j.document_category,'generic') AS value,count(*)::int AS count ${from} ${where} GROUP BY 1 ORDER BY 1`,
+        params,
+      ),
     ]);
     return {
       documentTypes: types.rows.map((row) => row.value),
+      documentCategories: categories.rows.map((row) => ({ ...row, label: BODY_MODEL_SPECS[row.value].label })),
       tags: tags.rows.map((row) => row.value),
       approvers: approvers.rows,
       statusCounts: Object.fromEntries(statuses.rows.map((item) => [item.status, item.count])),
@@ -1186,7 +1258,14 @@ export function createTranslationService({
   async function returnForChanges(
     ctx: AuthenticatedContext,
     jobId: string,
-    input: { comment: string; reprocess?: boolean; failedStages?: string[]; baseRevision?: number; scope?: 'all' | 'sample' },
+    input: {
+      comment: string;
+      reprocess?: boolean;
+      failedStages?: string[];
+      baseRevision?: number;
+      scope?: 'all' | 'sample';
+      confirmCompleted?: boolean;
+    },
   ) {
     return transition(
       ctx,
@@ -1199,6 +1278,10 @@ export function createTranslationService({
           !(row.status === 'in_review' && canEditTranslation(ctx.actor, batch, row.assignee_id))
         )
           throw forbidden('Somente o responsável ou a liderança pode reprovar esta revisão');
+        if (row.status === 'awaiting_approval' && input.confirmCompleted !== true)
+          throw new AppError(409, 'CONFLICT', 'Confirme devolver este documento pronto para correções', {
+            reason: 'completed_confirmation_required',
+          });
         requireUnblocked(row);
         if (input.baseRevision !== undefined && row.current_revision !== input.baseRevision)
           throw conflict('O documento mudou após a comparação; recarregue e inspecione novamente');
@@ -1245,6 +1328,7 @@ export function createTranslationService({
           blocked: rejections >= 3,
           formatGeneration: row.format_generation,
           scope: input.scope ?? 'all',
+          confirmedCompleted: input.confirmCompleted === true,
         });
         if (rejections >= 3)
           await audit(db, ctx, row, 'translation.review_blocked', {
@@ -1748,10 +1832,62 @@ export function createTranslationService({
       ...(input.expected ? { expected: { [jobId]: input.expected } } : {}),
     });
 
-  async function openFinal(ctx: AuthenticatedContext, jobId: string, options: { trackDownload?: boolean } = {}) {
+  const outputVersion = (row: JobRow) => createHash('sha256').update(JSON.stringify([row.output_key,row.current_revision,row.output_sha256?.toString('hex') ?? null])).digest('hex');
+
+  async function downloadManifest(ctx: AuthenticatedContext, jobId: string) {
+    const row = await loadJob(pool, ctx, jobId);
+    if (row.status !== 'approved' || !row.output_key) throw conflict('A tradução ainda não foi concluída');
+    if (row.annulled_at) throw conflict('O número desta tradução foi anulado');
+    const rules = await loadRules(pool, row.translation_mode, row.target_language);
+    const name = await protocolOutputName(pool, row.document_id, outputFileName(row.document_name, rules));
+    const artifact = row.output_sha256?.toString('hex') ?? null;
+    const versionToken = outputVersion(row);
+    const query = new URLSearchParams({ ...(row.current_revision ? {revision:String(row.current_revision)} : {}), version:versionToken, ...(artifact ? { artifact } : {}) });
+    return {
+      version: 1,
+      translationId: row.id,
+      revision: row.current_revision,
+      versionToken,
+      formats: [
+        {
+          format: 'docx',
+          name,
+          mimeType: DOCX_TYPE,
+          downloadUrl: `/api/v1/translations/${row.id}/final?format=docx&download=true&${query}`,
+        },
+        {
+          format: 'pdf',
+          name: name.replace(/\.docx$/i, '.pdf'),
+          mimeType: 'application/pdf',
+          downloadUrl: `/api/v1/translations/${row.id}/final?format=pdf&download=true&${query}`,
+        },
+      ],
+      archive: {
+        endpoint: '/api/v1/translation-archives',
+        maxDocuments: 100,
+        maxFileBytes: 50 * 1024 * 1024,
+        maxContentBytes: 128 * 1024 * 1024,
+      },
+    };
+  }
+
+  async function openFinal(
+    ctx: AuthenticatedContext,
+    jobId: string,
+    options: { trackDownload?: boolean; expectedRevision?: number; expectedSha256?: string; expectedVersion?: string } = {},
+  ) {
     const row = await loadJob(pool, ctx, jobId);
     if (row.status !== 'approved' || !row.output_key) throw conflict('A tradução ainda não foi aprovada');
     if (row.annulled_at) throw conflict('O número desta tradução foi anulado; ela não vale mais como tradução');
+    if (
+      (options.expectedRevision !== undefined && options.expectedRevision !== row.current_revision) ||
+      (options.expectedSha256 !== undefined && options.expectedSha256 !== row.output_sha256?.toString('hex')) ||
+      (options.expectedVersion !== undefined && options.expectedVersion !== outputVersion(row))
+    ) {
+      throw new AppError(409, 'CONFLICT', 'O documento foi alterado. Atualize os arquivos disponíveis antes de salvar.', {
+        reason: 'artifact_changed',
+      });
+    }
     const receipt: FinalArtifactReceipt = {
       revision: row.current_revision,
       outputKey: row.output_key,
@@ -1971,6 +2107,7 @@ export function createTranslationService({
     inspectionHistory,
     registerNewFormat,
     changeLanguages,
+    classify,
     cancel,
     reprocess,
     setChecks,
@@ -1980,6 +2117,7 @@ export function createTranslationService({
     approve,
     preview,
     openFinal,
+    downloadManifest,
     recordDownload,
     recordDownloads,
     listGlossary,

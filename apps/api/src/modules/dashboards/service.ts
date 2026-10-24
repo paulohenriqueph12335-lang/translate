@@ -1,6 +1,7 @@
 import { canViewOrganizationDashboard, canViewTeamDashboard, ledTeams } from '../access/policy.js';
 import { AppError, forbidden } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
+import { createPerformanceDashboards } from './performance.js';
 
 export interface Period {
   /** Datas AAAA-MM-DD, inclusivas; sem período, os últimos 30 dias. */
@@ -391,7 +392,7 @@ export function createDashboardService({ pool, now = () => new Date() }: Service
     };
   }
 
-  return { organization, team, aiComparison };
+  return { organization, team, aiComparison, ...createPerformanceDashboards({ pool, now }) };
 }
 
 export type DashboardService = ReturnType<typeof createDashboardService>;

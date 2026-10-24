@@ -12,6 +12,7 @@ import {
   type TranslationStatus,
 } from './api';
 import { dateTime, Feedback, message, Section, useLoad } from './ui';
+import { useConfirm } from './ConfirmDialog';
 
 const STATUS_TONE: Record<AiOutcomeStatus, string> = { ok: '', blocked: 'danger', denied: 'danger', failed: 'warn', unavailable: 'warn' };
 const ALIGN_LABEL = { left: 'à esquerda', center: 'centralizado', right: 'à direita', justify: 'justificado' } as const;
@@ -523,14 +524,15 @@ function CombinationReview({
   onDone: (approved: boolean) => void;
   onError: (error: string) => void;
 }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
-  const decide = (approve: boolean) => {
+  const decide = async (approve: boolean) => {
     let reason: string | undefined;
     if (approve && completed) {
       if (
-        !window.confirm(
+        !(await confirm(
           'Este documento já está pronto. Tem certeza de que deseja aplicar outra diagramação? Uma nova revisão e conferência serão necessárias.',
-        )
+        ))
       )
         return;
       reason = window.prompt('Informe o motivo desta alteração (mínimo 5 caracteres):')?.trim();

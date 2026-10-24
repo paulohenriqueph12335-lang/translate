@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { api, ApiError, type Me } from './api';
 import { AuthScreen, SetupScreen } from './AuthScreen';
 import { Dashboard } from './Dashboard';
+import { ConfirmProvider } from './ConfirmDialog';
 import { UpdateBanner } from './UpdateBanner';
 import { initializeTheme } from './theme';
 import './style.css';
@@ -54,6 +55,8 @@ function App() {
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <UpdateBanner />
-    <App />
+    <ConfirmProvider>
+      <App />
+    </ConfirmProvider>
   </React.StrictMode>,
 );

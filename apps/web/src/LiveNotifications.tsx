@@ -1,38 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, notificationKindLabel, type NotificationItem, type Page } from './api';
-import {
-  advanceNotificationPolicy,
-  createNotificationPolicy,
-  loadNotificationSeen,
-  saveNotificationSeen,
-  type NotificationPreferences,
-} from './notification-policy';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, notificationKindLabel, type NotificationItem } from './api';
+import { useNotificationSettings } from './notification-preferences';
 
 const POLL_MS = 20_000;
-const TOAST_MS = 7_000;
-
+const TOAST_MS = 6_000;
 export type PopupPermission = NotificationPermission | 'unsupported';
-
 function popupPermission(): PopupPermission {
   try {
-    return typeof window !== 'undefined' && 'Notification' in window && window.isSecureContext ? Notification.permission : 'unsupported';
+    return 'Notification' in window && window.isSecureContext ? Notification.permission : 'unsupported';
   } catch {
     return 'unsupported';
   }
 }
-
-function browserStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
 export function usePopupPermission() {
   const [permission, setPermission] = useState<PopupPermission>(popupPermission);
   const [error, setError] = useState('');
   const requesting = useRef(false);
+  useEffect(() => {
+    const refresh = () => setPermission(popupPermission());
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
   const request = useCallback(async () => {
     if (popupPermission() === 'unsupported' || requesting.current) return;
     requesting.current = true;
@@ -41,121 +29,115 @@ export function usePopupPermission() {
       setPermission(await Notification.requestPermission());
     } catch {
       setPermission(popupPermission());
-      setError('Não foi possível solicitar a permissão. Tente novamente ou confira as configurações do navegador.');
+      setError('Confira a permissão de notificações deste navegador e tente novamente.');
     } finally {
       requesting.current = false;
     }
   }, []);
   return { permission, request, error };
 }
+interface AlertItem {
+  id: string;
+  title: string;
+  body: string | null;
+  reason?: string;
+  translationId: string | null;
+  kind: string;
+}
+interface Delivery {
+  items: Array<NotificationItem & { reason?: string }>;
+  summary: { title: string; body: string; count: number; severity: string } | null;
+  deliveryMode: 'digest' | 'individual';
+}
 
-/** Alerts follow the user's preferences; the notification center keeps its own unread state. */
+/** The server claims deliveries once per account/channel, across tabs and devices. */
 export function LiveNotifications({
   userId,
-  preferences,
   onOpenTranslation,
   onOpenNotifications,
   onNew,
 }: {
   userId: string;
-  preferences: NotificationPreferences | null;
   onOpenTranslation: (id: string) => void;
   onOpenNotifications: () => void;
   onNew: () => void;
 }) {
-  const enabled = preferences?.notificationsEnabled === true;
-  const frequency = preferences?.notificationFrequency ?? 'immediate';
-  const scope = JSON.stringify([userId, enabled, frequency]);
+  const settings = useNotificationSettings();
+  const enabled = settings.data?.notificationsEnabled === true;
+  const scope = JSON.stringify([userId, settings.data]);
   const currentScope = useRef(scope);
   currentScope.current = scope;
-  const [toasts, setToasts] = useState<{ scope: string; items: NotificationItem[] }>({ scope, items: [] });
-  // A previous effect may still have a request in progress after a settings change.
-  const inFlight = useRef(false);
+  const [queue, setQueue] = useState<{ scope: string; items: AlertItem[] }>({ scope, items: [] });
   const open = useRef({ onOpenTranslation, onOpenNotifications, onNew });
   open.current = { onOpenTranslation, onOpenNotifications, onNew };
-
-  const dismiss = useCallback(
-    (id: string) => setToasts((current) => ({ ...current, items: current.items.filter((item) => item.id !== id) })),
-    [],
-  );
-
+  const dismiss = useCallback((id: string) => setQueue((value) => ({ ...value, items: value.items.filter((item) => item.id !== id) })), []);
   const follow = useCallback(
-    (item: NotificationItem) => {
+    (item: AlertItem) => {
       dismiss(item.id);
       if (item.translationId) open.current.onOpenTranslation(item.translationId);
       else open.current.onOpenNotifications();
     },
     [dismiss],
   );
-
   useEffect(() => {
-    setToasts({ scope, items: [] });
+    setQueue({ scope, items: [] });
     if (!enabled) return;
-
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let policy = createNotificationPolicy<NotificationItem>(loadNotificationSeen(browserStorage(), userId));
     const popups = new Set<Notification>();
     const active = () => alive && currentScope.current === scope;
-
+    const alerts = (delivery: Delivery): AlertItem[] =>
+      delivery.deliveryMode === 'digest' && delivery.summary
+        ? [
+            {
+              id: `summary-${delivery.items.map((item) => item.id).join('-')}`,
+              title: delivery.summary.title,
+              body: delivery.summary.body,
+              translationId: null,
+              kind: 'summary',
+              reason: 'Resumo dos assuntos e canais que você escolheu para seu trabalho.',
+            },
+          ]
+        : delivery.items;
     const check = async () => {
-      if (!active()) return;
-      if (inFlight.current) {
-        timer = setTimeout(() => void check(), POLL_MS);
-        return;
-      }
-
-      inFlight.current = true;
       try {
-        // Read every page so a burst of notifications is not lost between delayed deliveries.
-        const unread: NotificationItem[] = [];
-        let cursor: string | null = null;
-        do {
-          const query = new URLSearchParams({ unread: 'true', limit: '100' });
-          if (cursor) query.set('cursor', cursor);
-          const page: Page<NotificationItem> = await api('GET', `/notifications?${query.toString()}`);
+        for (const channel of ['inApp', 'browser'] as const) {
           if (!active()) return;
-          unread.push(...page.items);
-          cursor = page.nextCursor;
-        } while (cursor);
-
-        const result = advanceNotificationPolicy(policy, unread, frequency, Date.now());
-        policy = result.state;
-        saveNotificationSeen(browserStorage(), userId, policy.seen);
-        if (result.fresh.length) open.current.onNew();
-        if (!result.alerts.length) return;
-
-        setToasts((current) => ({
-          scope,
-          items: [...(current.scope === scope ? current.items : []), ...result.alerts].slice(-4),
-        }));
-        if (popupPermission() !== 'granted') return;
-        for (const item of result.alerts) {
-          try {
-            const popup = new Notification(item.title, {
-              body: [notificationKindLabel[item.kind] ?? null, item.body].filter(Boolean).join(' · '),
-              tag: `tradutor-${userId}-${item.id}`,
-            });
-            popups.add(popup);
-            popup.onclose = () => popups.delete(popup);
-            popup.onclick = () => {
-              if (!active()) return;
-              window.focus();
-              follow(item);
-              popup.close();
-            };
-          } catch {
-            // Some browsers reject native pop-ups despite granting permission. Keep in-app alerts working.
-          }
+          if (channel === 'browser' && popupPermission() !== 'granted') continue;
+          const delivery = await api<Delivery>('POST', '/notifications/deliveries/claim', { channel });
+          if (!active()) return;
+          if (!delivery.items.length) continue;
+          open.current.onNew();
+          const items = alerts(delivery);
+          if (channel === 'inApp')
+            setQueue((value) => ({ scope, items: [...(value.scope === scope ? value.items : []), ...items].slice(-100) }));
+          else
+            for (const item of items) {
+              try {
+                const popup = new Notification(item.title, {
+                  body: [item.body, item.reason].filter(Boolean).join('\n'),
+                  tag: `tradutor-${userId}-${item.id}`,
+                });
+                popups.add(popup);
+                popup.onclose = () => popups.delete(popup);
+                popup.onclick = () => {
+                  if (active()) {
+                    window.focus();
+                    follow(item);
+                  }
+                  popup.close();
+                };
+              } catch {
+                /* The notification center retains events if OS settings prevent a native popup. */
+              }
+            }
         }
       } catch {
-        // Temporary network failures retain the baseline and pending batch for the next successful poll.
+        /* The durable cursor remains available on the next successful poll. */
       } finally {
-        inFlight.current = false;
         if (active()) timer = setTimeout(() => void check(), POLL_MS);
       }
     };
-
     void check();
     return () => {
       alive = false;
@@ -163,79 +145,75 @@ export function LiveNotifications({
       for (const popup of popups) {
         popup.onclick = null;
         popup.onclose = null;
-        try {
-          popup.close();
-        } catch {
-          // Closing a native popup is best effort when the browser has already discarded it.
-        }
+        popup.close();
       }
       popups.clear();
     };
-  }, [enabled, frequency, scope, userId, follow]);
-
+  }, [scope, enabled, userId, follow]);
   useEffect(() => {
-    if (!enabled || toasts.scope !== scope || !toasts.items.length) return;
-    const timer = setTimeout(() => setToasts((current) => ({ ...current, items: current.items.slice(1) })), TOAST_MS);
+    if (!enabled || queue.scope !== scope || !queue.items.length) return;
+    const timer = setTimeout(() => setQueue((value) => ({ ...value, items: value.items.slice(3) })), TOAST_MS);
     return () => clearTimeout(timer);
-  }, [toasts, enabled, scope]);
-
+  }, [enabled, scope, queue]);
   return (
     <div className="toasts" role="status" aria-live="polite">
       {enabled &&
-        toasts.scope === scope &&
-        toasts.items.map((item) => (
+        queue.scope === scope &&
+        queue.items.slice(0, 3).map((item) => (
           <div key={item.id} className="toast" style={{ ['--toast-ms' as string]: `${TOAST_MS}ms` }}>
             <button type="button" className="toast-body" onClick={() => follow(item)}>
-              <span className="badge soft">{notificationKindLabel[item.kind] ?? 'Notificação'}</span>
+              <span className="badge soft">
+                {item.kind === 'summary' ? 'Resumo inteligente' : (notificationKindLabel[item.kind] ?? 'Notificação')}
+              </span>
               <strong>{item.title}</strong>
               {item.body && <span className="small-text">{item.body}</span>}
+              {item.reason && <span className="muted small-text">{item.reason}</span>}
             </button>
             <button type="button" className="toast-close" aria-label="Fechar aviso" onClick={() => dismiss(item.id)}>
-              <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path d="M4 4l8 8M12 4l-8 8" />
-              </svg>
+              ×
             </button>
           </div>
         ))}
     </div>
   );
 }
-
-/** Browser permission is separate from the user's preference to receive alerts. */
 export function PopupSettings({ enabled = true }: { enabled?: boolean }) {
   const { permission, request, error } = usePopupPermission();
-  if (!enabled) {
+  if (!enabled)
     return (
       <p className="popup-settings muted small-text">
-        Os avisos estão desativados nas suas configurações. Ative-os para receber avisos na tela e permitir pop-ups do sistema.
+        Para receber no Windows / sistema, ative esse canal nos assuntos desejados e salve suas notificações.
       </p>
     );
-  }
-  if (permission === 'granted') {
-    return <p className="popup-settings muted small-text">Pop-ups do sistema ativados neste navegador.</p>;
-  }
-  if (permission === 'unsupported') {
+  if (permission === 'granted')
     return (
       <p className="popup-settings muted small-text">
-        Este navegador não mostra pop-ups do sistema neste endereço. Abra o sistema por http://localhost:5173 no Chrome ou no Edge.
+        Permissão concedida neste navegador. No Windows, o navegador entrega os avisos ao sistema; as configurações de notificações e de
+        foco do Windows também se aplicam.
       </p>
     );
-  }
-  if (permission === 'denied') {
+  if (permission === 'unsupported')
     return (
       <p className="popup-settings muted small-text">
-        Os pop-ups estão bloqueados no navegador. Para liberar, clique no cadeado ao lado do endereço, em Notificações escolha Permitir e
-        recarregue a página.
+        Este navegador ou endereço não oferece notificações do sistema. Use Chrome ou Edge com HTTPS (ou localhost no ambiente local). Os
+        avisos dentro da página continuam disponíveis.
       </p>
     );
-  }
+  if (permission === 'denied')
+    return (
+      <p className="popup-settings muted small-text">
+        Notificações bloqueadas neste navegador. Nas permissões deste site, escolha Notificações → Permitir e volte à aplicação.
+      </p>
+    );
   return (
     <div className="popup-settings">
-      <span className="small-text">Receba os avisos como pop-up do sistema, mesmo com outra janela na frente.</span>
-      <button type="button" className="small" onClick={() => enabled && void request()}>
-        Ativar pop-ups do sistema
+      <p className="small-text">
+        Autorize este navegador a entregar os assuntos selecionados ao Windows / sistema, inclusive quando outra janela estiver na frente.
+      </p>
+      <button type="button" className="small" onClick={() => void request()}>
+        Permitir notificações do sistema
       </button>
-      {error && <p className="small-text error-text">{error}</p>}
+      {error && <p className="error-text">{error}</p>}
     </div>
   );
 }

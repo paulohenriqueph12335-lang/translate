@@ -207,12 +207,17 @@ export function OrganizationPanel({
           ))}
         </select>
         <span className="spacer" />
-        <button className="small" onClick={exportCsv} disabled={!org}>
-          Exportar CSV
-        </button>
-        <button className="small" onClick={() => window.print()}>
-          Imprimir / PDF
-        </button>
+        <details className="secondary-actions">
+          <summary>Exportar e imprimir</summary>
+          <div className="actions">
+            <button className="small" onClick={exportCsv} disabled={!org}>
+              Exportar CSV
+            </button>
+            <button className="small" onClick={() => window.print()}>
+              Imprimir / PDF
+            </button>
+          </div>
+        </details>
       </div>
       <Feedback error={error ?? teams.error} />
       <div className="filters no-print">
@@ -579,15 +584,20 @@ export function TeamPanel({ me, initialTeamId, initialSearch = '' }: { me: Me; i
         )}
         {control}
         <span className="spacer" />
-        <button className="small" onClick={exportPeople} disabled={!team}>
-          CSV por pessoa
-        </button>
-        <button className="small" onClick={exportDocuments} disabled={!team}>
-          CSV por documento
-        </button>
-        <button className="small" onClick={() => window.print()}>
-          Imprimir / PDF
-        </button>
+        <details className="secondary-actions">
+          <summary>Exportar e imprimir</summary>
+          <div className="actions">
+            <button className="small" onClick={exportPeople} disabled={!team}>
+              CSV por pessoa
+            </button>
+            <button className="small" onClick={exportDocuments} disabled={!team}>
+              CSV por documento
+            </button>
+            <button className="small" onClick={() => window.print()}>
+              Imprimir / PDF
+            </button>
+          </div>
+        </details>
       </div>
       {!selected && teams.data && <p className="empty">Você não supervisiona nenhuma equipe.</p>}
       <Feedback error={error ?? teams.error} />

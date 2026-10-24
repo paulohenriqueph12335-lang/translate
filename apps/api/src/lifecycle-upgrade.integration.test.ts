@@ -269,6 +269,66 @@ describe('ciclo comparativo, idiomas arbitrários e marcos operacionais', () => 
     );
   });
 
+  it('reprovar ou devolver um documento pronto exige confirmação sem gravar alterações nas tentativas não confirmadas', async () => {
+    async function state(id: string) {
+      const [job, inspections, audits, notifications] = await Promise.all([
+        env.pool.query(
+          `SELECT status,current_revision,consecutive_rejections,review_comment,stage_checks,inspection_revision,
+                  failed_stages,redo_count,updated_at,last_activity_at FROM translation_jobs WHERE id=$1`,
+          [id],
+        ),
+        service.inspectionHistory(ctx, id),
+        env.pool.query(`SELECT action,metadata FROM audit_events WHERE target_id=$1 ORDER BY occurred_at,id`, [id]),
+        env.pool.query(`SELECT id FROM notifications WHERE translation_id=$1 ORDER BY id`, [id]),
+      ]);
+      return { job: job.rows[0], inspections, audits: audits.rows, notifications: notifications.rows };
+    }
+
+    for (const endpoint of ['inspections', 'return']) {
+      const { id } = await upload();
+      await inspect(id);
+      const ready = await service.submit(ctx, id);
+      assert.equal(ready.translation.status, 'awaiting_approval');
+      const input = {
+        ...(endpoint === 'inspections' ? { decision: 'rejected' } : {}),
+        baseRevision: ready.translation.currentRevision!,
+        failedStages: ['layout'],
+        comment: 'Corrigir o alinhamento antes da conclusão',
+      };
+      const before = await state(id);
+      for (const confirmation of [{}, { confirmCompleted: false }]) {
+        const denied = await client.post(`/api/v1/translations/${id}/${endpoint}`, { ...input, ...confirmation });
+        assert.equal(denied.status, 409, JSON.stringify(denied.body));
+        assert.equal(denied.body.error.details.reason, 'completed_confirmation_required');
+        assert.deepEqual(await state(id), before);
+      }
+      const returned = await client.post(`/api/v1/translations/${id}/${endpoint}`, { ...input, confirmCompleted: true });
+      assert.equal(returned.status, 200, JSON.stringify(returned.body));
+      assert.equal(returned.body.translation.status, 'in_review');
+      assert.equal(returned.body.translation.reviewLifecycle.consecutiveRejections, 1);
+      assert.deepEqual(returned.body.translation.reviewLifecycle.failedStages, ['layout']);
+      const after = await state(id);
+      assert.equal(after.inspections.filter((item) => item.decision === 'rejected').length, 1);
+      assert.equal(after.audits.find((item) => item.action === 'translation.returned')?.metadata.confirmedCompleted, true);
+    }
+
+    const { id } = await upload();
+    await finish(id);
+    const completed = await service.get(ctx, id);
+    const before = await state(id);
+    for (const endpoint of ['inspections', 'return']) {
+      const denied = await client.post(`/api/v1/translations/${id}/${endpoint}`, {
+        ...(endpoint === 'inspections' ? { decision: 'rejected' } : {}),
+        baseRevision: completed.translation.currentRevision!,
+        failedStages: ['layout'],
+        comment: 'A confirmação não permite devolver um documento concluído',
+        confirmCompleted: true,
+      });
+      assert.equal(denied.status, 409, JSON.stringify(denied.body));
+      assert.deepEqual(await state(id), before);
+    }
+  });
+
   it('corrigir par após conclusão exige confirmação, arquiva o Word anterior e reprocessa ES→IT', async () => {
     const { id } = await upload();
     await finish(id);

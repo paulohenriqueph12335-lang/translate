@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream';
+import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
   canAssignBatch,
@@ -16,8 +17,16 @@ import { AppError, conflict, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
 import { decodeCursor, encodeCursor, likePattern } from '../pagination.js';
 import type { ObjectStorage } from '@tradutor/core/storage';
-import type { Language, Mode } from '@tradutor/core/translation';
-import { CONTENT_TYPES, detectFormat, extensionOf, formatForExtension, type DetectedFormat } from './format.js';
+import { BODY_MODELS, type BodyModel, type Language, type Mode } from '@tradutor/core/translation';
+import {
+  ALLOWED_EXTENSIONS,
+  DETECTED_FORMATS,
+  CONTENT_TYPES,
+  detectFormat,
+  extensionOf,
+  formatForExtension,
+  type DetectedFormat,
+} from './format.js';
 import { spoolToTempFile, TooLargeError, type SpooledFile } from './spool.js';
 import { docxToPdf, pdfName } from '../../http/pdf.js';
 
@@ -54,6 +63,7 @@ interface DocumentRow {
   tags: string[];
   stored_at: Date | null;
   updated_at: Date;
+  upload_attempt_id: string | null;
 }
 
 interface BatchRow {
@@ -64,6 +74,7 @@ interface BatchRow {
   source_language: Language | null;
   target_language: Language | null;
   translation_mode: Mode;
+  document_category: BodyModel | null;
   use_mask: boolean;
   preferred_translator_id: string | null;
   preferred_translator_name: string | null;
@@ -98,6 +109,16 @@ const toDocument = (row: DocumentRow) => ({
   tags: row.tags,
   storedAt: row.stored_at?.toISOString() ?? null,
   updatedAt: row.updated_at.toISOString(),
+  original:
+    row.status === 'stored' && row.detected_format
+      ? {
+          name: row.display_name,
+          mimeType: CONTENT_TYPES[row.detected_format],
+          size: Number(row.declared_size),
+          downloadUrl: `/api/v1/documents/${row.id}/original`,
+          previewUrl: ['pdf', 'docx', 'jpeg', 'png'].includes(row.detected_format) ? `/api/v1/documents/${row.id}/preview` : null,
+        }
+      : null,
 });
 
 const toBatch = (row: BatchRow) => {
@@ -122,6 +143,7 @@ const toBatch = (row: BatchRow) => {
       row.source_language && row.target_language ? { sourceLanguage: row.source_language, targetLanguage: row.target_language } : null,
     /** Modalidade de tradução do lote (ADR-015). */
     mode: row.translation_mode,
+    documentCategory: row.document_category,
     /** Juramentada com a máscara do tradutor escolhido no envio, ou sem máscara (ADR-017). */
     useMask: row.use_mask,
     translator: row.preferred_translator_id ? { id: row.preferred_translator_id, name: row.preferred_translator_name ?? '' } : null,
@@ -134,7 +156,7 @@ const toBatch = (row: BatchRow) => {
 };
 
 const BATCH_SELECT = `
-  SELECT b.id, b.team_id, t.name::text AS team_name, b.assigned_at, b.owner_id, b.source_language, b.target_language, b.translation_mode, b.use_mask, b.preferred_translator_id,
+  SELECT b.id, b.team_id, t.name::text AS team_name, b.assigned_at, b.owner_id, b.source_language, b.target_language, b.translation_mode, b.document_category, b.use_mask, b.preferred_translator_id,
          (SELECT name FROM sworn_translators WHERE id = b.preferred_translator_id) AS preferred_translator_name, u.display_name AS owner_name, b.name, b.protocol, b.no_protocol_reason, b.inspection_mode, b.inspection_sample_size, b.declared_bytes, b.created_at,
          to_char(b.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
          count(d.id) AS total,
@@ -179,6 +201,7 @@ export interface CreateBatchInput {
   translation: { sourceLanguage: Language; targetLanguage: Language };
   /** Juramentada, certificada, técnica ou simples (ADR-015). */
   mode?: Mode;
+  documentCategory?: BodyModel;
   /** Juramentada: com a máscara do tradutor (padrão) ou sem máscara (ADR-017). */
   useMask?: boolean;
   /** Tradutor juramentado escolhido no envio: a prévia já sai na máscara dele e a numeração segue a regra dele. */
@@ -198,11 +221,14 @@ const TRANSLATABLE_FORMATS = ['pdf', 'jpeg', 'png', 'docx', 'pptx'];
 async function enqueueTranslations(db: Pick<PoolClient, 'query'>, filter: { documentId?: string; batchId?: string }, requestedBy: string) {
   const queued = await db.query<{ id: string; team_id: string | null }>(
     `INSERT INTO translation_jobs (document_id, source_language, target_language, requested_mode, requested_by, assignee_id, translation_mode,
-                                   use_mask, preferred_translator_id)
+                                   use_mask, preferred_translator_id,document_category,classification_source,classification_by,classification_at)
      SELECT d.id, b.source_language, b.target_language, 'auto', $3,
             -- Quem enviou é o responsável; o lote do Diretor fica sem responsável até alguém da equipe assumir.
             CASE WHEN u.org_role = 'director' THEN NULL ELSE b.owner_id END,
-            b.translation_mode, b.use_mask, b.preferred_translator_id
+            b.translation_mode, b.use_mask, b.preferred_translator_id,b.document_category,
+            CASE WHEN b.document_category IS NULL THEN 'automatic' ELSE 'human' END,
+            CASE WHEN b.document_category IS NULL THEN NULL ELSE b.owner_id END,
+            CASE WHEN b.document_category IS NULL THEN NULL ELSE now() END
        FROM documents d JOIN batches b ON b.id = d.batch_id JOIN users u ON u.id = b.owner_id
       WHERE d.status = 'stored' AND d.detected_format = ANY($4::text[])
         AND b.target_language IS NOT NULL
@@ -234,6 +260,7 @@ export interface DocumentSearchQuery {
   status?: DocumentStatus[];
   format?: string[];
   tag?: string;
+  documentCategory?: BodyModel;
   untagged?: boolean;
   /** Datas AAAA-MM-DD (armazenamento), inclusivas. */
   from?: string;
@@ -258,6 +285,28 @@ export interface BatchListQuery {
 export function createDocumentService({ pool, config, storage }: ServiceDeps & { storage: ObjectStorage }) {
   const maxFileBytes = config.UPLOAD_MAX_FILE_MB * 1024 * 1024;
   const maxBatchBytes = config.UPLOAD_MAX_BATCH_MB * 1024 * 1024;
+
+  const capabilities = () => ({
+    contractVersion: 1,
+    formats: DETECTED_FORMATS.map((format) => ({
+      format,
+      mimeType: CONTENT_TYPES[format],
+      extensions: ALLOWED_EXTENSIONS.filter((extension) => formatForExtension(extension) === format),
+      inlinePreview: format === 'docx' ? !!config.CONVERTER_URL : format !== 'pptx',
+      requiresConverter: format === 'docx',
+    })),
+    upload: {
+      maxFiles: config.UPLOAD_MAX_BATCH_FILES,
+      maxFileBytes,
+      maxBatchBytes,
+      staleAttemptSeconds: STALE_UPLOAD_MINUTES * 60,
+      method: 'PUT' as const,
+      requiresContentLength: true,
+    },
+    inspection: { largeBatchThreshold: 20, sampleSize: 10 },
+    preview: { maxFileBytes: Math.min(maxFileBytes, 50 * 1024 * 1024) },
+    classification: { catalogUrl: '/api/v1/document-categories' },
+  });
 
   async function loadBatch(db: Pick<PoolClient, 'query'>, ctx: AuthenticatedContext, batchId: string) {
     const result = await db.query<BatchRow>(`${BATCH_SELECT} WHERE b.id = $1 GROUP BY b.id, t.name, u.display_name`, [batchId]);
@@ -307,6 +356,8 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
   }
 
   async function createBatch(ctx: AuthenticatedContext, input: CreateBatchInput, idempotencyKey?: string) {
+    if (input.documentCategory && !BODY_MODELS.includes(input.documentCategory))
+      throw new AppError(400, 'VALIDATION_FAILED', 'Tipo de documento inválido');
     const teamId = resolveTeam(ctx.actor, input.teamId);
     const protocol = input.protocol?.trim().replace(/\s+/g, ' ') || null;
     const omissionReason = input.protocolOmissionReason?.trim() || null;
@@ -377,9 +428,9 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
         }
         const created = await db.query<{ id: string }>(
           `INSERT INTO batches (team_id, owner_id, name, idempotency_key, declared_bytes, assigned_at, assigned_by, source_language, target_language, translation_mode,
-                                use_mask, preferred_translator_id, protocol, no_protocol_reason, inspection_mode, inspection_sample_size)
+                                use_mask, preferred_translator_id, protocol, no_protocol_reason, inspection_mode, inspection_sample_size,document_category)
            VALUES ($1, $2, $3, $4, $5, CASE WHEN $1::uuid IS NULL THEN NULL ELSE now() END, CASE WHEN $1::uuid IS NULL THEN NULL ELSE $2::uuid END, $6, $7, $8,
-                   $9, $10, $11, $12, $13, $14)
+                   $9, $10, $11, $12, $13, $14,$15)
            RETURNING id`,
           [
             teamId,
@@ -396,6 +447,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
             omissionReason,
             inspectionMode,
             inspectionSampleSize,
+            input.documentCategory ?? null,
           ],
         );
         const id = created.rows[0]!.id;
@@ -427,6 +479,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
             protocolOmissionReason: omissionReason,
             inspectionMode,
             inspectionSampleSize,
+            documentCategory: input.documentCategory ?? null,
           },
         });
         return id;
@@ -452,7 +505,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     if (query.q) {
       const pattern = sql.param(likePattern(query.q));
       sql.conditions.push(
-        `(unaccent(coalesce(b.protocol, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern}) OR unaccent(u.display_name) ILIKE unaccent(${pattern})
+        `(unaccent(coalesce(b.protocol, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.no_protocol_reason,'')) ILIKE unaccent(${pattern}) OR unaccent(u.display_name) ILIKE unaccent(${pattern})
           OR EXISTS (SELECT 1 FROM documents s WHERE s.batch_id = b.id AND unaccent(s.display_name) ILIKE unaccent(${pattern})))`,
       );
     }
@@ -478,22 +531,27 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     };
   }
 
-  async function transition(documentId: string, status: DocumentStatus, errorCode: string | null) {
-    await pool.query('UPDATE documents SET status = $2, error_code = $3, updated_at = now() WHERE id = $1', [
-      documentId,
-      status,
-      errorCode,
-    ]);
+  async function transition(documentId: string, attempt: string | null, status: DocumentStatus, errorCode: string | null) {
+    await pool.query(
+      `UPDATE documents SET status = $3, error_code = $4, upload_attempt_id=NULL, updated_at = now()
+      WHERE id = $1 AND status='uploading' AND upload_attempt_id=$2::uuid`,
+      [documentId, attempt, status, errorCode],
+    );
   }
 
   async function reject(
     ctx: AuthenticatedContext,
-    row: { id: string; batch_id: string; team_id: string | null },
+    row: { id: string; batch_id: string; team_id: string | null; upload_attempt_id: string | null },
     reason: RejectionReason,
     extra = {},
-  ) {
+  ): Promise<never> {
     await withTransaction(pool, async (db) => {
-      await db.query(`UPDATE documents SET status = 'rejected', error_code = $2, updated_at = now() WHERE id = $1`, [row.id, reason]);
+      const updated = await db.query(
+        `UPDATE documents SET status = 'rejected', error_code = $2, upload_attempt_id=NULL,updated_at = now()
+        WHERE id = $1 AND status='uploading' AND upload_attempt_id=$3::uuid RETURNING id`,
+        [row.id, reason, row.upload_attempt_id],
+      );
+      if (!updated.rowCount) throw conflict('Este envio foi substituído por outra tentativa; recarregue o documento');
       await recordAudit(db, {
         actorUserId: ctx.actor.id,
         action: 'document.rejected',
@@ -507,16 +565,27 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     throw new AppError(422, 'DOCUMENT_REJECTED', rejectionMessages[reason], { reason, documentId: row.id, ...extra });
   }
 
-  async function fail(ctx: AuthenticatedContext, row: { id: string; team_id: string | null }, reason: FailureReason): Promise<never> {
-    await transition(row.id, 'upload_failed', reason);
-    await recordAudit(pool, {
-      actorUserId: ctx.actor.id,
-      action: 'document.upload_failed',
-      targetType: 'document',
-      targetId: row.id,
-      ...(row.team_id ? { teamId: row.team_id } : {}),
-      correlationId: ctx.correlationId,
-      metadata: { reason },
+  async function fail(
+    ctx: AuthenticatedContext,
+    row: { id: string; team_id: string | null; upload_attempt_id: string | null },
+    reason: FailureReason,
+  ): Promise<never> {
+    await withTransaction(pool, async (db) => {
+      const updated = await db.query(
+        `UPDATE documents SET status='upload_failed',error_code=$3,upload_attempt_id=NULL,updated_at=now()
+      WHERE id=$1 AND status='uploading' AND upload_attempt_id=$2::uuid RETURNING id`,
+        [row.id, row.upload_attempt_id, reason],
+      );
+      if (!updated.rowCount) throw conflict('Este envio foi substituído por outra tentativa; recarregue o documento');
+      await recordAudit(db, {
+        actorUserId: ctx.actor.id,
+        action: 'document.upload_failed',
+        targetType: 'document',
+        targetId: row.id,
+        ...(row.team_id ? { teamId: row.team_id } : {}),
+        correlationId: ctx.correlationId,
+        metadata: { reason },
+      });
     });
     throw new AppError(reason === 'storage_unavailable' ? 503 : 400, 'UPLOAD_FAILED', failureMessages[reason], {
       reason,
@@ -540,17 +609,22 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     }
 
     // Reserva o documento: só um envio por vez; um envio abandonado pode ser retomado após o prazo.
+    const attemptId = randomUUID();
     const claimed = await pool.query<DocumentRow>(
-      `UPDATE documents SET status = 'uploading', error_code = NULL, upload_started_at = now(), updated_at = now()
+      `UPDATE documents SET status = 'uploading', error_code = NULL, upload_started_at = now(), upload_attempt_id=$3::uuid,updated_at = now()
         WHERE id = $1 AND (status IN ('awaiting_upload', 'upload_failed')
               OR (status = 'uploading' AND upload_started_at < now() - make_interval(mins => $2)))
         RETURNING *`,
-      [documentId, STALE_UPLOAD_MINUTES],
+      [documentId, STALE_UPLOAD_MINUTES, attemptId],
     );
     if (!claimed.rowCount) throw conflict(`Documento não aceita envio no estado "${current.status}"`);
     const row = { ...current, ...claimed.rows[0]! };
 
     let spooled: SpooledFile | undefined;
+    let ownKey: string | undefined;
+    let committed = false;
+    // Se COMMIT falhar após o trabalho, o resultado pode ter sido confirmado no servidor: preserve o objeto.
+    let commitMayHaveSucceeded = false;
     try {
       try {
         spooled = await spoolToTempFile(body, declaredSize, config.UPLOAD_TMP_DIR);
@@ -573,7 +647,8 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
       );
       if (duplicate.rows[0]) return await reject(ctx, row, 'duplicate', { duplicateOf: duplicate.rows[0].id });
 
-      const key = `batches/${row.batch_id}/documents/${row.id}/original`;
+      const key = `batches/${row.batch_id}/documents/${row.id}/original-${attemptId}`;
+      ownKey = key;
       try {
         await storage.putFile(key, spooled.path, spooled.size, CONTENT_TYPES[detected.format]);
         const stored = await storage.head(key);
@@ -586,16 +661,20 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
       const size = spooled.size;
       try {
         const updated = await withTransaction(pool, async (db) => {
+          const owner = await db.query(
+            `SELECT id FROM documents WHERE id=$1 AND status='uploading' AND upload_attempt_id=$2::uuid FOR UPDATE`,
+            [row.id, attemptId],
+          );
+          if (!owner.rowCount) throw conflict('Este envio foi substituído por outra tentativa; recarregue o documento');
           await db.query(
             `INSERT INTO document_versions (document_id, kind, object_key, format, size_bytes, sha256)
-             VALUES ($1, 'original', $2, $3, $4, $5)
-             ON CONFLICT (document_id, kind) DO NOTHING`,
+             VALUES ($1, 'original', $2, $3, $4, $5)`,
             [row.id, key, detected.format, size, sha256],
           );
           const result = await db.query<DocumentRow>(
-            `UPDATE documents SET status = 'stored', detected_format = $2, sha256 = $3, stored_at = now(), error_code = NULL, updated_at = now()
-              WHERE id = $1 AND status = 'uploading' RETURNING *`,
-            [row.id, detected.format, sha256],
+            `UPDATE documents SET status = 'stored', detected_format = $2, sha256 = $3, stored_at = now(), error_code = NULL, upload_attempt_id=NULL, updated_at = now()
+              WHERE id = $1 AND status = 'uploading' AND upload_attempt_id=$4::uuid RETURNING *`,
+            [row.id, detected.format, sha256, attemptId],
           );
           if (!result.rowCount) throw conflict('Documento mudou de estado durante o envio');
           await recordAudit(db, {
@@ -608,22 +687,33 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
             metadata: { format: detected.format, size },
           });
           await enqueueTranslations(db, { documentId: row.id }, ctx.actor.id);
+          commitMayHaveSucceeded = true;
           return result.rows[0]!;
         });
+        committed = true;
         return toDocument(updated);
       } catch (error) {
         // Mesmo conteúdo armazenado em paralelo no mesmo lote.
         if ((error as { code?: string }).code === '23505') {
-          await storage.delete(key).catch(() => undefined);
           return await reject(ctx, row, 'duplicate');
         }
         throw error;
       }
     } catch (error) {
       // Erro inesperado: nunca deixar o documento preso em `uploading` nem aparentar sucesso.
-      if (!(error instanceof AppError)) await transition(row.id, 'upload_failed', 'interrupted').catch(() => undefined);
+      if (!(error instanceof AppError) && !commitMayHaveSucceeded)
+        await transition(row.id, row.upload_attempt_id, 'upload_failed', 'interrupted').catch(() => undefined);
       throw error;
     } finally {
+      if (ownKey && !committed && !commitMayHaveSucceeded) {
+        // Limpeza limitada ao objeto exclusivo desta tentativa e somente com resultado transacional conhecido.
+        try {
+          const referenced = await pool.query('SELECT 1 FROM document_versions WHERE object_key=$1', [ownKey]);
+          if (!referenced.rowCount) await storage.delete(ownKey);
+        } catch {
+          /* Indisponibilidade não justifica arriscar apagar um original publicado. */
+        }
+      }
       await spooled?.dispose();
     }
   }
@@ -824,6 +914,13 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     if (query.format?.length) sql.conditions.push(`d.detected_format = ANY(${sql.param(query.format)}::text[])`);
     if (query.tag) sql.conditions.push(`${sql.param(query.tag)} = ANY(d.tags)`);
     if (query.untagged) sql.conditions.push('cardinality(d.tags) = 0');
+    if (query.documentCategory) {
+      const category = sql.param(query.documentCategory);
+      sql.conditions.push(`(EXISTS (SELECT 1 FROM translation_jobs j WHERE j.document_id=d.id AND j.status<>'cancelled'
+        AND coalesce(j.document_category,'generic')=${category})
+        OR (NOT EXISTS (SELECT 1 FROM translation_jobs j WHERE j.document_id=d.id AND j.status<>'cancelled')
+          AND coalesce(b.document_category,'generic')=${category}))`);
+    }
     if (query.from) sql.conditions.push(`coalesce(d.stored_at, d.updated_at) >= ${sql.param(query.from)}::date`);
     if (query.to) sql.conditions.push(`coalesce(d.stored_at, d.updated_at) < ${sql.param(query.to)}::date + 1`);
     if (query.translation === 'none') {
@@ -840,7 +937,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     if (query.q) {
       const pattern = sql.param(likePattern(query.q));
       sql.conditions.push(
-        `(unaccent(d.display_name) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.protocol, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern})
+        `(unaccent(d.display_name) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.protocol, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.no_protocol_reason,'')) ILIKE unaccent(${pattern})
           OR unaccent(u.display_name) ILIKE unaccent(${pattern})
           OR EXISTS (SELECT 1 FROM translation_jobs j WHERE j.document_id = d.id
                       AND (unaccent(coalesce(j.document_type, '')) ILIKE unaccent(${pattern})
@@ -864,11 +961,22 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
         cursor_at: string;
         translations: Array<{
           id: string;
-          sourceLanguage: 'pt' | 'en';
-          targetLanguage: 'pt' | 'en';
+          sourceLanguage: Language;
+          targetLanguage: Language;
           status: string;
           number: string | null;
           documentType: string | null;
+          documentCategory: BodyModel;
+          classificationConfidence: number;
+          classificationSource: 'automatic' | 'human';
+          currentRevision: number | null;
+          inspectionRequired: boolean;
+          inspectionRevision: number | null;
+          consecutiveRejections: number;
+          failedStages: string[];
+          processedAt: string | null;
+          lastActivityAt: string;
+          firstDownloadedAt: string | null;
           approvedAt: string | null;
         }>;
       }
@@ -878,7 +986,12 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
               (SELECT coalesce(jsonb_agg(jsonb_build_object(
                         'id', j.id, 'sourceLanguage', j.source_language, 'targetLanguage', j.target_language, 'status', j.status,
                         'number', j.number_label,
-                        'documentType', j.document_type, 'approvedAt', j.approved_at) ORDER BY j.created_at DESC), '[]'::jsonb)
+                        'documentType', j.document_type,'documentCategory',coalesce(j.document_category,'generic'),
+                        'classificationConfidence',j.classification_confidence,'classificationSource',j.classification_source,
+                        'currentRevision',j.current_revision,'inspectionRequired',j.inspection_required,'inspectionRevision',j.inspection_revision,
+                        'consecutiveRejections',j.consecutive_rejections,'failedStages',j.failed_stages,'processedAt',j.processed_at,
+                        'lastActivityAt',j.last_activity_at,'firstDownloadedAt',j.first_downloaded_at,
+                        'approvedAt', j.approved_at) ORDER BY j.created_at DESC), '[]'::jsonb)
                  FROM translation_jobs j WHERE j.document_id = d.id) AS translations
          FROM documents d
          JOIN batches b ON b.id = d.batch_id
@@ -948,6 +1061,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
   }
 
   return {
+    capabilities,
     createBatch,
     listBatches,
     getBatch,

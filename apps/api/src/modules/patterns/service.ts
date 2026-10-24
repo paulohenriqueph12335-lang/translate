@@ -119,7 +119,13 @@ export function createPatternService(deps: ServiceDeps & { machine?: Partial<Rec
   async function test(
     ctx: AuthenticatedContext,
     file: { data: Buffer; name: string },
-    input: { sourceLanguage: Language; targetLanguage: Language; mode: Mode; layoutPreset?: LayoutPreset | undefined },
+    input: {
+      sourceLanguage: Language;
+      targetLanguage: Language;
+      mode: Mode;
+      layoutPreset?: LayoutPreset | undefined;
+      documentCategory?: import('@tradutor/core/translation').BodyModel;
+    },
   ) {
     if (input.sourceLanguage === input.targetLanguage) throw new AppError(400, 'VALIDATION_FAILED', 'Idiomas de origem e destino iguais');
     const trial = await trials.begin(ctx, file.data, input);
@@ -202,6 +208,7 @@ export function createPatternService(deps: ServiceDeps & { machine?: Partial<Rec
       known: example ? { documentType: example.content.documentType, sourceTitle: example.content.sourceTitle } : null,
       translator,
       knowledge: await loadLayoutKnowledge(pool),
+      ...(input.documentCategory ? { documentCategory: input.documentCategory } : {}),
       ...(translator ? {} : { noTranslatorNotice: 'Sem tradutor automático no ar: o teste mostra só a estrutura do documento.' }),
     });
 

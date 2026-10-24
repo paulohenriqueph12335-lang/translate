@@ -199,6 +199,14 @@ export function createIdentityService({ pool, config, now = () => new Date() }: 
         [ctx.actor.id, input.notificationsEnabled ?? null, input.notificationFrequency ?? null, input.theme ?? null],
       );
       if (!result.rows[0]) throw new AppError(401, 'UNAUTHENTICATED', 'Sessão ausente ou expirada');
+      if (input.notificationsEnabled !== undefined || input.notificationFrequency !== undefined) {
+        // A preferência global também é usada pelos avisos inteligentes: reativar não reproduz o acervo antigo.
+        await db.query(
+          `UPDATE notification_delivery_state SET cursor_id=coalesce((SELECT max(id) FROM notifications WHERE user_id=$1),0),
+             initialized_at=$2,last_delivered_at=NULL WHERE user_id=$1`,
+          [ctx.actor.id, now()],
+        );
+      }
       await recordAudit(db, {
         actorUserId: ctx.actor.id,
         action: 'auth.preferences_updated',

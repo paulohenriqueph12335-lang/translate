@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useConfirm } from './ConfirmDialog';
 import {
   api,
-  LANGUAGE_PAIRS,
   languageLabel,
   LANGUAGES,
   MODES,
@@ -16,6 +16,7 @@ import {
   type TranslationRules,
 } from './api';
 import { dateTime, Feedback, message, Segmented, useLoad } from './ui';
+import { LanguagePairPicker } from './LanguagePairPicker';
 
 /** Modalidades de tradução, etapas e regras (ADR-015). */
 
@@ -31,16 +32,7 @@ export function PairSelect({
   any?: string;
   label?: string;
 }) {
-  return (
-    <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
-      {any !== undefined && <option value="">{any}</option>}
-      {LANGUAGE_PAIRS.map((pair) => (
-        <option key={pair.value} value={pair.value}>
-          {pair.label}
-        </option>
-      ))}
-    </select>
-  );
+  return <LanguagePairPicker label={label} value={value} onChange={onChange} {...(any !== undefined ? { any } : {})} />;
 }
 
 export function ModeSelect({ value, onChange }: { value: TranslationMode; onChange: (mode: TranslationMode) => void }) {
@@ -86,15 +78,16 @@ export function StagesPanel({
   completed?: boolean;
   onChange: () => void;
 }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function toggle(keys: string[], checked: boolean) {
     if (
       completed &&
-      !window.confirm(
+      !(await confirm(
         'Este documento está pronto para aprovação. Tem certeza de que deseja alterar o checklist? A mudança ficará registrada.',
-      )
+      ))
     )
       return;
     setBusy(true);

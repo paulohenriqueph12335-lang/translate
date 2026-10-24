@@ -55,18 +55,20 @@ Na mesma data, um ensaio local de migração partiu do schema até `0024`, com t
 
 | Execução                    | Aprovados | Alcance                                                                        |
 | --------------------------- | --------: | ------------------------------------------------------------------------------ |
-| API completa                |       267 | Serviços/HTTP, autorização, banco e armazenamento; execução com concorrência 2 |
-| Core                        |        70 | Regras, extração, tradução, revisão e geração documental                       |
-| Web                         |        11 | Comportamentos automatizados da interface                                      |
+| API completa                |       311 | Serviços/HTTP, autorização, banco e armazenamento; execução com concorrência 2 |
+| Core                        |        74 | Regras, extração, tradução, revisão e geração documental                       |
+| Web                         |        25 | Notificações, idiomas, upload e salvamento de arquivos                         |
 | Provedor local real, opt-in |         2 | FR→ES e ES→IT com DOCX sintético e Word gerado, sem IA                         |
 
-Os sete casos de revisão persistida dos ensaios e os oito casos de auditoria/pesquisa estão incluídos nos 267 testes da API; não devem ser somados novamente. A execução final da API encerrou com zero falhas e zero testes pulados. Os dois casos do provedor real são uma execução explícita separada.
+Os casos dedicados estão incluídos nos 311 testes da API; não devem ser somados novamente. A execução completa encerrou com zero falhas e zero testes pulados. Inclui notificações agrupadas/canais, indicadores individuais e de qualidade, classificação, disputa entre workers, retomada concorrente de upload e manifesto de entrega. Os dois casos do provedor real são uma execução explícita anterior separada.
 
 As regras de remessas grandes permanecem: decisão explícita a partir de **20 arquivos**, amostra dos **primeiros até 10 documentos elegíveis** e conferência vinculada à revisão vigente. Os limites de ZIP permanecem **100 traduções**, **50 MiB por arquivo** e **128 MiB no conteúdo total**. A auditoria da entrega só é gravada após todos os arquivos estarem preparados, a reautorização concluir e os recibos de revisão/chave/SHA corresponderem aos artefatos vigentes, com os eventos individuais/agrupados na mesma transação. Alteração durante a preparação retorna `409 artifact_changed`; falha antes do commit desfaz o registro completo. O recebimento pelo navegador e o salvamento em disco não são confirmados por esses marcos.
 
 A comparação usa o visualizador PDF.js local, sem plugin PDF, com página anterior/próxima, ajuste/zoom e texto da página. A validação visual local usou contas e documentos sintéticos em banco separado: pesquisa por protocolo no Início, ampliação de painéis, relatório de tempos do Líder, fases, renderização real do original e Word, zoom, aprovação, registro de novo formato após três reprovações e filtro de emergências. O navegador baixou Word com ordinal `(01)` e ZIPs Word/PDF; a inspeção dos pacotes confirmou as duas saídas distintas nas pastas `ABC-10003/FR-ES/Word` e `PDF`.
 
-Esse roteiro manual não é uma suíte E2E automatizada completa. A confirmação nativa de alteração de idioma interrompeu o controle do navegador de testes; as guardas, a alteração confirmada e a preservação de versões foram verificadas pelos testes HTTP. Não se afirma validação visual de todos os tamanhos de tela. A publicação local foi verificada por readiness HTTP, heartbeat do worker com LibreTranslate, migrações `0025`–`0028` e presença do visualizador/recibos nos containers atualizados.
+Na continuação, o diálogo de confirmação da aplicação foi validado com Cancelar, Escape e foco inicial em Cancelar. Recarregar preservou o estado sem reprovação; confirmar registrou uma devolução e retornou à revisão. Também foram verificados pesquisa por justificativa sem protocolo, aprovação de ensaio após regeneração, classificação auditada, busca de idiomas por “FRA ESP”, Word e ZIP na própria fase de entrega e layout a 320 px. A opção de download padrão baixou Word e ZIP reais do laboratório. O seletor nativo de pasta e a escrita têm testes com adaptadores; não houve validação manual do diálogo do Explorer nem da exibição nativa do Windows neste navegador de testes. Não se afirma cobertura E2E completa ou validação de todas as resoluções.
+
+O teste de escala usa 30 documentos e seis workers com provedor determinístico. Comprova isolamento das tentativas e ausência de publicação duplicada; não mede a capacidade real de OCR, LibreTranslate, armazenamento e conversor. Os limites continuam sujeitos à memória disponível, pois originais e pacotes são materializados no servidor. As migrações `0029`–`0032` cobrem preferências/canais, categorias, inspeção de novas revisões legadas e UUID por tentativa de upload.
 
 ## Critérios por alteração
 

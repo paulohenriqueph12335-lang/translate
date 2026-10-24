@@ -16,16 +16,21 @@ import {
   type TranslationFacets,
   type TranslationStatus,
   type TranslationSummary,
-  LANGUAGE_PAIRS,
   MODES,
   modeLabel,
   type TranslationMode,
+  type DocumentCategory,
 } from './api';
 import { AiAssist } from './AiManagement';
 import { DocumentPreview } from './DocumentPreview';
 import { FlowTracker, NewTranslation, WordPanel } from './Flow';
 import { ModeBadge, StagesPanel } from './Modes';
+import { LanguagePairPicker } from './LanguagePairPicker';
+import { ArchiveDownloadButtons } from './ArchiveDownloadButtons';
+import { DeliveryMenu } from './DeliveryActions';
 import { NumberingPanel } from './TranslatorNumbering';
+import { useConfirm } from './ConfirmDialog';
+import { DocumentClassificationPanel } from './DocumentClassification';
 import { DocumentTiming, elapsedLabel, InspectionGate, InspectionHistory, LanguageCorrection, RegisterFormat } from './TranslationWorkflow';
 import {
   dateTime,
@@ -78,6 +83,7 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
   const [teamId, setTeamId] = useState('');
   const [tag, setTag] = useState('');
   const [documentType, setDocumentType] = useState('');
+  const [documentCategory, setDocumentCategory] = useState<DocumentCategory | ''>('');
   const [onlyNew, setOnlyNew] = useState(false);
   const [pair, setPair] = useState('');
   const [mode, setMode] = useState<TranslationMode | ''>('');
@@ -96,6 +102,7 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
     unassigned: teamId === '__none',
     tag,
     documentType,
+    documentCategory,
     translationMode: mode || undefined,
     patternKnown: onlyNew ? 'false' : undefined,
     sourceLanguage: pair ? pair.slice(0, 2) : undefined,
@@ -104,12 +111,15 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
     createdTo: period.to,
   })}`;
   const list = usePaged<TranslationSummary>(path);
-  const filtered = !!(q || teamId || tag || documentType || onlyNew || pair || mode || period.from || period.to);
+  const [archiveSelection, setArchiveSelection] = useState<Set<string>>(new Set());
+  useEffect(() => setArchiveSelection(new Set()), [path]);
+  const filtered = !!(q || teamId || tag || documentType || documentCategory || onlyNew || pair || mode || period.from || period.to);
   const clear = () => {
     setSearch('');
     setTeamId('');
     setTag('');
     setDocumentType('');
+    setDocumentCategory('');
     setOnlyNew(false);
     setPair('');
     setMode('');
@@ -188,6 +198,18 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
             </option>
           ))}
         </select>
+        <select
+          aria-label="Categoria e modelo documental"
+          value={documentCategory}
+          onChange={(e) => setDocumentCategory(e.target.value as DocumentCategory | '')}
+        >
+          <option value="">Todas as categorias e modelos</option>
+          {facets.data?.documentCategories?.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label} ({item.count})
+            </option>
+          ))}
+        </select>
         <select aria-label="Etiqueta" value={tag} onChange={(e) => setTag(e.target.value)}>
           <option value="">Todas as etiquetas</option>
           {facets.data?.tags.map((value) => (
@@ -204,14 +226,7 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
             </option>
           ))}
         </select>
-        <select aria-label="Idiomas" value={pair} onChange={(e) => setPair(e.target.value)}>
-          <option value="">Todos os idiomas</option>
-          {LANGUAGE_PAIRS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <LanguagePairPicker label="Idiomas" value={pair} onChange={setPair} any="Todos os idiomas" />
         <DateRange label="Recebidas" from={period.from} to={period.to} onChange={(from, to) => setPeriod({ from, to })} />
         <label className="check">
           <input type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)} />
@@ -224,12 +239,33 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
         )}
       </div>
       <Feedback error={list.error} />
+      {tab === 'approved' && list.items.length > 0 && (
+        <details className="card">
+          <summary>Baixar documentos concluídos em ZIP ({archiveSelection.size} selecionados)</summary>
+          <p>Escolha os documentos abaixo. Eles continuam disponíveis mesmo se você decidir baixar depois.</p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={list.items.filter((item) => item.permissions.download).every((item) => archiveSelection.has(item.id))}
+              onChange={(event) =>
+                setArchiveSelection(
+                  event.target.checked ? new Set(list.items.filter((item) => item.permissions.download).map((item) => item.id)) : new Set(),
+                )
+              }
+            />
+            Selecionar concluídos carregados
+          </label>
+          <ArchiveDownloadButtons translationIds={[...archiveSelection]} disabled={archiveSelection.size > 100} />
+          {archiveSelection.size > 100 && <p className="warn-text">Selecione até 100 documentos por ZIP.</p>}
+        </details>
+      )}
       <ul className="list selectable work-list">
         {list.items.map((item) => (
           <li key={item.id} onClick={() => onOpen(item.id)}>
             <div>
               <strong>
                 {item.batch.protocol && <span className="badge soft">{item.batch.protocol}</span>} {item.document.name}{' '}
+                {item.classification && <span className="badge soft">{item.classification.label}</span>}{' '}
                 <ModeBadge mode={item.translationMode} /> <StatusBadge status={item.status} />
                 {item.patternKnown === false && <span className="badge warn">Tipo novo</span>}
                 {!item.assignee && item.status !== 'approved' && <span className="badge info">Sem responsável</span>}
@@ -253,7 +289,39 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
               {item.reviewLifecycle?.blocked && <span className="badge danger">3 reprovações · novo formato obrigatório</span>}
               <TagList tags={item.document.tags} onPick={setTag} />
             </div>
-            <button className="small" onClick={() => onOpen(item.id)}>
+            {tab === 'approved' && item.permissions.download && (
+              <label className="check" onClick={(event) => event.stopPropagation()}>
+                <input
+                  aria-label={`Incluir ${item.document.name} no ZIP`}
+                  type="checkbox"
+                  checked={archiveSelection.has(item.id)}
+                  onChange={(event) =>
+                    setArchiveSelection((current) => {
+                      const next = new Set(current);
+                      if (event.target.checked) next.add(item.id);
+                      else next.delete(item.id);
+                      return next;
+                    })
+                  }
+                />
+                ZIP
+              </label>
+            )}
+            {item.permissions.download && (
+              <DeliveryMenu
+                translationId={item.id}
+                version={item.updatedAt}
+                batchId={item.batch.id}
+                original={{ id: item.document.id, name: item.document.name }}
+              />
+            )}
+            <button
+              className="small"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen(item.id);
+              }}
+            >
               Abrir
             </button>
           </li>
@@ -314,7 +382,27 @@ export function StatusBadge({ status }: { status: TranslationStatus }) {
 
 type Panel = null | 'conclude' | 'redo' | 'numbering';
 
+function DocumentQuickFacts({ translation: t }: { translation: TranslationSummary }) {
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  if (!t.timing) return null;
+  const idle = Math.max(0, (clock - Date.parse(t.timing.lastActivityAt)) / 1000);
+  const waiting = t.timing.completedAt ? Math.max(0, (clock - Date.parse(t.timing.completedAt)) / 1000) : null;
+  return (
+    <div className="document-quick-facts" aria-label="Resumo dos tempos e do tipo documental">
+      {t.classification && <span>{t.classification.label}</span>}
+      <span>Estimativa: {elapsedLabel(t.timing.estimatedSeconds)}</span>
+      <span>Sem atividade: {elapsedLabel(idle)}</span>
+      {t.status === 'approved' && !t.timing.firstDownloadedAt && <span>Pronto sem download: {elapsedLabel(waiting)}</span>}
+    </div>
+  );
+}
+
 function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: Me; onBack: () => void; onGoTranslators: () => void }) {
+  const confirm = useConfirm();
   const [version, setVersion] = useState(0);
   const { data, error } = useLoad(() => api<TranslationDetail>('GET', `/translations/${id}`), [id, version]);
   const [draft, setDraft] = useState<DraftContent | null>(null);
@@ -382,7 +470,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
 
   async function claimDocument() {
     const completed = t.status === 'awaiting_approval';
-    if (completed && !window.confirm('Este documento já está pronto. Deseja assumir sua responsabilidade?')) return;
+    if (completed && !(await confirm('Este documento já está pronto. Deseja assumir sua responsabilidade?'))) return;
     const result = await run('Agora esta tradução é sua.', () => api('POST', `/translations/${id}/claim`, { confirmCompleted: completed }));
     if (result) reload();
   }
@@ -484,6 +572,29 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       </div>
 
       <FlowTracker t={t} />
+      {t.annulled && (
+        <p className="alert error">
+          <strong>Número anulado</strong> em {dateTime(t.annulled.at)}: {t.annulled.reason}. O número continua registrado no livro e não é
+          reutilizado; a tradução não vale mais.
+        </p>
+      )}
+      {t.pendingNumberingRequest && (
+        <p className="alert info">Há um pedido de alteração ou anulação deste número aguardando decisão (veja em Numeração).</p>
+      )}
+      {t.status === 'failed' && (
+        <p className="alert error">Falha no processamento: {failureLabel[t.failureCode ?? ''] ?? t.failureCode ?? 'erro desconhecido'}.</p>
+      )}
+      {t.reviewComment && t.status === 'in_review' && (
+        <p className="alert warn-box">
+          <strong>Pedido para refazer:</strong> {t.reviewComment}
+        </p>
+      )}
+      {t.patternKnown === false && t.status !== 'approved' && (
+        <p className="alert warn-box">
+          <strong>Tipo de documento novo.</strong> Confira com atenção: ainda não há tradução concluída desse tipo para usar como
+          referência.
+        </p>
+      )}
       {t.permissions.claim && (
         <div className="toolbar">
           <button className="primary" disabled={busy} onClick={() => void claimDocument()}>
@@ -491,7 +602,21 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           </button>
         </div>
       )}
-      <DocumentTiming translation={t} />
+      <DocumentQuickFacts translation={t} />
+      <details className="card secondary-options document-options">
+        <summary>Dados e opções do documento</summary>
+        <p className="muted small-text">
+          Consulte os tempos completos, corrija o tipo ou os idiomas e acompanhe o histórico de conferências.
+        </p>
+        <DocumentTiming translation={t} />
+        <DocumentClassificationPanel
+          key={`${id}-${t.classification?.category}-${t.classification?.correctedAt}`}
+          translation={t}
+          onSaved={reload}
+        />
+        <LanguageCorrection key={`${id}-${t.sourceLanguage}-${t.targetLanguage}`} t={t} me={me} onDone={reload} />
+        <InspectionHistory items={data.inspections ?? []} />
+      </details>
       {(t.status === 'queued' || t.status === 'processing') && (
         <p className="alert info">Traduzindo e revisando o documento… esta tela se atualiza sozinha e a prévia em Word aparece aqui.</p>
       )}
@@ -544,11 +669,29 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           }}
         />
       )}
-      <LanguageCorrection key={`${id}-${t.sourceLanguage}-${t.targetLanguage}`} t={t} me={me} onDone={reload} />
-      <InspectionHistory items={data.inspections ?? []} />
       {/* Auxílio da IA (ADR-021) junto da prévia: a sugestão de diagramação pendente aparece aberta. */}
       {data.draft && !editing && <AiAssist translationId={id} status={t.status} onApplied={reload} />}
       <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
+      {data.draft && t.status !== 'approved' && (errors.length > 0 || warnings.length > 0) && (
+        <details className="checks" open={errors.length > 0}>
+          <summary>
+            {errors.length ? `${errors.length} ponto(s) para conferir` : 'Nenhum problema'}
+            {warnings.length ? ` · ${warnings.length} aviso(s)` : ''}
+          </summary>
+          <ul>
+            {errors.map((issue, index) => (
+              <li key={`e${index}`} className="error-text">
+                {issue.message}
+              </li>
+            ))}
+            {warnings.map((issue, index) => (
+              <li key={`w${index}`} className="muted">
+                {issue.message}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <details className="card manual-tools" open={editing}>
         <summary>Ajustes manuais (opcional): texto, checklist, revisão e conclusão com outro tradutor</summary>
@@ -622,11 +765,6 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             <button onClick={() => setPanel(panel === 'numbering' ? null : 'numbering')}>Alterar ou anular número…</button>
           )}
           <span className="spacer" />
-          {t.permissions.download && (
-            <a className="button primary" href={`/api/v1/translations/${id}/final`}>
-              Baixar tradução (DOCX)
-            </a>
-          )}
           {data.draft && !t.permissions.download && (
             <a className="button" href={`/api/v1/translations/${id}/preview`}>
               Baixar prévia (DOCX)
@@ -671,6 +809,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             canReturn={t.permissions.returnForChanges}
             revision={data.draft?.revision ?? 0}
             inspectionScope={t.batch.inspectionMode ?? 'all'}
+            completed={t.status === 'awaiting_approval'}
             onDone={(text) => {
               setPanel(null);
               setFeedback({ ok: text });
@@ -693,52 +832,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           <NumberingPanel key={`${id}-${t.status}`} translationId={id} editable={false} canAuthorize={false} />
         )}
 
-        {t.annulled && (
-          <p className="alert error">
-            <strong>Número anulado</strong> em {dateTime(t.annulled.at)}: {t.annulled.reason}. O número continua registrado no livro e não é
-            reutilizado; a tradução não vale mais.
-          </p>
-        )}
-        {t.pendingNumberingRequest && (
-          <p className="alert info">Há um pedido de alteração ou anulação deste número aguardando decisão (veja em Numeração).</p>
-        )}
-        {t.status === 'failed' && (
-          <p className="alert error">
-            Falha no processamento: {failureLabel[t.failureCode ?? ''] ?? t.failureCode ?? 'erro desconhecido'}.
-          </p>
-        )}
-        {t.reviewComment && t.status === 'in_review' && (
-          <p className="alert warn-box">
-            <strong>Pedido para refazer:</strong> {t.reviewComment}
-          </p>
-        )}
-        {t.patternKnown === false && t.status !== 'approved' && (
-          <p className="alert warn-box">
-            <strong>Tipo de documento novo.</strong> O sistema ainda não tem uma tradução concluída deste tipo para usar como padrão:
-            confira com mais atenção. A primeira conclusão ensina o sistema.
-          </p>
-        )}
         {t.notice && t.status !== 'approved' && <p className="muted small-text">{t.notice}</p>}
-        {data.draft && t.status !== 'approved' && (errors.length > 0 || warnings.length > 0) && (
-          <details className="checks">
-            <summary>
-              {errors.length ? `${errors.length} ponto(s) para conferir` : 'Nenhum problema'}
-              {warnings.length ? ` · ${warnings.length} aviso(s)` : ''}
-            </summary>
-            <ul>
-              {errors.map((issue, index) => (
-                <li key={`e${index}`} className="error-text">
-                  {issue.message}
-                </li>
-              ))}
-              {warnings.map((issue, index) => (
-                <li key={`w${index}`} className="muted">
-                  {issue.message}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
 
         {editing && (
           <p className="muted small-text">
@@ -774,6 +868,7 @@ function ReassignControl({
   completed: boolean;
   onDone: () => void;
 }) {
+  const confirm = useConfirm();
   const members = useLoad(
     () => api<{ items: Array<{ userId: string; displayName: string; role: string }> }>('GET', `/teams/${teamId}/members`),
     [teamId],
@@ -784,12 +879,12 @@ function ReassignControl({
       <select
         aria-label="Reatribuir"
         value=""
-        onChange={(e) => {
+        onChange={async (e) => {
           const userId = e.target.value;
           if (!userId) return;
           if (
             completed &&
-            !window.confirm('Este documento já está pronto. Tem certeza de que deseja mudar o responsável? A alteração será auditada.')
+            !(await confirm('Este documento já está pronto. Tem certeza de que deseja mudar o responsável? A alteração será auditada.'))
           )
             return;
           api('PUT', `/translations/${id}/assignee`, { userId, ...(completed ? { confirmCompleted: true } : {}) })
@@ -813,6 +908,7 @@ function ReassignControl({
 
 /** Pedido de alteração (livro, folha ou número) ou anulação do número; decide o Supervisor da equipe ou o Diretor. */
 function NumberingRequestPanel({ id, onDone }: { id: string; onDone: () => void }) {
+  const confirm = useConfirm();
   const [kind, setKind] = useState<'change' | 'annul'>('change');
   const [reason, setReason] = useState('');
   const [values, setValues] = useState({ number: '', book: '', sheet: '' });
@@ -828,9 +924,9 @@ function NumberingRequestPanel({ id, onDone }: { id: string; onDone: () => void 
 
   async function send() {
     if (
-      !window.confirm(
+      !(await confirm(
         'Tem certeza de que deseja pedir a alteração ou anulação da numeração deste documento concluído? O pedido e sua justificativa ficarão registrados.',
-      )
+      ))
     )
       return;
     setBusy(true);
@@ -994,12 +1090,14 @@ function RedoPanel({
   canReturn,
   revision,
   inspectionScope,
+  completed,
   onDone,
 }: {
   id: string;
   canReturn: boolean;
   revision: number;
   inspectionScope: 'all' | 'sample';
+  completed: boolean;
   onDone: (message: string) => void;
 }) {
   const [comment, setComment] = useState('');
@@ -1007,8 +1105,14 @@ function RedoPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedStages, setFailedStages] = useState<string[]>([]);
+  const confirm = useConfirm();
 
   async function send() {
+    if (
+      completed &&
+      !(await confirm('Este documento já está pronto. Deseja devolvê-lo para correção? Será necessária uma nova conferência e aprovação.'))
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -1017,6 +1121,7 @@ function RedoPanel({
         baseRevision: revision,
         failedStages,
         scope: inspectionScope,
+        ...(completed ? { confirmCompleted: true } : {}),
         comment: comment.trim(),
         reprocess,
       });
@@ -1085,6 +1190,7 @@ export function DocumentTags({
   completed?: boolean;
   onSaved: () => void;
 }) {
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(tags);
   const [error, setError] = useState<string | null>(null);
@@ -1108,10 +1214,10 @@ export function DocumentTags({
       <TagInput value={value} onChange={setValue} suggestions={suggestions.data?.items.map((item) => item.tag) ?? []} />
       <button
         className="small primary"
-        onClick={() => {
+        onClick={async () => {
           if (
             completed &&
-            !window.confirm('Este documento está pronto. Tem certeza de que deseja alterar as etiquetas? A mudança ficará na auditoria.')
+            !(await confirm('Este documento está pronto. Tem certeza de que deseja alterar as etiquetas? A mudança ficará na auditoria.'))
           )
             return;
           void api('PUT', `/documents/${documentId}/tags`, { tags: value, ...(completed ? { confirmCompleted: true } : {}) })

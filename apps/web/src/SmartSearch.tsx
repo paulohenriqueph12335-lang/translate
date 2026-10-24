@@ -15,6 +15,10 @@ export interface SmartSearchResult {
   documentId?: string;
   batchId?: string;
 }
+export interface DocumentsSearchTarget {
+  q?: string;
+  batchId?: string;
+}
 interface SearchResponse {
   query: string;
   tokens: string[];
@@ -52,7 +56,7 @@ export function SmartSearch({
   me: Me;
   onOpenTranslation?: (id: string) => void;
   onOpenAudit?: (q: string) => void;
-  onOpenDocuments?: (q: string) => void;
+  onOpenDocuments?: (target: DocumentsSearchTarget) => void;
   onOpenTeam?: (id: string) => void;
   onOpenReports?: (q: string) => void;
 }) {
@@ -106,7 +110,7 @@ export function SmartSearch({
       return;
     }
     if (item.type === 'protocols' || item.type === 'documents') {
-      onOpenDocuments?.(item.title);
+      onOpenDocuments?.(item.batchId ? { batchId: item.batchId } : { q: item.title });
       return;
     }
     if (item.translationId) onOpenTranslation?.(item.translationId);

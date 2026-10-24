@@ -9,9 +9,10 @@ import { learnLayout, type LayoutSample } from '../translation/layout-composer.j
  */
 const TTL_MS = 5 * 60_000;
 const LIMIT = 300;
-let cache: { at: number; samples: LayoutSample[] } | null = null;
+let caches = new WeakMap<Queryable, { at: number; samples: LayoutSample[] }>();
 
 export async function loadLayoutKnowledge(db: Queryable, fresh = false): Promise<LayoutSample[]> {
+  const cache = caches.get(db);
   if (!fresh && cache && Date.now() - cache.at < TTL_MS) return cache.samples;
   const rows = await db.query<{ content: unknown }>(
     `SELECT r.content FROM translation_jobs j JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision
@@ -30,11 +31,11 @@ export async function loadLayoutKnowledge(db: Queryable, fresh = false): Promise
     }>(`SELECT sample FROM ai_layout_combinations WHERE status = 'approved' ORDER BY decided_at DESC LIMIT 100`)
     .catch(() => ({ rows: [] as Array<{ sample: LayoutSample }> }));
   for (const row of combinations.rows) if (Array.isArray(row.sample?.shape)) samples.push(row.sample);
-  cache = { at: Date.now(), samples };
+  caches.set(db, { at: Date.now(), samples });
   return samples;
 }
 
 /** Para testes: esquece o que estava em memória. */
 export function forgetLayoutKnowledge() {
-  cache = null;
+  caches = new WeakMap();
 }

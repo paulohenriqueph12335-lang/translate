@@ -69,6 +69,8 @@ export interface DraftInput {
   noTranslatorNotice?: string;
   /** O que as traduções concluídas ensinam de diagramação (ADR-020), para documentos ainda desconhecidos. */
   knowledge?: LayoutSample[];
+  /** Escolha humana do tipo; omitida mantém a identificação pelas regras do original. */
+  documentCategory?: BodyModel;
 }
 
 export interface DraftOutput {
@@ -144,7 +146,7 @@ export async function draftFromFile(input: DraftInput): Promise<DraftOutput> {
       `Texto lido por OCR (confiança média ${extraction.ocr.confidence}%): confira nomes, números e datas com o original. ${notice ?? ''}`.trim();
   }
   // Modelo de corpo pelo tipo do documento (ADR-019): tabelas que fecham, rótulo e valor, espaçamento e tipo.
-  const body = applyBodyModel(draft, extractedText);
+  const body = applyBodyModel(draft, extractedText, input.documentCategory);
   const layoutChanges: Correction[] = body.changes.map((change) => ({ code: 'layout', ...change }));
   // Documento sem modelo próprio, sem exemplo do mesmo tipo ou sem formatação no original (OCR): a diagramação é
   // construída combinando os documentos conhecidos de estrutura mais parecida (ADR-020).

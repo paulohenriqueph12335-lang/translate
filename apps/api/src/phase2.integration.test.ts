@@ -194,11 +194,15 @@ describe('direcionamento pelo Diretor', () => {
     const key = (
       await pool.query<{ object_key: string }>(`SELECT object_key FROM document_versions WHERE document_id = $1`, [ids['diretoria.pdf']])
     ).rows[0]!.object_key;
-    assert.equal(key, `batches/${ids.directorBatch}/documents/${ids['diretoria.pdf']}/original`);
+    assert.ok(key.startsWith(`batches/${ids.directorBatch}/documents/${ids['diretoria.pdf']}/original-`));
     assert.equal((await assign(c.director!, ids.directorBatch!, ids.teamB!)).status, 200);
     assert.equal((await c.op1!.get(`/api/v1/batches/${ids.directorBatch}`)).status, 404);
     assert.equal((await c.opB!.get(`/api/v1/batches/${ids.directorBatch}`)).status, 200);
     assert.equal((await c.opB!.raw('GET', `/api/v1/documents/${ids['diretoria.pdf']}/original`)).statusCode, 200);
+    assert.equal(
+      (await pool.query('SELECT object_key FROM document_versions WHERE document_id=$1', [ids['diretoria.pdf']])).rows[0].object_key,
+      key,
+    );
     const audit = await pool.query<{ metadata: { from: string; to: string } }>(
       `SELECT metadata FROM audit_events WHERE action = 'batch.assigned' AND target_id = $1 ORDER BY id`,
       [ids.directorBatch],
@@ -220,7 +224,8 @@ describe('envio de conteúdo', () => {
     assert.equal(response.status, 200, JSON.stringify(response.body));
     assert.equal(response.body.document.status, 'stored');
     assert.equal(response.body.document.format, 'docx');
-    const key = `batches/${ids.batch1}/documents/${ids['contrato.docx']}/original`;
+    const key = (await pool.query('SELECT object_key FROM document_versions WHERE document_id=$1', [ids['contrato.docx']])).rows[0]
+      .object_key as string;
     assert.equal((await storage.head(key))?.size, content.length);
   });
 

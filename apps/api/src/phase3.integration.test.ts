@@ -204,6 +204,7 @@ describe('aprovação', () => {
     const returned = await c.lider!.post(`/api/v1/translations/${ids.job}/return`, {
       comment: 'Conferir as notas da 3ª série.',
       failedStages: ['review'],
+      confirmCompleted: true,
     });
     assert.equal(returned.body.translation.status, 'in_review');
     assert.equal(returned.body.translation.reviewComment, 'Conferir as notas da 3ª série.');
