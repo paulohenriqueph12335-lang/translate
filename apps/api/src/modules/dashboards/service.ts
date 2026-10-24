@@ -200,6 +200,12 @@ export function createDashboardService({ pool, now = () => new Date() }: Service
         total: number | null;
         redo_count: number;
         number: string | null;
+        protocol: string | null;
+        first_downloaded_at: Date | null;
+        last_activity_at: Date;
+        download_wait: number | null;
+        idle: number;
+        ready_wait: number | null;
       }>(
         `SELECT j.id, d.display_name AS name, u.display_name AS assignee, j.status, j.document_type, j.created_at, j.approved_at,
                 extract(epoch FROM j.processed_at - j.created_at) / 60 AS processing,
@@ -207,12 +213,22 @@ export function createDashboardService({ pool, now = () => new Date() }: Service
                 CASE WHEN j.approved_at >= j.submitted_at THEN extract(epoch FROM j.approved_at - j.submitted_at) / 60 END AS conclusion,
                 extract(epoch FROM j.approved_at - j.created_at) / 60 AS total,
                 j.redo_count,
-                j.number_label AS number
+                j.number_label AS number, b.protocol,
+                coalesce(j.first_downloaded_at,activity.first_downloaded_at) AS first_downloaded_at,
+                greatest(j.updated_at,j.last_activity_at,coalesce(activity.last_activity_at,j.updated_at)) AS last_activity_at,
+                CASE WHEN coalesce(j.first_downloaded_at,activity.first_downloaded_at) >= j.approved_at THEN extract(epoch FROM coalesce(j.first_downloaded_at,activity.first_downloaded_at)-j.approved_at)/60 END AS download_wait,
+                greatest(0,extract(epoch FROM $4::timestamptz-greatest(j.updated_at,j.last_activity_at,coalesce(activity.last_activity_at,j.updated_at)))/60) AS idle,
+                CASE WHEN j.status='approved' AND coalesce(j.first_downloaded_at,activity.first_downloaded_at) IS NULL THEN greatest(0,extract(epoch FROM $4::timestamptz-j.approved_at)/60) END AS ready_wait
            FROM translation_jobs j JOIN documents d ON d.id = j.document_id JOIN batches b ON b.id = d.batch_id
            LEFT JOIN users u ON u.id = j.assignee_id
+           LEFT JOIN LATERAL (
+             SELECT min(a.occurred_at) FILTER(WHERE a.action='translation.downloaded' AND a.occurred_at>=j.approved_at) AS first_downloaded_at,
+                    max(a.occurred_at) AS last_activity_at
+               FROM audit_events a WHERE a.target_type='translation' AND a.target_id=j.id::text
+           ) activity ON true
           WHERE b.team_id = $3 AND ((j.created_at >= $1::date AND j.created_at < $2::date + 1) OR ${approvedIn})
           ORDER BY j.created_at DESC LIMIT 300`,
-        params,
+        [...params, now()],
       ),
       pool.query<{ name: string; delivered: number; in_progress: number; avg_total: number | null; first_time: number }>(
         `SELECT (SELECT name::text FROM teams WHERE id = $3) AS name,
@@ -261,6 +277,12 @@ export function createDashboardService({ pool, now = () => new Date() }: Service
         totalMinutes: minutes(row.total),
         redoCount: row.redo_count,
         number: row.number,
+        protocol: row.protocol,
+        firstDownloadedAt: row.first_downloaded_at?.toISOString() ?? null,
+        lastActivityAt: row.last_activity_at.toISOString(),
+        minutesUntilFirstDownload: minutes(row.download_wait),
+        idleMinutes: minutes(row.idle),
+        readyWithoutDownloadMinutes: minutes(row.ready_wait),
       })),
     };
   }

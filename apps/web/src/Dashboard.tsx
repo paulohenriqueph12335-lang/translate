@@ -19,6 +19,8 @@ import { Teams } from './Teams';
 import { Translators } from './Translators';
 import { Settings, PasswordSettings } from './Settings';
 import { useUserPreferences } from './preferences';
+import { SmartSearch } from './SmartSearch';
+import { DashboardWidgets } from './DashboardWidgets';
 import { dateTime, EmbeddedSection, Wordmark, Feedback, message, Section, useLoad } from './ui';
 
 /**
@@ -51,7 +53,10 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const supervises = me.memberships.some((m) => m.role === 'leader');
   const manages = isDirector || supervises;
   // Tela inicial de cada papel: liderança → Início; Usuário → Traduzir.
-  const [place, setPlace] = useState<{ area: AreaKey; tab: string }>({ area: manages ? 'home' : 'work', tab: '' });
+  const [place, setPlace] = useState<{ area: AreaKey; tab: string }>({ area: 'home', tab: '' });
+  const [auditSearch, setAuditSearch] = useState('');
+  const [documentSearch, setDocumentSearch] = useState('');
+  const [reportSearch, setReportSearch] = useState('');
   const [panelTeam, setPanelTeam] = useState<string | null>(null);
   const [openTranslation, setOpenTranslation] = useState<string | null>(null);
   const [notificationsVersion, setNotificationsVersion] = useState(0);
@@ -96,7 +101,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const send = () => (
     <>
       {translationNotice}
-      <Documents me={me} onOpenTranslation={goToTranslation} />
+      <Documents me={me} initialSearch={documentSearch} onOpenTranslation={goToTranslation} />
     </>
   );
 
@@ -107,6 +112,32 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       title: 'Início',
       subtitle: isDirector ? 'Como a organização e cada equipe estão indo.' : 'Como a sua equipe está indo.',
       tabs: [
+        ...(!manages
+          ? [
+              {
+                key: 'mine',
+                label: 'Meu início',
+                render: () => (
+                  <Section title="Início" subtitle="Seu trabalho e os documentos que precisam de atenção.">
+                    <DashboardWidgets
+                      userId={me.user.id}
+                      namespace="member"
+                      widgets={[
+                        { id: 'workspace', title: 'Meu trabalho e pendências', content: workspace(), defaultVisible: true, wide: true },
+                        {
+                          id: 'history',
+                          title: 'Histórico de entregas',
+                          content: <History onOpenTranslation={goToTranslation} />,
+                          defaultVisible: false,
+                          wide: true,
+                        },
+                      ]}
+                    />
+                  </Section>
+                ),
+              },
+            ]
+          : []),
         ...(isDirector
           ? [
               {
@@ -114,6 +145,8 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
                 label: 'Organização',
                 render: () => (
                   <OrganizationPanel
+                    me={me}
+                    initialSearch={reportSearch}
                     onOpenTeam={(teamId) => {
                       setPanelTeam(teamId);
                       setPlace({ area: 'home', tab: 'teams' });
@@ -123,12 +156,16 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
               },
             ]
           : []),
-        {
-          key: 'teams',
-          label: isDirector ? 'Equipes' : 'Equipe',
-          render: () => <TeamPanel key={panelTeam ?? 'default'} me={me} initialTeamId={panelTeam} />,
-        },
-        { key: 'ai', label: 'Com IA × sem IA', render: () => <AiComparisonPanel me={me} /> },
+        ...(manages
+          ? [
+              {
+                key: 'teams',
+                label: isDirector ? 'Equipes' : 'Equipe',
+                render: () => <TeamPanel key={panelTeam ?? 'default'} me={me} initialTeamId={panelTeam} initialSearch={reportSearch} />,
+              },
+              { key: 'ai', label: 'Com IA × sem IA', render: () => <AiComparisonPanel me={me} /> },
+            ]
+          : []),
       ],
     },
     {
@@ -142,7 +179,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
         { key: 'mine', label: 'Meu trabalho', render: workspace },
         ...(manages ? [{ key: 'team', label: isDirector ? 'Todas as traduções' : 'Da equipe', render: translations }] : []),
         { key: 'send', label: 'Enviar documentos', render: send },
-        ...(manages ? [{ key: 'done', label: 'Concluídas', render: () => <Downloads me={me} onOpenTranslation={goToTranslation} /> }] : []),
+        { key: 'done', label: 'Entregas e ZIP', render: () => <Downloads me={me} onOpenTranslation={goToTranslation} /> },
       ],
     },
     {
@@ -161,7 +198,11 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
         { key: 'people', label: 'Pessoas', render: () => <Teams isDirector={isDirector} selfId={me.user.id} /> },
         { key: 'numbering', label: 'Numeração', render: () => <Numbering me={me} onOpenTranslation={goToTranslation} /> },
         { key: 'translators', label: 'Tradutores juramentados', render: () => <Translators canManage={supervises} /> },
-        { key: 'audit', label: 'Auditoria', render: () => <Audit me={me} /> },
+        {
+          key: 'audit',
+          label: 'Auditoria',
+          render: () => <Audit key={auditSearch} me={me} initialSearch={auditSearch} onOpenTranslation={goToTranslation} />,
+        },
       ],
     },
     {
@@ -203,7 +244,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
     ? ['home', 'work', 'team', 'settings', 'admin']
     : supervises
       ? ['home', 'work', 'team', 'settings']
-      : ['work', 'history'];
+      : ['home', 'work', 'history'];
   const footer: Area[] = [
     {
       key: 'notifications',
@@ -312,6 +353,28 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
               <h2>{current.title}</h2>
               <p className="muted">{current.subtitle}</p>
             </header>
+            {current.key === 'home' && manages && (
+              <SmartSearch
+                me={me}
+                onOpenTranslation={goToTranslation}
+                onOpenAudit={(q) => {
+                  setAuditSearch(q);
+                  go('team', 'audit');
+                }}
+                onOpenDocuments={(q) => {
+                  setDocumentSearch(q);
+                  go('work', 'send');
+                }}
+                onOpenReports={(q) => {
+                  setReportSearch(q);
+                  go('home', 'teams');
+                }}
+                onOpenTeam={(teamId) => {
+                  setPanelTeam(teamId);
+                  go('home', 'teams');
+                }}
+              />
+            )}
             <div className="tabs area-tabs" role="tablist" aria-label={current.title}>
               {current.tabs.map((item) => (
                 <button

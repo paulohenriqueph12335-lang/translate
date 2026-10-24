@@ -15,6 +15,59 @@ Testes devem ser acrescentados junto com a funcionalidade e usar documentos sint
 | E2E         | Fluxo de cadastro/aprovação até download                      |
 | Carga       | Concorrência, CPU, memória, tamanho de lote e documentos      |
 
+## Fluxo operacional e pares reais (ADR-025)
+
+Os testes novos usam dados sintéticos e bancos descartáveis separados:
+
+- `apps/api/src/audit-search-upgrade.integration.test.ts`: autorização de Diretor/Líder/Operador, 65 erros contados além da página, isolamento de equipes, protocolo com múltiplos tokens sem acento, causas, fases, idiomas, pendências e espera entre conclusão e primeiro download.
+- `apps/api/src/batch-protocols.integration.test.ts`: protocolo/justificativa, escolha de inspeção para remessas grandes, colisões de nomes, ZIP Word/PDF, acesso, falhas de leitura/conversão e registro atômico dos downloads com reautorização.
+- `apps/api/src/pattern-trials.integration.test.ts`: histórico persistido do ensaio, identidade por digest, decisão única por revisão, fases e motivo, três reprovações, quarto processamento bloqueado, novo formato com diferença estrutural e Word regenerado; ausência de conteúdo/binário/nome do arquivo no banco. Inclui revalidação do layout final e substituição de um preset pendente quando o resultado continua igual.
+- `apps/api/src/lifecycle-upgrade.integration.test.ts`: inspeção vinculada à revisão, fases reprovadas, terceira reprovação, novo formato estrutural, confirmação de documento pronto, alterações de idioma e aceitação das 20 direções no banco.
+- `packages/core/src/translation/machine/multilingual-live.test.ts`: teste opt-in sem banco, que usa o LibreTranslate local real. Sem a opção explícita, fica pulado e não acrescenta dependência de rede à suíte normal.
+
+Para executar apenas auditoria/pesquisa, a partir de `apps/api`, com PostgreSQL e S3 locais ativos:
+
+```powershell
+node --env-file-if-exists=../../.env --import tsx --test src/audit-search-upgrade.integration.test.ts src/modules/search/search-tokens.test.ts
+```
+
+Para comprovar os pares **FR→ES e ES→IT** com DOCX sintético, da raiz do repositório:
+
+```powershell
+$env:RUN_LIVE_TRANSLATION_TESTS = 'true'
+$env:LIVE_LIBRETRANSLATE_URL = 'http://localhost:15050'
+$env:LIVE_TRANSLATION_EVIDENCE_DIR = (Join-Path (Get-Location) 'tmp/multilingual-live')
+Push-Location packages/core
+node --import tsx --test src/translation/machine/multilingual-live.test.ts
+Pop-Location
+Remove-Item Env:RUN_LIVE_TRANSLATION_TESTS
+Remove-Item Env:LIVE_LIBRETRANSLATE_URL
+Remove-Item Env:LIVE_TRANSLATION_EVIDENCE_DIR
+```
+
+O teste consulta `/languages`, chama o adaptador real, cria um DOCX original, executa `extractFile → draftFromFile → renderPlainDocx` e extrai o texto do Word final para conferir conteúdo e par. Exige origem `machine`, tradução sem memória e nenhuma falha do provedor. Não usa IA nem documento real. Se a execução explícita não encontrar o serviço/par, falha; não transforma indisponibilidade em sucesso.
+
+Em **2026-10-24**, os dois casos reais passaram. O Word FR→ES continha “Hola, este documento confirma la recepción del pago.” e o ES→IT continha “Ciao, questo documento conferma la ricezione del pagamento.”. As evidências JSON registram a resposta do provedor e o texto gerado. São dois pares verificados de um catálogo com 20 direções possíveis; não constituem validação de qualidade de todos os documentos ou de todos os pares.
+
+Na mesma data, um ensaio local de migração partiu do schema até `0024`, com três trabalhos concluídos e seis eventos históricos de download, e aplicou `0025` a `0028`. Conferiu exclusão de eventos anteriores à aprovação e de `inline=true`, primeiro/último download, contagem e preservação da atividade histórica. A segunda execução não aplicou novas migrações. Eventos legados de PDF sem indicação `inline` permanecem indistinguíveis de entregas para baixar e podem compor o marco histórico.
+
+### Registro final de QA automatizado — 24/10/2026
+
+| Execução                    | Aprovados | Alcance                                                                        |
+| --------------------------- | --------: | ------------------------------------------------------------------------------ |
+| API completa                |       267 | Serviços/HTTP, autorização, banco e armazenamento; execução com concorrência 2 |
+| Core                        |        70 | Regras, extração, tradução, revisão e geração documental                       |
+| Web                         |        11 | Comportamentos automatizados da interface                                      |
+| Provedor local real, opt-in |         2 | FR→ES e ES→IT com DOCX sintético e Word gerado, sem IA                         |
+
+Os sete casos de revisão persistida dos ensaios e os oito casos de auditoria/pesquisa estão incluídos nos 267 testes da API; não devem ser somados novamente. A execução final da API encerrou com zero falhas e zero testes pulados. Os dois casos do provedor real são uma execução explícita separada.
+
+As regras de remessas grandes permanecem: decisão explícita a partir de **20 arquivos**, amostra dos **primeiros até 10 documentos elegíveis** e conferência vinculada à revisão vigente. Os limites de ZIP permanecem **100 traduções**, **50 MiB por arquivo** e **128 MiB no conteúdo total**. A auditoria da entrega só é gravada após todos os arquivos estarem preparados, a reautorização concluir e os recibos de revisão/chave/SHA corresponderem aos artefatos vigentes, com os eventos individuais/agrupados na mesma transação. Alteração durante a preparação retorna `409 artifact_changed`; falha antes do commit desfaz o registro completo. O recebimento pelo navegador e o salvamento em disco não são confirmados por esses marcos.
+
+A comparação usa o visualizador PDF.js local, sem plugin PDF, com página anterior/próxima, ajuste/zoom e texto da página. A validação visual local usou contas e documentos sintéticos em banco separado: pesquisa por protocolo no Início, ampliação de painéis, relatório de tempos do Líder, fases, renderização real do original e Word, zoom, aprovação, registro de novo formato após três reprovações e filtro de emergências. O navegador baixou Word com ordinal `(01)` e ZIPs Word/PDF; a inspeção dos pacotes confirmou as duas saídas distintas nas pastas `ABC-10003/FR-ES/Word` e `PDF`.
+
+Esse roteiro manual não é uma suíte E2E automatizada completa. A confirmação nativa de alteração de idioma interrompeu o controle do navegador de testes; as guardas, a alteração confirmada e a preservação de versões foram verificadas pelos testes HTTP. Não se afirma validação visual de todos os tamanhos de tela. A publicação local foi verificada por readiness HTTP, heartbeat do worker com LibreTranslate, migrações `0025`–`0028` e presença do visualizador/recibos nos containers atualizados.
+
 ## Critérios por alteração
 
 - Build TypeScript, tipos e lint aprovados.

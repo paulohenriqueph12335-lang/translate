@@ -9,7 +9,7 @@ import type { ObjectStorage } from '@tradutor/core/storage';
 import { approvedTranscriptDraft } from '@tradutor/core/fixtures';
 import { MachineTranslationFailed, type MachineTranslator } from '@tradutor/core/translation';
 import { bootstrapDirector } from './modules/identity/bootstrap.js';
-import { createTestApp, swornTranslator, TestClient, submitReady, allowTranslatorNotes } from './test/helpers.js';
+import { createTestApp, swornTranslator, TestClient, submitReady, allowTranslatorNotes, inspectReady } from './test/helpers.js';
 
 /**
  * Fase 3 (ADR-007): rascunho → revisão → aprovação humana → DOCX juramentado.
@@ -201,13 +201,27 @@ describe('aprovação', () => {
   });
 
   it('Líder devolve com comentário; a revisão volta para a equipe', async () => {
-    const returned = await c.lider!.post(`/api/v1/translations/${ids.job}/return`, { comment: 'Conferir as notas da 3ª série.' });
+    const returned = await c.lider!.post(`/api/v1/translations/${ids.job}/return`, {
+      comment: 'Conferir as notas da 3ª série.',
+      failedStages: ['review'],
+    });
     assert.equal(returned.body.translation.status, 'in_review');
     assert.equal(returned.body.translation.reviewComment, 'Conferir as notas da 3ª série.');
+    const current = await c.op!.get(`/api/v1/translations/${ids.job}`);
+    assert.equal(
+      (
+        await c.op!.request('PUT', `/api/v1/translations/${ids.job}/draft`, {
+          baseRevision: current.body.draft.revision,
+          draft: approvedTranscriptDraft,
+        })
+      ).status,
+      200,
+    );
     assert.equal((await submitReady(c.op!, ids.job)).status, 200);
   });
 
   it('não conclui sem escolher o tradutor juramentado; só Supervisor cadastra tradutores', async () => {
+    await inspectReady(c.lider!, ids.job!);
     const response = await c.lider!.post(`/api/v1/translations/${ids.job}/approve`);
     assert.equal(response.status, 409);
     assert.equal(response.body.error.details.reason, 'translator_required');
@@ -237,6 +251,7 @@ describe('aprovação', () => {
     assert.equal(second.status, 409); // já há tradução aprovada ativa para EN
     const job = await freshJob('historico-2.pdf', '2');
     await processNextJob(processing());
+    await inspectReady(c.director!, job);
     const blocked = await c.director!.post(`/api/v1/translations/${job}/approve`, { ...translator.next() });
     assert.equal(blocked.status, 409);
     assert.ok(blocked.body.error.details.issues.length > 0);

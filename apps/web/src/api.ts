@@ -51,6 +51,8 @@ export interface Session {
 }
 
 export interface AuditEvent {
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  failureCode: string | null;
   id: string;
   occurredAt: string;
   actor: { id: string; displayName: string | null } | null;
@@ -130,12 +132,18 @@ export interface DocumentItem {
   storedAt: string | null;
   updatedAt: string;
   /** Traduções do documento (presentes no detalhe do lote). */
-  translations?: Array<{ id: string; targetLanguage: 'pt' | 'en'; status: string }>;
+  translations?: Array<{ id: string; targetLanguage: Language; status: string }>;
 }
 
 /** Documento enviado com as traduções geradas a partir dele (busca de documentos e área de downloads). */
 export interface DocumentSearchItem extends Omit<DocumentItem, 'translations'> {
-  batch: { id: string; name: string | null };
+  batch: {
+    id: string;
+    name: string | null;
+    protocol?: string | null;
+    inspectionMode?: 'all' | 'sample';
+    inspectionSampleSize?: number | null;
+  };
   team: { id: string; name: string } | null;
   uploadedBy: { id: string; displayName: string };
   translations: Array<{
@@ -152,6 +160,10 @@ export interface DocumentSearchItem extends Omit<DocumentItem, 'translations'> {
 export interface Batch {
   id: string;
   name: string | null;
+  protocol: string | null;
+  protocolOmissionReason: string | null;
+  inspectionMode: 'all' | 'sample';
+  inspectionSampleSize: number | null;
   /** `null` enquanto o lote do Diretor aguarda direcionamento. */
   team: { id: string; name: string } | null;
   assignedAt: string | null;
@@ -305,7 +317,13 @@ export interface TranslationSummary {
   preferredTranslator: { id: string; name: string } | null;
   pageCount: number | null;
   document: { id: string; name: string; tags: string[] };
-  batch: { id: string; name: string | null };
+  batch: {
+    id: string;
+    name: string | null;
+    protocol: string | null;
+    inspectionMode: 'all' | 'sample';
+    inspectionSampleSize: number | null;
+  };
   team: { id: string; name: string } | null;
   sourceLanguage: Language;
   targetLanguage: Language;
@@ -320,6 +338,29 @@ export interface TranslationSummary {
   /** Tradutor juramentado escolhido na conclusão e edição da máscara usada. */
   translator: { id: string; name: string; maskEdition: number | null } | null;
   redoCount: number;
+  reviewLifecycle: {
+    consecutiveRejections: number;
+    blocked: boolean;
+    formatGeneration: number;
+    inspectionRequired: boolean;
+    lastInspectionRevision: number | null;
+    failedStages: Stage[];
+    isSampleDocument: boolean;
+    sampleCovered: boolean;
+  };
+  timing: {
+    estimatedSeconds: number;
+    estimateBasis: string;
+    estimateSamples: number;
+    processedAt: string | null;
+    completedAt: string | null;
+    firstDownloadedAt: string | null;
+    lastDownloadedAt: string | null;
+    completionSeconds: number | null;
+    waitingDownloadSeconds: number | null;
+    idleSeconds: number;
+    lastActivityAt: string;
+  };
   annulled: { at: string; reason: string | null } | null;
   pendingNumberingRequest: string | null;
   documentType: string | null;
@@ -346,6 +387,7 @@ export interface TranslationSummary {
     requestNumbering: boolean;
     /** Aprovar o Word: leva à próxima fase (ADR-017). */
     accept: boolean;
+    registerNewFormat: boolean;
   };
 }
 
@@ -359,6 +401,7 @@ export interface PreviewFrame {
 }
 
 export interface TranslationDetail {
+  inspections: InspectionEvent[];
   rules: TranslationRules;
   checklist: ChecklistItem[];
   translation: TranslationSummary & {
@@ -380,6 +423,18 @@ export interface TranslationDetail {
   } | null;
 }
 
+export interface InspectionEvent {
+  id: string;
+  revision: number;
+  formatGeneration: number;
+  decision: 'approved' | 'rejected';
+  scope: 'all' | 'sample';
+  failedStages: Stage[];
+  comment: string | null;
+  inspectedAt: string;
+  inspectedBy: string;
+}
+
 export interface Correction {
   code: string;
   block: number;
@@ -396,6 +451,7 @@ export interface AutoReviewResult {
 }
 
 export interface TranslationFacets {
+  statusCounts: Partial<Record<TranslationStatus, number>>;
   documentTypes: string[];
   tags: string[];
   approvers: Array<{ id: string; name: string }>;
@@ -608,6 +664,12 @@ export interface TeamDashboard {
     reviewMinutes: number | null;
     conclusionMinutes: number | null;
     totalMinutes: number | null;
+    protocol: string | null;
+    firstDownloadedAt: string | null;
+    lastActivityAt: string;
+    minutesUntilFirstDownload: number | null;
+    idleMinutes: number;
+    readyWithoutDownloadMinutes: number | null;
     redoCount: number;
     number: string | null;
   }>;
@@ -641,13 +703,15 @@ export interface GlossaryEntry {
 export const languageLabel: Record<Language, string> = { pt: 'Português', en: 'Inglês', fr: 'Francês', it: 'Italiano', es: 'Espanhol' };
 export const LANGUAGES: Language[] = ['pt', 'en', 'fr', 'it', 'es'];
 
-/** Pares de idiomas atendidos, organizados pelo idioma de destino (ADR-015): do português e para o português. */
-export const LANGUAGE_PAIRS: Array<{ value: string; source: Language; target: Language; label: string }> = (
-  ['en', 'fr', 'it', 'es'] as Language[]
-).flatMap((other) => [
-  { value: `pt-${other}`, source: 'pt' as Language, target: other, label: `Português → ${languageLabel[other]}` },
-  { value: `${other}-pt`, source: other, target: 'pt' as Language, label: `${languageLabel[other]} → Português` },
-]);
+/** Todas as vinte direções entre os cinco idiomas. */
+export const LANGUAGE_PAIRS: Array<{ value: string; source: Language; target: Language; label: string }> = LANGUAGES.flatMap((source) =>
+  LANGUAGES.filter((target) => target !== source).map((target) => ({
+    value: `${source}-${target}`,
+    source,
+    target,
+    label: `${languageLabel[source]} → ${languageLabel[target]}`,
+  })),
+);
 export const splitPair = (value: string) => value.split('-') as [Language, Language];
 
 // ---------- Modalidades de tradução (ADR-015) ----------
@@ -725,6 +789,17 @@ export const translationStatusLabel: Record<TranslationStatus, string> = {
 
 /** Rótulos legíveis das ações da auditoria; ações sem rótulo aparecem pelo código. */
 export const auditActionLabel: Record<string, string> = {
+  'translation.inspected': 'Conferência comparativa registrada',
+  'translation.inspection_approved': 'Comparação do original e Word aprovada',
+  'translation.inspection_rejected': 'Documento reprovado na comparação',
+  'translation.review_blocked': 'Três reprovações consecutivas: novo formato obrigatório',
+  'translation.format_registered': 'Nova forma de formatação registrada',
+  'translation.languages_changed': 'Idiomas corrigidos e documento reenfileirado',
+  'translation.completed_invalidated': 'Versão concluída invalidada após confirmação',
+  'translation.archive_downloaded': 'Pacote de traduções baixado',
+  'batch.protocol_omitted': 'Remessa sem protocolo, com justificativa',
+  'batch.inspection_selected': 'Inspeção completa ou por amostra escolhida',
+  'document.previewed': 'Original visualizado para comparação',
   'auth.login': 'Entrou no sistema',
   'auth.login_failed': 'Tentativa de login recusada',
   'auth.logout': 'Saiu do sistema',
@@ -805,6 +880,7 @@ export const auditCategoryLabel: Record<string, string> = {
 };
 
 export const failureLabel: Record<string, string> = {
+  consecutive_review_errors: 'Três reprovações consecutivas',
   unsupported_format: 'Formato sem suporte nesta fase',
   document_unavailable: 'Documento indisponível',
   attempts_exhausted: 'Tentativas esgotadas',
@@ -854,6 +930,9 @@ export interface PatternTest {
   draft: DraftContent | null;
   durationMs: number;
   previewDocx: string | null;
+  previewPdf?: string | null;
+  originalPreviewPdf?: string | null;
+  previewError?: string | null;
 }
 
 // ---------- Gerenciamento AI (ADR-021) ----------

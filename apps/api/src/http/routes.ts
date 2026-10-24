@@ -5,6 +5,8 @@ import type { Config } from '../config.js';
 import type { AuthenticatedContext, RequestContext } from '../modules/context.js';
 import type { AiService } from '../modules/ai/service.js';
 import type { AuditService } from '../modules/audit/service.js';
+import type { SearchService } from '../modules/search/service.js';
+import type { ArchiveService } from '../modules/documents/archive.js';
 import { ALLOWED_EXTENSIONS } from '../modules/documents/format.js';
 import type { DocumentService } from '../modules/documents/service.js';
 import type { NotificationService } from '../modules/notifications/service.js';
@@ -46,6 +48,8 @@ export interface Services {
   users: UserAdminService;
   teams: TeamService;
   audit: AuditService;
+  search: SearchService;
+  archives: ArchiveService;
   documents: DocumentService;
   translations: TranslationService;
   notifications: NotificationService;
@@ -350,7 +354,45 @@ export function registerRoutes(
     return reply.code(204).send();
   });
 
-  // ---------- Auditoria (Diretor) ----------
+  // ---------- Auditoria e pesquisa no escopo da liderança ----------
+  const auditFilters = {
+    action: z.string().max(64).optional(),
+    category: z
+      .string()
+      .regex(/^[a-z_]{1,32}$/)
+      .optional(),
+    actorId: uuid.optional(),
+    system: flag.optional(),
+    teamId: uuid.optional(),
+    targetType: z.string().max(32).optional(),
+    targetId: z.string().max(64).optional(),
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+    q: z.string().trim().max(200).optional(),
+    severity: z.enum(['info', 'warning', 'error', 'critical']).optional(),
+    errorsOnly: flag.optional(),
+    failureCode: z.string().trim().max(100).optional(),
+  };
+  app.get('/api/v1/search', async (request) =>
+    services.search.search(
+      auth(request),
+      parse(
+        z.strictObject({ q: z.string().trim().min(2).max(200), limit: z.coerce.number().int().min(1).max(30).default(10) }),
+        request.query,
+      ),
+    ),
+  );
+  app.get('/api/v1/audit-events/summary', async (request) =>
+    services.audit.summary(auth(request), defined(parse(z.strictObject(auditFilters), request.query))),
+  );
+  app.get('/api/v1/audit-events/incidents', async (request) =>
+    services.audit.incidents(
+      auth(request),
+      defined(
+        parse(z.strictObject({ teamId: uuid.optional(), limit: z.coerce.number().int().min(1).max(100).default(20) }), request.query),
+      ),
+    ),
+  );
   app.get('/api/v1/audit-events', async (request) => {
     const ctx = auth(request);
     const query = parse(
@@ -369,6 +411,9 @@ export function registerRoutes(
         to: isoDate.optional(),
         q: z.string().trim().max(100).optional(),
         ...pageQuery,
+        severity: auditFilters.severity,
+        errorsOnly: auditFilters.errorsOnly,
+        failureCode: auditFilters.failureCode,
       }),
       request.query,
     );
@@ -386,6 +431,9 @@ export function registerRoutes(
       z.strictObject({
         teamId: uuid.optional(),
         name: z.string().trim().min(1).max(120).optional(),
+        protocol: z.string().trim().min(3).max(80).optional(),
+        protocolOmissionReason: z.string().trim().min(10).max(1000).optional(),
+        inspectionMode: z.enum(['all', 'sample']).optional(),
         // Todo documento enviado é processado (ADR-010); sem par informado, PT → EN.
         translation: z
           .strictObject({ sourceLanguage: z.enum(LANGUAGES), targetLanguage: z.enum(LANGUAGES) })
@@ -419,6 +467,9 @@ export function registerRoutes(
       ctx,
       {
         files: body.files,
+        ...(body.protocol ? { protocol: body.protocol } : {}),
+        ...(body.protocolOmissionReason ? { protocolOmissionReason: body.protocolOmissionReason } : {}),
+        ...(body.inspectionMode ? { inspectionMode: body.inspectionMode } : {}),
         translation: body.translation,
         ...(body.tags ? { tags: body.tags } : {}),
         ...(body.mode ? { mode: body.mode } : {}),
@@ -479,8 +530,8 @@ export function registerRoutes(
   app.post('/api/v1/batches/:id/assign', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    const body = parse(z.strictObject({ teamId: uuid }), request.body);
-    return services.documents.assignBatch(ctx, id, body.teamId);
+    const body = parse(z.strictObject({ teamId: uuid, confirmCompleted: z.boolean().optional() }), request.body);
+    return services.documents.assignBatch(ctx, id, body.teamId, body.confirmCompleted ?? false);
   });
 
   app.post('/api/v1/batches/:id/cancel', async (request) => {
@@ -516,8 +567,8 @@ export function registerRoutes(
   app.put('/api/v1/documents/:id/tags', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    const body = parse(z.strictObject({ tags }), request.body);
-    return { document: await services.documents.updateTags(ctx, id, body.tags) };
+    const body = parse(z.strictObject({ tags, confirmCompleted: z.boolean().optional() }), request.body);
+    return { document: await services.documents.updateTags(ctx, id, body.tags, body.confirmCompleted) };
   });
 
   app.get('/api/v1/tags', async (request) => ({ items: await services.documents.listTags(auth(request)) }));
@@ -538,6 +589,37 @@ export function registerRoutes(
       .header('content-disposition', contentDisposition(file.name))
       .header('x-content-type-options', 'nosniff')
       .send(file.stream);
+  });
+
+  app.get('/api/v1/documents/:id/preview', async (request, reply) => {
+    const { id } = parse(idParams, request.params);
+    const file = await services.documents.previewOriginal(auth(request), id);
+    return reply
+      .header('content-type', file.contentType)
+      .header('content-disposition', contentDisposition(file.name, 'inline'))
+      .header('content-security-policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")
+      .header('x-content-type-options', 'nosniff')
+      .send(file.buffer);
+  });
+
+  app.post('/api/v1/translation-archives', async (request, reply) => {
+    const body = parse(
+      z
+        .strictObject({
+          translationIds: z.array(uuid).min(1).max(100).optional(),
+          batchId: uuid.optional(),
+          format: z.enum(['docx', 'pdf']),
+        })
+        .refine((input) => !!input.batchId !== !!input.translationIds?.length, 'Escolha uma remessa ou uma seleção de traduções'),
+      request.body,
+    );
+    const file = await services.archives.exportArchive(auth(request), defined(body));
+    return reply
+      .header('content-type', file.contentType)
+      .header('content-disposition', contentDisposition(file.name))
+      .header('x-content-type-options', 'nosniff')
+      .header('x-archive-count', String(file.count))
+      .send(file.buffer);
   });
 
   // O conteúdo chega como fluxo bruto; o limite global de corpo não se aplica aqui, e o serviço impõe o tamanho declarado.
@@ -587,6 +669,7 @@ export function registerRoutes(
         targetLanguage: language,
         mode: z.enum(['auto', 'manual']).default('auto'),
         translationMode: z.enum(MODES).optional(),
+        confirmCompleted: z.boolean().optional(),
       }),
       request.body,
     );
@@ -613,10 +696,11 @@ export function registerRoutes(
           .min(1)
           .max(100),
         checked: z.boolean(),
+        confirmCompleted: z.boolean().optional(),
       }),
       request.body,
     );
-    return services.translations.setChecks(ctx, id, body);
+    return services.translations.setChecks(ctx, id, defined(body));
   });
 
   app.get('/api/v1/translations', async (request) => {
@@ -644,7 +728,7 @@ export function registerRoutes(
         createdTo: isoDate.optional(),
         approvedFrom: isoDate.optional(),
         approvedTo: isoDate.optional(),
-        q: z.string().trim().max(100).optional(),
+        q: z.string().trim().max(200).optional(),
         ...pageQuery,
       }),
       request.query,
@@ -658,6 +742,58 @@ export function registerRoutes(
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
     return services.translations.get(ctx, id);
+  });
+
+  const changeConfirmation = { confirmCompleted: z.boolean().optional(), reason: z.string().trim().min(5).max(2000).optional() };
+  app.put('/api/v1/translations/:id/languages', async (request) => {
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z
+        .strictObject({
+          sourceLanguage: language,
+          targetLanguage: language,
+          reason: z.string().trim().min(5).max(2000),
+          confirmCompleted: z.boolean().optional(),
+        })
+        .refine((value) => value.sourceLanguage !== value.targetLanguage, 'Os idiomas devem ser diferentes'),
+      request.body,
+    );
+    return services.translations.changeLanguages(auth(request), id, defined(body));
+  });
+  app.get('/api/v1/translations/:id/inspections', async (request) => {
+    const { id } = parse(idParams, request.params);
+    return { items: await services.translations.inspectionHistory(auth(request), id) };
+  });
+  app.post('/api/v1/translations/:id/inspections', async (request) => {
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        decision: z.enum(['approved', 'rejected']),
+        baseRevision: z.number().int().min(1),
+        failedStages: z
+          .array(z.enum(['correction', 'translation', 'layout', 'review']))
+          .max(4)
+          .default([]),
+        comment: z.string().trim().max(2000).optional(),
+        scope: z.enum(['all', 'sample']).default('all'),
+        reprocess: z.boolean().optional(),
+      }),
+      request.body,
+    );
+    return services.translations.recordInspection(auth(request), id, defined(body));
+  });
+  app.post('/api/v1/translations/:id/formats', async (request) => {
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        name: z.string().trim().min(3).max(120),
+        explanation: z.string().trim().min(10).max(2000),
+        baseRevision: z.number().int().min(1),
+        draft: Draft,
+      }),
+      request.body,
+    );
+    return services.translations.registerNewFormat(auth(request), id, body);
   });
 
   app.get('/api/v1/translations/:id/revisions', async (request) => {
@@ -703,7 +839,20 @@ export function registerRoutes(
   app.post('/api/v1/translations/:id/return', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    const body = parse(z.strictObject({ comment: z.string().trim().min(3).max(2000), reprocess: z.boolean().optional() }), request.body);
+    const body = parse(
+      z.strictObject({
+        comment: z.string().trim().min(3).max(2000),
+        reprocess: z.boolean().optional(),
+        baseRevision: z.number().int().min(1).optional(),
+        failedStages: z
+          .array(z.enum(['correction', 'translation', 'layout', 'review']))
+          .min(1)
+          .max(4)
+          .optional(),
+        scope: z.enum(['all', 'sample']).optional(),
+      }),
+      request.body,
+    );
     return services.translations.returnForChanges(ctx, id, defined(body));
   });
 
@@ -734,14 +883,15 @@ export function registerRoutes(
   app.post('/api/v1/translations/:id/claim', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    return services.translations.claim(ctx, id);
+    const body = parse(z.strictObject({ confirmCompleted: z.boolean().optional() }), request.body ?? {});
+    return services.translations.claim(ctx, id, defined(body));
   });
 
   app.put('/api/v1/translations/:id/assignee', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    const body = parse(z.strictObject({ userId: uuid }), request.body);
-    return services.translations.reassign(ctx, id, body.userId);
+    const body = parse(z.strictObject({ userId: uuid, confirmCompleted: z.boolean().optional() }), request.body);
+    return services.translations.reassign(ctx, id, body.userId, defined({ confirmCompleted: body.confirmCompleted }));
   });
 
   app.post('/api/v1/translations/:id/numbering-requests', async (request, reply) => {
@@ -830,7 +980,7 @@ export function registerRoutes(
   app.post('/api/v1/translations/:id/reprocess', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    return services.translations.reprocess(ctx, id);
+    return services.translations.reprocess(ctx, id, defined(parse(z.strictObject(changeConfirmation), request.body)));
   });
 
   app.get('/api/v1/translations/:id/preview', async (request, reply) => {
@@ -866,22 +1016,35 @@ export function registerRoutes(
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
     const query = parse(z.strictObject({ format: z.enum(['docx', 'pdf']).optional(), download: flag.optional() }), request.query);
-    const file = await services.translations.openFinal(ctx, id);
+    const file = await services.translations.openFinal(ctx, id, { trackDownload: false });
+    const parts: Buffer[] = [];
+    let bytes = 0;
+    for await (const chunk of file.stream as Readable) {
+      const part = Buffer.from(chunk as Uint8Array);
+      bytes += part.length;
+      if (bytes > 128 * 1024 * 1024) {
+        file.stream.destroy();
+        throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'O documento excede o limite de 128 MB para entrega');
+      }
+      parts.push(part);
+    }
+    const docx = Buffer.concat(parts);
     if (query.format === 'pdf') {
-      const chunks: Buffer[] = [];
-      for await (const chunk of file.stream as Readable) chunks.push(chunk as Buffer);
-      const pdf = await docxToPdf(config.CONVERTER_URL, Buffer.concat(chunks), file.name);
+      const pdf = await docxToPdf(config.CONVERTER_URL, docx, file.name);
+      if (query.download)
+        await services.translations.recordDownload(ctx, id, { format: 'pdf', delivery: 'single', expected: file.receipt });
       return reply
         .header('content-type', 'application/pdf')
         .header('content-disposition', contentDisposition(pdfName(file.name), query.download ? 'attachment' : 'inline'))
         .header('x-content-type-options', 'nosniff')
         .send(pdf);
     }
+    await services.translations.recordDownload(ctx, id, { format: 'docx', delivery: 'single', expected: file.receipt });
     return reply
       .header('content-type', file.contentType)
       .header('content-disposition', contentDisposition(file.name))
       .header('x-content-type-options', 'nosniff')
-      .send(file.stream);
+      .send(docx);
   });
 
   // ---------- Tradutores juramentados (ADR-012) ----------
@@ -924,6 +1087,7 @@ export function registerRoutes(
     free: z.boolean().optional(),
     protocolValue: z.number().min(0).max(1_000_000).nullable().optional(),
     translatorFee: z.number().min(0).max(1_000_000).nullable().optional(),
+    confirmCompleted: z.boolean().optional(),
   });
 
   app.get('/api/v1/sworn-translators/:id/numbering', async (request) => {
@@ -1044,7 +1208,8 @@ export function registerRoutes(
   app.post('/api/v1/translations/:id/numbering/authorize-zero-protocol', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    return services.translatorNumbering.authorizeZeroProtocol(ctx, id);
+    const body = parse(z.strictObject({ confirmCompleted: z.boolean().optional() }), request.body ?? {});
+    return services.translatorNumbering.authorizeZeroProtocol(ctx, id, defined(body));
   });
 
   app.get('/api/v1/sworn-translators/:id', async (request) => {
@@ -1092,6 +1257,42 @@ export function registerRoutes(
   // ---------- Padrões de documento (ADR-017) ----------
   app.get('/api/v1/document-patterns', async (request) => services.patterns.list(auth(request)));
 
+  app.get('/api/v1/document-patterns/trials/:id', async (request) => {
+    const { id } = parse(idParams, request.params);
+    return services.patterns.getTrial(auth(request), id);
+  });
+
+  app.post('/api/v1/document-patterns/trials/:id/inspect', async (request) => {
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        baseRevision: z.number().int().min(1),
+        decision: z.enum(['approved', 'rejected']),
+        failedStages: z
+          .array(z.enum(['correction', 'translation', 'layout', 'review']))
+          .max(4)
+          .default([]),
+        comment: z.string().trim().max(2000).optional(),
+      }),
+      request.body,
+    );
+    return services.patterns.inspectTrial(auth(request), id, defined(body));
+  });
+
+  app.post('/api/v1/document-patterns/trials/:id/formats', async (request) => {
+    const { id } = parse(idParams, request.params);
+    const body = parse(
+      z.strictObject({
+        baseRevision: z.number().int().min(1),
+        name: z.string().trim().min(3).max(120),
+        explanation: z.string().trim().min(10).max(2000),
+        layoutPreset: z.enum(['source', 'left', 'justify', 'center']),
+      }),
+      request.body,
+    );
+    return services.patterns.registerTrialFormat(auth(request), id, body);
+  });
+
   // Teste de um documento novo: o arquivo chega como binário e não é guardado.
   void app.register(async (scope) => {
     scope.addContentTypeParser(
@@ -1102,14 +1303,33 @@ export function registerRoutes(
     scope.post('/api/v1/document-patterns/test', async (request) => {
       const ctx = auth(request);
       const query = parse(
-        z.strictObject({ sourceLanguage: z.enum(LANGUAGES), targetLanguage: z.enum(LANGUAGES), mode: z.enum(MODES).default('sworn') }),
+        z.strictObject({
+          sourceLanguage: z.enum(LANGUAGES),
+          targetLanguage: z.enum(LANGUAGES),
+          mode: z.enum(MODES).default('sworn'),
+          includePreview: flag.optional(),
+          layoutPreset: z.enum(['source', 'left', 'justify', 'center']).optional(),
+        }),
         request.query,
       );
       if (!Buffer.isBuffer(request.body) || !request.body.length)
         throw new AppError(400, 'VALIDATION_FAILED', 'Envie o arquivo do documento');
       const raw = request.headers['x-file-name'];
       const name = typeof raw === 'string' ? decodeURIComponent(raw).trim().slice(0, 255) : 'documento';
-      return services.patterns.test(ctx, { data: request.body, name }, query);
+      const result = await services.patterns.test(ctx, { data: request.body, name }, query);
+      if (!query.includePreview) return result;
+      let previewPdf: string | null = null;
+      let originalPreviewPdf: string | null = null;
+      let previewError: string | null = null;
+      try {
+        if (result.previewDocx)
+          previewPdf = (await docxToPdf(config.CONVERTER_URL, Buffer.from(result.previewDocx, 'base64'), 'teste.docx')).toString('base64');
+        if (result.format === 'docx' || result.format === 'pptx')
+          originalPreviewPdf = (await docxToPdf(config.CONVERTER_URL, request.body, name)).toString('base64');
+      } catch (caught) {
+        previewError = caught instanceof AppError ? caught.message : 'Prévia indisponível; confira os arquivos por download.';
+      }
+      return { ...result, previewPdf, originalPreviewPdf, previewError };
     });
   });
 
@@ -1403,7 +1623,7 @@ export function registerRoutes(
   app.post('/api/v1/ai/layout-combinations/:id/approve', async (request) => {
     const ctx = auth(request);
     const { id } = parse(idParams, request.params);
-    return services.ai.decide(ctx, id, true);
+    return services.ai.decide(ctx, id, true, defined(parse(z.strictObject(changeConfirmation), request.body)));
   });
   app.post('/api/v1/ai/layout-combinations/:id/reject', async (request) => {
     const ctx = auth(request);

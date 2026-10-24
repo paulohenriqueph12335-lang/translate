@@ -17,6 +17,7 @@ import { isDirector } from '../access/policy.js';
 import { AppError } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
 import { detectFormat } from '../documents/format.js';
+import { applyTrialPreset, createPatternTrialService, trialDto, type LayoutPreset } from './trials.js';
 
 /**
  * Padrões de documento (ADR-017): o que o sistema já fez de cada tipo e, para um tipo novo, um teste que diz se ele
@@ -50,10 +51,9 @@ interface PatternRow {
   modes: Mode[];
 }
 
-export function createPatternService({
-  pool,
-  machine = {},
-}: ServiceDeps & { machine?: Partial<Record<MachineProviderName, MachineTranslator>> }) {
+export function createPatternService(deps: ServiceDeps & { machine?: Partial<Record<MachineProviderName, MachineTranslator>> }) {
+  const { pool, machine = {} } = deps;
+  const trials = createPatternTrialService(deps);
   const teamsOf = (ctx: AuthenticatedContext) => (isDirector(ctx.actor) ? null : [...ctx.actor.memberships.keys()]);
 
   async function list(ctx: AuthenticatedContext) {
@@ -115,13 +115,14 @@ export function createPatternService({
     };
   }
 
-  /** Testa um documento novo: o mesmo caminho do worker (extração, tradução, revisão automática, checagens), sem gravar nada. */
+  /** O arquivo/texto não é guardado. Persistem apenas digests, diagramação sem texto e decisões do ensaio. */
   async function test(
     ctx: AuthenticatedContext,
     file: { data: Buffer; name: string },
-    input: { sourceLanguage: Language; targetLanguage: Language; mode: Mode },
+    input: { sourceLanguage: Language; targetLanguage: Language; mode: Mode; layoutPreset?: LayoutPreset | undefined },
   ) {
     if (input.sourceLanguage === input.targetLanguage) throw new AppError(400, 'VALIDATION_FAILED', 'Idiomas de origem e destino iguais');
+    const trial = await trials.begin(ctx, file.data, input);
     const started = performance.now();
     const dir = await mkdtemp(path.join(os.tmpdir(), 'padrao-'));
     let format: string;
@@ -130,11 +131,14 @@ export function createPatternService({
       await writeFile(target, file.data);
       const detected = await detectFormat(target);
       if (!detected.ok) {
-        return refusal(
-          detected.reason === 'protected_or_legacy'
-            ? 'Arquivo protegido por senha ou em formato antigo (.doc/.ppt): salve como PDF ou DOCX.'
-            : 'Formato não reconhecido: envie PDF, DOCX, PPTX, JPG ou PNG.',
-        );
+        return {
+          ...refusal(
+            detected.reason === 'protected_or_legacy'
+              ? 'Arquivo protegido por senha ou em formato antigo (.doc/.ppt): salve como PDF ou DOCX.'
+              : 'Formato não reconhecido: envie PDF, DOCX, PPTX, JPG ou PNG.',
+          ),
+          trial: trialDto(trial),
+        };
       }
       format = detected.format;
     } finally {
@@ -143,13 +147,16 @@ export function createPatternService({
     const data = new Uint8Array(file.data);
     const extraction = await extractFile(data, format, input.sourceLanguage);
     if (!extraction?.hasTextLayer) {
-      return refusal(
-        format === 'jpeg' || format === 'png' || extraction?.ocr
-          ? 'Não foi possível ler texto na imagem (OCR sem resultado ou indisponível): envie uma imagem mais nítida, o PDF com texto ou o DOCX.'
-          : 'O arquivo não tem texto que o sistema consiga ler (PDF digitalizado sem OCR disponível). Envie a versão com texto.',
-        format,
-        extraction?.pages ?? null,
-      );
+      return {
+        ...refusal(
+          format === 'jpeg' || format === 'png' || extraction?.ocr
+            ? 'Não foi possível ler texto na imagem (OCR sem resultado ou indisponível): envie uma imagem mais nítida, o PDF com texto ou o DOCX.'
+            : 'O arquivo não tem texto que o sistema consiga ler (PDF digitalizado sem OCR disponível). Envie a versão com texto.',
+          format,
+          extraction?.pages ?? null,
+        ),
+        trial: trialDto(trial),
+      };
     }
     const teams = teamsOf(ctx);
     const rules = await loadRules(pool, input.mode, input.targetLanguage);
@@ -198,6 +205,15 @@ export function createPatternService({
       ...(translator ? {} : { noTranslatorNotice: 'Sem tradutor automático no ar: o teste mostra só a estrutura do documento.' }),
     });
 
+    const sourceDraft = result.draft;
+    const preset = trial.requires_regeneration ? trial.layout_preset : (input.layoutPreset ?? trial.layout_preset);
+    result.draft = applyTrialPreset(result.draft, preset);
+    const savedTrial = await trials.complete(ctx, trial, sourceDraft, result.draft, preset, {
+      font: rules.font,
+      fontSize: rules.fontSize,
+      statement: rules.statement,
+      issuedDate: rules.statement ? new Date().toISOString().slice(0, 10) : null,
+    });
     const errors = result.issues.filter((issue) => issue.severity === 'error');
     const blocks = result.draft.blocks;
     const count = (kind: string) => blocks.filter((block) => block.kind === kind).length;
@@ -241,6 +257,7 @@ export function createPatternService({
       );
 
     return {
+      trial: savedTrial,
       verdict,
       verdictLabel: verdictLabel[verdict],
       reasons,
@@ -279,7 +296,7 @@ export function createPatternService({
     };
   }
 
-  return { list, test };
+  return { list, test, inspectTrial: trials.inspect, registerTrialFormat: trials.registerFormat, getTrial: trials.get };
 }
 
 function refusal(reason: string, format: string | null = null, pages: number | null = null) {

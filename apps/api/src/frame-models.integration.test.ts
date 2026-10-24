@@ -8,7 +8,7 @@ import { processNextJob, type ProcessingDeps } from '@tradutor/core/processing';
 import type { ObjectStorage } from '@tradutor/core/storage';
 import type { MachineTranslator } from '@tradutor/core/translation';
 import { bootstrapDirector } from './modules/identity/bootstrap.js';
-import { createTestApp, TestClient } from './test/helpers.js';
+import { createTestApp, inspectReady, TestClient } from './test/helpers.js';
 
 /** Modelos de moldura do tradutor e de corpo por tipo de documento (ADR-019). */
 const PASSWORD = 'senha-de-teste-123';
@@ -107,6 +107,7 @@ describe('modelos de moldura do tradutor', () => {
     // Modelo de corpo pelo tipo do documento: histórico escolar.
     assert.match(detail.body.translation.notice, /Diagramação pelo modelo "Histórico escolar"/);
 
+    assert.equal((await inspectReady(c.lider!, job)).status, 200);
     const done = await c.lider!.post(`/api/v1/translations/${job}/accept`, {});
     assert.equal(done.status, 200, JSON.stringify(done.body).slice(0, 300));
     const final = await text((await c.lider!.raw('GET', `/api/v1/translations/${job}/final`)).rawPayload);

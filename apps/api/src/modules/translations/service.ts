@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import type { PoolClient } from 'pg';
 import { notify, recordAudit, withTransaction } from '@tradutor/core/db';
 import type { ObjectStorage } from '@tradutor/core/storage';
@@ -14,6 +15,7 @@ import {
   fillMask,
   loadRules,
   MODE_STAGES,
+  STAGES,
   modeLabel,
   outputFileName,
   renderPlainDocx,
@@ -47,6 +49,7 @@ import type { AuthenticatedContext, ServiceDeps } from '../context.js';
 import { exhausted, notifyQuotaMilestones, quotaLabel, quotaLevels } from '../numbering/quota.js';
 import { sheetText, type TranslatorNumberingService } from '../numbering/translator-numbering.js';
 import { decodeCursor, encodeCursor, likePattern } from '../pagination.js';
+import { protocolOutputName } from '../documents/archive.js';
 
 export type TranslationStatus = 'queued' | 'processing' | 'in_review' | 'awaiting_approval' | 'approved' | 'failed' | 'cancelled';
 
@@ -71,6 +74,9 @@ interface JobRow {
   document_name: string;
   batch_id: string;
   batch_name: string | null;
+  protocol: string | null;
+  inspection_mode: 'all' | 'sample';
+  inspection_sample_size: number | null;
   team_id: string | null;
   team_name: string | null;
   owner_id: string;
@@ -119,12 +125,26 @@ interface JobRow {
   book: number | null;
   sheet: number | null;
   output_key: string | null;
+  output_sha256: Buffer | null;
   error_count: number | null;
   issue_count: number | null;
+  inspection_required: boolean;
+  inspection_revision: number | null;
+  consecutive_rejections: number;
+  format_generation: number;
+  failed_stages: string[];
+  last_activity_at: Date;
+  first_downloaded_at: Date | null;
+  last_downloaded_at: Date | null;
+  download_count: number;
+  estimated_seconds: number;
+  estimate_samples: number;
+  is_sample_document: boolean;
+  sample_covered: boolean;
 }
 
 const JOB_SELECT = `
-  SELECT j.*, d.display_name AS document_name, d.tags, b.id AS batch_id, b.name AS batch_name, b.team_id, b.owner_id,
+  SELECT j.*, d.display_name AS document_name, d.tags, b.id AS batch_id, b.name AS batch_name, b.protocol, b.inspection_mode, b.inspection_sample_size, b.team_id, b.owner_id,
          (SELECT display_name FROM users WHERE id = b.owner_id) AS owner_name,
          (SELECT name::text FROM teams WHERE id = b.team_id) AS team_name,
          (SELECT display_name FROM users WHERE id = j.requested_by) AS requested_by_name,
@@ -137,11 +157,37 @@ const JOB_SELECT = `
          (SELECT nr.id FROM numbering_requests nr WHERE nr.job_id = j.id AND nr.status = 'pending') AS pending_request_id,
          to_char(j.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
          (SELECT count(*)::int FROM jsonb_array_elements(r.issues) i WHERE i->>'severity' = 'error') AS error_count,
-         (SELECT count(*)::int FROM jsonb_array_elements(r.issues)) AS issue_count
+         (SELECT count(*)::int FROM jsonb_array_elements(r.issues)) AS issue_count,
+         greatest(1,coalesce(est.seconds * greatest(coalesce(j.page_count, 1), 1), 300 + 120 * greatest(coalesce(j.page_count, 1), 1))::int) AS estimated_seconds,
+         coalesce(est.samples, 0)::int AS estimate_samples,
+         (b.inspection_mode = 'all' OR d.id IN (
+           SELECT sd.id FROM documents sd WHERE sd.batch_id=b.id AND sd.status NOT IN ('cancelled','rejected')
+           ORDER BY sd.position, sd.id LIMIT coalesce(b.inspection_sample_size,10)
+         )) AS is_sample_document,
+         (b.inspection_mode = 'sample' AND NOT EXISTS (
+           SELECT 1 FROM (
+             SELECT sd.id FROM documents sd WHERE sd.batch_id=b.id AND sd.status NOT IN ('cancelled','rejected')
+             ORDER BY sd.position,sd.id LIMIT coalesce(b.inspection_sample_size,10)
+           ) sample_document WHERE NOT EXISTS (
+             SELECT 1 FROM translation_jobs sj WHERE sj.document_id=sample_document.id
+              AND sj.source_language=j.source_language AND sj.target_language=j.target_language AND sj.translation_mode=j.translation_mode
+              AND sj.status IN ('in_review','awaiting_approval','approved') AND sj.consecutive_rejections<3
+              AND sj.inspection_revision=sj.current_revision
+           )
+         )) AS sample_covered
     FROM translation_jobs j
     JOIN documents d ON d.id = j.document_id
     JOIN batches b ON b.id = d.batch_id
-    LEFT JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision`;
+    LEFT JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision
+    LEFT JOIN LATERAL (
+      SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds) AS seconds, count(*) AS samples FROM (
+        SELECT extract(epoch FROM (h.approved_at - h.created_at)) / greatest(coalesce(h.page_count, 1), 1) AS seconds
+        FROM translation_jobs h WHERE h.status = 'approved' AND h.annulled_at IS NULL AND h.id <> j.id
+          AND h.source_language = j.source_language AND h.target_language = j.target_language
+          AND h.translation_mode = j.translation_mode AND h.approved_at > h.created_at
+        ORDER BY h.approved_at DESC LIMIT 50
+      ) history
+    ) est ON true`;
 
 const numberText = (row: Pick<JobRow, 'number_label' | 'book_label' | 'sheet_label'>) =>
   [row.number_label, row.book_label && `Livro ${row.book_label}`, row.sheet_label && `Folha ${row.sheet_label}`]
@@ -151,13 +197,15 @@ const numberText = (row: Pick<JobRow, 'number_label' | 'book_label' | 'sheet_lab
 /** Juramentada na máscara do tradutor, com número: as demais saem sem moldura nem numeração (ADR-015, ADR-017). */
 const withMask = (row: Pick<JobRow, 'translation_mode' | 'use_mask'>) => row.translation_mode === 'sworn' && row.use_mask;
 
-function summary(row: JobRow, actor: Actor) {
+function summary(row: JobRow, actor: Actor, at = new Date()) {
   const batch = { teamId: row.team_id, ownerId: row.owner_id };
   const canApprove = canApproveTranslation(actor, batch);
   const canEdit = canEditTranslation(actor, batch, row.assignee_id);
   const open = !['approved', 'cancelled', 'failed'].includes(row.status);
   const sworn = withMask(row);
   const issued = row.status === 'approved' && (!sworn || row.number_label !== null);
+  const blocked = row.consecutive_rejections >= 3;
+  const seconds = (from: Date, to = at) => Math.max(0, Math.floor((to.getTime() - from.getTime()) / 1000));
   return {
     id: row.id,
     translationMode: row.translation_mode,
@@ -169,7 +217,13 @@ function summary(row: JobRow, actor: Actor) {
       : null,
     pageCount: row.page_count,
     document: { id: row.document_id, name: row.document_name, tags: row.tags },
-    batch: { id: row.batch_id, name: row.batch_name },
+    batch: {
+      id: row.batch_id,
+      name: row.batch_name,
+      protocol: row.protocol,
+      inspectionMode: row.inspection_mode,
+      inspectionSampleSize: row.inspection_sample_size,
+    },
     team: row.team_id ? { id: row.team_id, name: row.team_name ?? '' } : null,
     sourceLanguage: row.source_language,
     targetLanguage: row.target_language,
@@ -192,6 +246,30 @@ function summary(row: JobRow, actor: Actor) {
     updatedAt: row.updated_at.toISOString(),
     failureCode: row.failure_code,
     currentRevision: row.current_revision,
+    reviewLifecycle: {
+      consecutiveRejections: row.consecutive_rejections,
+      blocked,
+      formatGeneration: row.format_generation,
+      inspectionRequired: row.inspection_required,
+      lastInspectionRevision: row.inspection_revision,
+      failedStages: row.failed_stages,
+      isSampleDocument: row.is_sample_document,
+      sampleCovered: row.sample_covered,
+    },
+    timing: {
+      estimatedSeconds: row.estimated_seconds,
+      estimateBasis: row.estimate_samples > 0 ? 'comparable_history' : 'fallback',
+      estimateSamples: row.estimate_samples,
+      processedAt: row.processed_at?.toISOString() ?? null,
+      completedAt: row.approved_at?.toISOString() ?? null,
+      firstDownloadedAt: row.first_downloaded_at?.toISOString() ?? null,
+      lastDownloadedAt: row.last_downloaded_at?.toISOString() ?? null,
+      downloadCount: row.download_count,
+      completionSeconds: row.approved_at ? seconds(row.created_at, row.approved_at) : null,
+      waitingDownloadSeconds: row.status === 'approved' && row.approved_at ? seconds(row.approved_at, row.first_downloaded_at ?? at) : null,
+      idleSeconds: seconds(row.last_activity_at),
+      lastActivityAt: row.last_activity_at.toISOString(),
+    },
     errorCount: row.error_count ?? 0,
     issueCount: row.issue_count ?? 0,
     /** Número como digitado na conclusão, com livro e folha quando houver (ADR-012). */
@@ -199,16 +277,19 @@ function summary(row: JobRow, actor: Actor) {
     /** Tradutor e edição da máscara com que a tradução foi gerada. */
     translator: row.translator_id ? { id: row.translator_id, name: row.translator_name ?? '', maskEdition: row.mask_edition } : null,
     permissions: {
-      edit: row.status === 'in_review' && canEdit,
-      submit: row.status === 'in_review' && canEdit,
+      edit: row.status === 'in_review' && canEdit && !blocked,
+      submit: row.status === 'in_review' && canEdit && !blocked,
       claim: open && canClaimTranslation(actor, batch, row.assignee_id),
       reassign: open && canReassignTranslation(actor, batch),
-      approve: (row.status === 'in_review' || row.status === 'awaiting_approval') && canApprove,
+      approve: (row.status === 'in_review' || row.status === 'awaiting_approval') && canApprove && !blocked,
       /** Aprovar o Word (ADR-017): leva à próxima fase — pronta para conclusão, ou concluída por quem pode concluir. */
-      accept: (row.status === 'in_review' && (canEdit || canApprove)) || (row.status === 'awaiting_approval' && canApprove),
-      returnForChanges: row.status === 'awaiting_approval' && canApprove,
+      accept: !blocked && ((row.status === 'in_review' && (canEdit || canApprove)) || (row.status === 'awaiting_approval' && canApprove)),
+      returnForChanges: ['in_review', 'awaiting_approval'].includes(row.status) && (canEdit || canApprove) && !blocked,
       cancel: !['approved', 'cancelled', 'failed'].includes(row.status) && canApprove,
-      reprocess: ['in_review', 'awaiting_approval', 'failed'].includes(row.status) && canApprove,
+      reprocess: ['in_review', 'awaiting_approval', 'failed', 'approved'].includes(row.status) && canApprove && !blocked,
+      changeLanguages: !['processing', 'cancelled'].includes(row.status) && (canEdit || canApprove) && !blocked,
+      inspect: ['in_review', 'awaiting_approval'].includes(row.status) && (canEdit || canApprove) && !blocked,
+      registerNewFormat: row.status === 'in_review' && (canEdit || canApprove),
       download: issued && !row.annulled_at,
       /** Pedir alteração ou anulação do número: o responsável ou quem decide, sem pedido em aberto. */
       requestNumbering:
@@ -251,6 +332,27 @@ export interface ApproveInput {
   number?: string;
   book?: string;
   sheet?: string;
+}
+
+export interface InspectionInput {
+  baseRevision: number;
+  decision: 'approved' | 'rejected';
+  failedStages: string[];
+  comment?: string;
+  scope?: 'all' | 'sample';
+  reprocess?: boolean;
+}
+
+export interface CompletedChangeInput {
+  confirmCompleted?: boolean;
+  reason?: string;
+}
+
+/** Recibo da versão efetivamente aberta, mantido internamente até concluir a preparação da entrega. */
+export interface FinalArtifactReceipt {
+  revision: number | null;
+  outputKey: string;
+  outputSha256: string | null;
 }
 
 export interface TranslationListQuery {
@@ -349,6 +451,260 @@ export function createTranslationService({
       metadata,
     });
 
+  function requireUnblocked(row: JobRow) {
+    if (row.consecutive_rejections >= 3) {
+      throw new AppError(
+        409,
+        'CONFLICT',
+        'Três reprovações consecutivas: registre uma nova forma de formatação antes de tentar novamente',
+        {
+          reason: 'review_attempts_exhausted',
+          failedStages: row.failed_stages,
+          consecutiveRejections: row.consecutive_rejections,
+        },
+      );
+    }
+  }
+
+  function requireChangeConfirmation(row: JobRow, input: CompletedChangeInput) {
+    if (!['approved', 'awaiting_approval'].includes(row.status)) return;
+    if (!input.confirmCompleted || !input.reason || input.reason.trim().length < 5) {
+      throw new AppError(409, 'CONFLICT', 'Confirme a alteração do documento pronto e informe o motivo', {
+        reason: 'completed_confirmation_required',
+      });
+    }
+  }
+
+  /** Preserva o Word emitido; a reabertura revoga a entrega anterior sem apagar a trilha ou reutilizar o objeto. */
+  async function invalidateCompleted(db: PoolClient, ctx: AuthenticatedContext, row: JobRow, reason: string) {
+    if (row.status !== 'approved') return;
+    if (row.pending_request_id) throw conflict('Decida o pedido de numeração pendente antes de reabrir o documento');
+    await db.query(
+      `INSERT INTO translation_completed_versions
+       (job_id, revision, output_key, source_language, target_language, translator_id, number_label, approved_at, approved_by, invalidated_by, reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (job_id, output_key) DO NOTHING`,
+      [
+        row.id,
+        row.current_revision,
+        row.output_key,
+        row.source_language,
+        row.target_language,
+        row.translator_id,
+        row.number_label,
+        row.approved_at,
+        row.approved_by,
+        ctx.actor.id,
+        reason,
+      ],
+    );
+    await audit(db, ctx, row, 'translation.completed_invalidated', {
+      revision: row.current_revision,
+      outputKey: row.output_key,
+      number: row.number_label,
+      sourceLanguage: row.source_language,
+      targetLanguage: row.target_language,
+      reason,
+    });
+  }
+
+  async function inspectionHistory(ctx: AuthenticatedContext, jobId: string) {
+    await loadJob(pool, ctx, jobId);
+    const result = await pool.query<{
+      id: string;
+      revision: number;
+      format_generation: number;
+      decision: string;
+      scope: string;
+      failed_stages: string[];
+      comment: string | null;
+      inspected_at: Date;
+      name: string;
+    }>(
+      `SELECT i.*, u.display_name AS name FROM translation_inspections i JOIN users u ON u.id = i.inspected_by
+       WHERE i.job_id = $1 ORDER BY i.inspected_at DESC, i.id DESC LIMIT 100`,
+      [jobId],
+    );
+    return result.rows.map((item) => ({
+      id: item.id,
+      revision: item.revision,
+      formatGeneration: item.format_generation,
+      decision: item.decision,
+      scope: item.scope,
+      failedStages: item.failed_stages,
+      comment: item.comment,
+      inspectedAt: item.inspected_at.toISOString(),
+      inspectedBy: item.name,
+    }));
+  }
+
+  async function recordInspection(ctx: AuthenticatedContext, jobId: string, input: InspectionInput) {
+    if (input.decision === 'rejected') {
+      return returnForChanges(ctx, jobId, { ...input, comment: input.comment ?? '' });
+    }
+    await withTransaction(pool, async (db) => {
+      const row = await loadJob(db, ctx, jobId, true);
+      const batch = { teamId: row.team_id, ownerId: row.owner_id };
+      if (!canEditTranslation(ctx.actor, batch, row.assignee_id) && !canApproveTranslation(ctx.actor, batch)) throw forbidden();
+      requireUnblocked(row);
+      if (!['in_review', 'awaiting_approval'].includes(row.status) || !row.current_revision)
+        throw conflict('A tradução não está em revisão');
+      if (row.current_revision !== input.baseRevision)
+        throw conflict('O documento mudou após a comparação; recarregue e inspecione novamente');
+      if (
+        (
+          await db.query(
+            `SELECT 1 FROM translation_inspections WHERE job_id=$1 AND revision=$2 AND format_generation=$3 AND decision='rejected'`,
+            [jobId, row.current_revision, row.format_generation],
+          )
+        ).rowCount
+      )
+        throw conflict('Corrija o documento em uma nova revisão antes de aprovar a inspeção');
+      if (input.scope === 'sample' && row.inspection_mode !== 'sample')
+        throw new AppError(400, 'VALIDATION_FAILED', 'Esta remessa exige inspeção de todos os documentos');
+      if (input.failedStages.length) throw new AppError(400, 'VALIDATION_FAILED', 'Uma inspeção aprovada não pode conter etapas falhas');
+      await db.query(
+        `INSERT INTO translation_inspections (job_id, revision, format_generation, decision, scope, comment, inspected_by)
+         VALUES ($1,$2,$3,'approved',$4,$5,$6)`,
+        [jobId, row.current_revision, row.format_generation, input.scope ?? 'all', input.comment?.trim() || null, ctx.actor.id],
+      );
+      await db.query(
+        `UPDATE translation_jobs SET inspection_revision = current_revision, consecutive_rejections = 0, failed_stages = '{}', updated_at = now() WHERE id = $1`,
+        [jobId],
+      );
+      await audit(db, ctx, row, 'translation.inspected', {
+        decision: 'approved',
+        revision: row.current_revision,
+        scope: input.scope ?? 'all',
+        comment: input.comment ?? null,
+        formatGeneration: row.format_generation,
+      });
+    });
+    return get(ctx, jobId);
+  }
+
+  async function registerNewFormat(
+    ctx: AuthenticatedContext,
+    jobId: string,
+    input: { name: string; explanation: string; baseRevision: number; draft: Draft },
+  ) {
+    if (input.name.trim().length < 3 || input.explanation.trim().length < 5)
+      throw new AppError(400, 'VALIDATION_FAILED', 'Informe o nome do formato e a explicação da mudança');
+    await withTransaction(pool, async (db) => {
+      const row = await loadJob(db, ctx, jobId, true);
+      if (row.status !== 'in_review') throw conflict('O novo formato é registrado durante a revisão');
+      const batch = { teamId: row.team_id, ownerId: row.owner_id };
+      if (!canEditTranslation(ctx.actor, batch, row.assignee_id) && !canApproveTranslation(ctx.actor, batch)) throw forbidden();
+      if (row.current_revision !== input.baseRevision) throw conflict('O documento mudou; recarregue antes de registrar o formato');
+      const current = await currentDraft(db, jobId, row.current_revision);
+      const content = Draft.parse(input.draft);
+      if (content.sourceLanguage !== row.source_language || content.targetLanguage !== row.target_language)
+        throw new AppError(400, 'VALIDATION_FAILED', 'O formato deve manter o par de idiomas do documento');
+      const layoutOf = (draft: Draft) =>
+        draft.blocks.map((block) => {
+          if (block.kind === 'paragraph') return { kind: block.kind, align: block.align, bold: block.bold, size: block.size };
+          if (block.kind === 'heading') return { kind: block.kind, align: block.align, level: block.level };
+          if (block.kind === 'table')
+            return {
+              kind: block.kind,
+              columns: block.columns,
+              rows: block.rows.map((row) => ({
+                style: row.style,
+                cells: row.cells.map((cell) => ({ colSpan: cell.colSpan, rowSpan: cell.rowSpan, bold: cell.bold, align: cell.align })),
+              })),
+            };
+          return { kind: block.kind };
+        });
+      if (!current || isDeepStrictEqual(layoutOf(Draft.parse(current.content)), layoutOf(content)))
+        throw new AppError(400, 'VALIDATION_FAILED', 'Altere a estrutura ou a diagramação antes de registrar um novo formato');
+      const revisionNumber = input.baseRevision + 1;
+      const generation = row.format_generation + 1;
+      const issues = checkDraft(
+        content,
+        row.extracted_text,
+        await glossaryFor(db, row),
+        await loadRules(db, row.translation_mode, row.target_language),
+      );
+      await db.query(`INSERT INTO translation_drafts(job_id,revision,content,issues,origin,author_id) VALUES($1,$2,$3,$4,'human',$5)`, [
+        jobId,
+        revisionNumber,
+        JSON.stringify(content),
+        JSON.stringify(issues),
+        ctx.actor.id,
+      ]);
+      const registered = await db.query<{ id: string }>(
+        `INSERT INTO translation_format_registrations(job_id,generation,name,explanation,source_revision,revision,draft,registered_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+        [
+          jobId,
+          generation,
+          input.name.trim(),
+          input.explanation.trim(),
+          input.baseRevision,
+          revisionNumber,
+          JSON.stringify(content),
+          ctx.actor.id,
+        ],
+      );
+      await db.query(
+        `UPDATE translation_jobs SET format_generation=$2, current_revision=$3, consecutive_rejections=0, failed_stages='{}',
+         stage_checks='{}', inspection_revision=NULL, document_type=nullif($4,''), source_title=nullif($5,''), updated_at=now() WHERE id=$1`,
+        [jobId, generation, revisionNumber, content.documentType, content.sourceTitle],
+      );
+      await audit(db, ctx, row, 'translation.format_registered', {
+        formatId: registered.rows[0]!.id,
+        name: input.name.trim(),
+        explanation: input.explanation.trim(),
+        sourceRevision: input.baseRevision,
+        revision: revisionNumber,
+        formatGeneration: generation,
+        previousRejections: row.consecutive_rejections,
+      });
+    });
+    return get(ctx, jobId);
+  }
+
+  async function changeLanguages(
+    ctx: AuthenticatedContext,
+    jobId: string,
+    input: { sourceLanguage: Language; targetLanguage: Language; reason: string; confirmCompleted?: boolean },
+  ) {
+    if (input.sourceLanguage === input.targetLanguage) throw new AppError(400, 'VALIDATION_FAILED', 'Os idiomas devem ser diferentes');
+    if (input.reason.trim().length < 5) throw new AppError(400, 'VALIDATION_FAILED', 'Informe o motivo da correção dos idiomas');
+    try {
+      await withTransaction(pool, async (db) => {
+        const row = await loadJob(db, ctx, jobId, true);
+        const batch = { teamId: row.team_id, ownerId: row.owner_id };
+        if (!canEditTranslation(ctx.actor, batch, row.assignee_id) && !canApproveTranslation(ctx.actor, batch)) throw forbidden();
+        requireUnblocked(row);
+        if (['processing', 'cancelled'].includes(row.status)) throw conflict('Aguarde o processamento antes de corrigir os idiomas');
+        requireChangeConfirmation(row, input);
+        if (row.source_language === input.sourceLanguage && row.target_language === input.targetLanguage)
+          throw conflict('O par de idiomas já é este');
+        await invalidateCompleted(db, ctx, row, input.reason.trim());
+        await db.query(
+          `UPDATE translation_jobs SET source_language=$2,target_language=$3,status='queued',attempts=0,run_after=now(),failure_code=NULL,
+           stage_checks='{}',inspection_revision=NULL,current_revision=NULL,review_comment=$4,submitted_at=NULL,submitted_by=NULL,
+           approved_at=NULL,approved_by=NULL,output_key=NULL,output_sha256=NULL,output_size=NULL,
+           first_downloaded_at=NULL,last_downloaded_at=NULL,download_count=0,updated_at=now() WHERE id=$1`,
+          [jobId, input.sourceLanguage, input.targetLanguage, input.reason.trim()],
+        );
+        await audit(db, ctx, row, 'translation.languages_changed', {
+          from: { sourceLanguage: row.source_language, targetLanguage: row.target_language },
+          to: { sourceLanguage: input.sourceLanguage, targetLanguage: input.targetLanguage },
+          reason: input.reason.trim(),
+          previousStatus: row.status,
+          previousRevision: row.current_revision,
+          confirmedCompleted: input.confirmCompleted === true,
+          requestedMode: row.requested_mode,
+        });
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505') throw conflict('Já existe uma tradução deste documento para o idioma escolhido');
+      throw error;
+    }
+    return get(ctx, jobId);
+  }
+
   /** Textos que dependem só do idioma (notas do tradutor e assinaturas), para a prévia na tela. */
   function previewFrame(row: JobRow) {
     const frame = swornFrame(BLANK_PROFILE, row.source_language, row.target_language, now(), null);
@@ -366,7 +722,13 @@ export function createTranslationService({
   async function start(
     ctx: AuthenticatedContext,
     documentId: string,
-    input: { sourceLanguage: Language; targetLanguage: Language; mode: 'auto' | 'manual'; translationMode?: Mode },
+    input: {
+      sourceLanguage: Language;
+      targetLanguage: Language;
+      mode: 'auto' | 'manual';
+      translationMode?: Mode;
+      confirmCompleted?: boolean;
+    },
   ) {
     if (input.sourceLanguage === input.targetLanguage) throw new AppError(400, 'VALIDATION_FAILED', 'Idiomas de origem e destino iguais');
     const found = await pool.query<{ status: string; detected_format: string | null; team_id: string | null; owner_id: string }>(
@@ -380,6 +742,14 @@ export function createTranslationService({
     if (!doc.detected_format || !SUPPORTED_FORMATS.has(doc.detected_format)) {
       throw conflict('Formato sem suporte para tradução juramentada');
     }
+    const completed = await pool.query(
+      `SELECT 1 FROM translation_jobs WHERE document_id=$1 AND status IN ('approved','awaiting_approval') LIMIT 1`,
+      [documentId],
+    );
+    if (completed.rowCount && !input.confirmCompleted)
+      throw new AppError(409, 'CONFLICT', 'Confirme a criação de outra tradução para este documento pronto', {
+        reason: 'completed_confirmation_required',
+      });
     try {
       const id = await withTransaction(pool, async (db) => {
         const created = await db.query<{ id: string }>(
@@ -393,6 +763,7 @@ export function createTranslationService({
           sourceLanguage: input.sourceLanguage,
           targetLanguage: input.targetLanguage,
           mode: input.mode,
+          confirmedCompleted: input.confirmCompleted === true,
         });
         return jobId;
       });
@@ -441,6 +812,7 @@ export function createTranslationService({
       const pattern = param(likePattern(query.q));
       conditions.push(
         `(unaccent(d.display_name) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce(b.protocol,'')) ILIKE unaccent(${pattern})
           OR unaccent(coalesce(j.document_type, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(j.source_title, '')) ILIKE unaccent(${pattern})
           OR coalesce(j.number_label, '') ILIKE ${pattern})`,
       );
@@ -454,7 +826,7 @@ export function createTranslationService({
     const rows = result.rows.slice(0, query.limit);
     const last = rows.at(-1);
     return {
-      items: rows.map((row) => summary(row, ctx.actor)),
+      items: rows.map((row) => summary(row, ctx.actor, now())),
       nextCursor: result.rows.length > query.limit && last ? encodeCursor(last.cursor_at, last.id) : null,
     };
   }
@@ -471,13 +843,14 @@ export function createTranslationService({
       rules,
       checklist: checklistFor(row, rules),
       translation: {
-        ...summary(row, ctx.actor),
+        ...summary(row, ctx.actor, now()),
         extractedText: row.extracted_text,
         notice: row.assist_notice,
         reviewComment: row.review_comment,
         approvalOverrideReason: row.approval_override_reason,
       },
       frame: previewFrame(row),
+      inspections: await inspectionHistory(ctx, jobId),
       draft: draft
         ? {
             revision: row.current_revision,
@@ -502,7 +875,7 @@ export function createTranslationService({
     const conditions = visibility(ctx.actor, param);
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const from = `FROM translation_jobs j JOIN documents d ON d.id = j.document_id JOIN batches b ON b.id = d.batch_id`;
-    const [types, tags, approvers] = await Promise.all([
+    const [types, tags, approvers, statuses] = await Promise.all([
       pool.query<{ value: string }>(
         `SELECT DISTINCT j.document_type AS value ${from} ${where} ${where ? 'AND' : 'WHERE'} j.document_type IS NOT NULL ORDER BY 1 LIMIT 200`,
         params,
@@ -512,11 +885,16 @@ export function createTranslationService({
         `SELECT DISTINCT u.id, u.display_name AS name ${from} JOIN users u ON u.id = j.approved_by ${where} ORDER BY 2 LIMIT 200`,
         params,
       ),
+      pool.query<{ status: TranslationStatus; count: number }>(
+        `SELECT j.status,count(*)::int AS count ${from} ${where} GROUP BY j.status`,
+        params,
+      ),
     ]);
     return {
       documentTypes: types.rows.map((row) => row.value),
       tags: tags.rows.map((row) => row.value),
       approvers: approvers.rows,
+      statusCounts: Object.fromEntries(statuses.rows.map((item) => [item.status, item.count])),
     };
   }
 
@@ -550,6 +928,7 @@ export function createTranslationService({
     return withTransaction(pool, async (db) => {
       const row = await loadJob(db, ctx, jobId, true);
       requireEditor(ctx, row);
+      requireUnblocked(row);
       if (row.status !== 'in_review') throw conflict('A tradução não está em revisão');
       if (row.current_revision !== input.baseRevision) {
         throw new AppError(409, 'CONFLICT', 'O rascunho foi alterado por outra pessoa; recarregue antes de salvar', {
@@ -627,6 +1006,7 @@ export function createTranslationService({
     return withTransaction(pool, async (db) => {
       const row = await loadJob(db, ctx, jobId, true);
       requireEditor(ctx, row);
+      requireUnblocked(row);
       if (row.status !== 'in_review') throw conflict('A tradução não está em revisão');
       return applyAutoReview(db, ctx, row);
     });
@@ -639,6 +1019,7 @@ export function createTranslationService({
    */
   async function accept(ctx: AuthenticatedContext, jobId: string) {
     const row = await loadJob(pool, ctx, jobId);
+    requireUnblocked(row);
     const batch = { teamId: row.team_id, ownerId: row.owner_id };
     const canApprove = canApproveTranslation(ctx.actor, batch);
     const canEdit = canEditTranslation(ctx.actor, batch, row.assignee_id);
@@ -649,17 +1030,6 @@ export function createTranslationService({
         .filter((item) => !item.checked)
         .map((item) => item.key);
       if (pending.length && canEdit) await setChecks(ctx, jobId, { keys: pending, checked: true });
-      // Com máscara e tradutor escolhido no envio, a numeração sai da regra dele com as páginas do original, se
-      // ninguém preencheu; regras que pedem número digitado continuam pedindo.
-      if (withMask(row) && row.preferred_translator_id) {
-        const current = await numbering.getEntry(ctx, jobId);
-        if (!current.entry) {
-          await numbering.saveEntry(ctx, jobId, {
-            translatorId: row.preferred_translator_id,
-            ...(row.page_count ? { pages: row.page_count } : {}),
-          });
-        }
-      }
       if (canEdit) await submit(ctx, jobId);
     } else if (row.status !== 'awaiting_approval') {
       throw conflict(`Ação não permitida no estado "${row.status}"`);
@@ -714,9 +1084,10 @@ export function createTranslationService({
       (row) => row.status === 'in_review',
       async (db, row) => {
         requireEditor(ctx, row);
+        requireUnblocked(row);
         await requireQuota(db, row, row.assignee_id);
         // A revisão automática corre antes de marcar como pronta: o que tem conserto é corrigido no documento.
-        await applyAutoReview(db, ctx, row);
+        if (row.inspection_revision !== row.current_revision) await applyAutoReview(db, ctx, row);
         // Correção, diagramação e revisão (conforme a modalidade): todos os itens confirmados antes de marcar como pronta.
         const pending = checklistFor(row, await loadRules(db, row.translation_mode, row.target_language)).filter((item) => !item.checked);
         if (pending.length) {
@@ -758,15 +1129,24 @@ export function createTranslationService({
     );
 
   /** Confirma ou desfaz itens do checklist das etapas manuais (quem pode editar a tradução, e quem conclui). */
-  async function setChecks(ctx: AuthenticatedContext, jobId: string, input: { keys: string[]; checked: boolean }) {
+  async function setChecks(
+    ctx: AuthenticatedContext,
+    jobId: string,
+    input: { keys: string[]; checked: boolean; confirmCompleted?: boolean },
+  ) {
     await withTransaction(pool, async (db) => {
       const row = await loadJob(db, ctx, jobId, true);
+      requireUnblocked(row);
       const batch = { teamId: row.team_id, ownerId: row.owner_id };
       if (!canEditTranslation(ctx.actor, batch, row.assignee_id) && !canApproveTranslation(ctx.actor, batch)) {
         throw forbidden('Só quem trabalha na tradução ou quem conclui confirma o checklist');
       }
       if (!['in_review', 'awaiting_approval'].includes(row.status))
         throw conflict('O checklist só muda enquanto a tradução está em revisão');
+      if (row.status === 'awaiting_approval' && !input.confirmCompleted)
+        throw new AppError(409, 'CONFLICT', 'Confirme a alteração do checklist deste documento pronto', {
+          reason: 'completed_confirmation_required',
+        });
       const valid = new Set(
         checklistOf(row.translation_mode, await loadRules(db, row.translation_mode, row.target_language)).map((item) => item.key),
       );
@@ -779,7 +1159,11 @@ export function createTranslationService({
         else delete next[key];
       }
       await db.query('UPDATE translation_jobs SET stage_checks = $2, updated_at = now() WHERE id = $1', [jobId, JSON.stringify(next)]);
-      await audit(db, ctx, row, 'translation.checklist', { keys: input.keys, checked: input.checked });
+      await audit(db, ctx, row, 'translation.checklist', {
+        keys: input.keys,
+        checked: input.checked,
+        confirmedCompleted: input.confirmCompleted === true,
+      });
     });
     return get(ctx, jobId);
   }
@@ -799,24 +1183,76 @@ export function createTranslationService({
    * "Refazer": o Líder ou o Diretor devolve com o motivo. Com `reprocess`, o documento é processado de novo
    * (útil depois de ajustar o glossário); sem, a equipe corrige o rascunho atual.
    */
-  async function returnForChanges(ctx: AuthenticatedContext, jobId: string, input: { comment: string; reprocess?: boolean }) {
-    await requireApprover(ctx, jobId);
+  async function returnForChanges(
+    ctx: AuthenticatedContext,
+    jobId: string,
+    input: { comment: string; reprocess?: boolean; failedStages?: string[]; baseRevision?: number; scope?: 'all' | 'sample' },
+  ) {
     return transition(
       ctx,
       jobId,
-      (row) => row.status === 'awaiting_approval' || (input.reprocess === true && row.status === 'in_review'),
+      (row) => ['in_review', 'awaiting_approval'].includes(row.status),
       async (db, row) => {
+        const batch = { teamId: row.team_id, ownerId: row.owner_id };
+        if (
+          !canApproveTranslation(ctx.actor, batch) &&
+          !(row.status === 'in_review' && canEditTranslation(ctx.actor, batch, row.assignee_id))
+        )
+          throw forbidden('Somente o responsável ou a liderança pode reprovar esta revisão');
+        requireUnblocked(row);
+        if (input.baseRevision !== undefined && row.current_revision !== input.baseRevision)
+          throw conflict('O documento mudou após a comparação; recarregue e inspecione novamente');
+        const failedStages = [...new Set(input.failedStages ?? (row.inspection_required ? [] : ['review']))];
+        if (
+          input.comment.trim().length < 3 ||
+          !failedStages.length ||
+          failedStages.some((stage) => !STAGES.includes(stage as (typeof STAGES)[number]))
+        )
+          throw new AppError(400, 'VALIDATION_FAILED', 'Informe o motivo e ao menos uma etapa que precisa ser refeita');
+        if (!row.current_revision) throw conflict('Não há rascunho para inspecionar');
+        if (
+          row.inspection_required &&
+          (
+            await db.query(
+              `SELECT 1 FROM translation_inspections WHERE job_id=$1 AND revision=$2 AND format_generation=$3 AND decision='rejected'`,
+              [jobId, row.current_revision, row.format_generation],
+            )
+          ).rowCount
+        )
+          throw conflict('Esta revisão já foi reprovada; corrija ou reprocesse antes de inspecionar novamente');
+        const rejections = row.consecutive_rejections + 1;
         await db.query(
-          input.reprocess
-            ? `UPDATE translation_jobs SET status = 'queued', requested_mode = 'auto', attempts = 0, run_after = now(), failure_code = NULL,
-                      review_comment = $2, updated_at = now() WHERE id = $1`
-            : `UPDATE translation_jobs SET status = 'in_review', review_comment = $2, updated_at = now() WHERE id = $1`,
-          [jobId, input.comment],
+          `INSERT INTO translation_inspections(job_id,revision,format_generation,decision,scope,failed_stages,comment,inspected_by)
+           VALUES($1,$2,$3,'rejected',$4,$5,$6,$7)`,
+          [jobId, row.current_revision, row.format_generation, input.scope ?? 'all', failedStages, input.comment.trim(), ctx.actor.id],
         );
-        // Conta para o "acerto de primeira" dos painéis.
-        if (row.status === 'awaiting_approval')
-          await db.query('UPDATE translation_jobs SET redo_count = redo_count + 1 WHERE id = $1', [jobId]);
-        await audit(db, ctx, row, 'translation.returned', { revision: row.current_revision, reprocess: input.reprocess === true });
+        const reprocess = input.reprocess === true && rejections < 3;
+        await db.query(
+          reprocess
+            ? `UPDATE translation_jobs SET status = 'queued', requested_mode = 'auto', attempts = 0, run_after = now(), failure_code = NULL,
+                      review_comment = $2, stage_checks='{}', inspection_revision=NULL, consecutive_rejections=$3, failed_stages=$4,
+                      redo_count=redo_count+1, updated_at = now() WHERE id = $1`
+            : `UPDATE translation_jobs SET status = 'in_review', review_comment = $2, stage_checks='{}', inspection_revision=NULL,
+                      consecutive_rejections=$3, failed_stages=$4, redo_count=redo_count+1, updated_at = now() WHERE id = $1`,
+          [jobId, input.comment.trim(), rejections, failedStages],
+        );
+        await audit(db, ctx, row, 'translation.returned', {
+          revision: row.current_revision,
+          reprocess,
+          comment: input.comment.trim(),
+          failedStages,
+          consecutiveRejections: rejections,
+          blocked: rejections >= 3,
+          formatGeneration: row.format_generation,
+          scope: input.scope ?? 'all',
+        });
+        if (rejections >= 3)
+          await audit(db, ctx, row, 'translation.review_blocked', {
+            revision: row.current_revision,
+            consecutiveRejections: rejections,
+            failedStages,
+            reason: 'consecutive_review_errors',
+          });
         await notify(
           db,
           {
@@ -853,17 +1289,21 @@ export function createTranslationService({
   }
 
   /** Assumir uma tradução sem responsável (lote do Diretor ou responsável removido). */
-  async function claim(ctx: AuthenticatedContext, jobId: string) {
+  async function claim(ctx: AuthenticatedContext, jobId: string, options: { confirmCompleted?: boolean } = {}) {
     return transition(
       ctx,
       jobId,
       (row) => !['approved', 'cancelled', 'failed'].includes(row.status),
       async (db, row) => {
+        if (row.status === 'awaiting_approval' && !options.confirmCompleted)
+          throw new AppError(409, 'CONFLICT', 'Confirme assumir a responsabilidade deste documento pronto', {
+            reason: 'completed_confirmation_required',
+          });
         if (!canClaimTranslation(ctx.actor, { teamId: row.team_id, ownerId: row.owner_id }, row.assignee_id)) {
           throw conflict(row.assignee_id ? `Esta tradução já é de ${row.assignee_name}` : 'Você não pode assumir esta tradução');
         }
         await db.query('UPDATE translation_jobs SET assignee_id = $2, updated_at = now() WHERE id = $1', [jobId, ctx.actor.id]);
-        await audit(db, ctx, row, 'translation.claimed');
+        await audit(db, ctx, row, 'translation.claimed', { confirmedCompleted: options.confirmCompleted === true });
       },
     );
   }
@@ -872,7 +1312,7 @@ export function createTranslationService({
    * Reatribuir (Supervisor da equipe ou Diretor). O novo responsável precisa ser da equipe do lote; no lote sem equipe,
    * só um Diretor. É assim que o Diretor age sobre o trabalho de outro usuário: passa a outra pessoa, não edita (D4).
    */
-  async function reassign(ctx: AuthenticatedContext, jobId: string, userId: string) {
+  async function reassign(ctx: AuthenticatedContext, jobId: string, userId: string, options: { confirmCompleted?: boolean } = {}) {
     const row = await loadJob(pool, ctx, jobId);
     if (!canReassignTranslation(ctx.actor, { teamId: row.team_id, ownerId: row.owner_id })) {
       throw forbidden('Somente o Supervisor da equipe ou o Diretor reatribui traduções');
@@ -882,6 +1322,10 @@ export function createTranslationService({
       jobId,
       (current) => !['approved', 'cancelled', 'failed'].includes(current.status),
       async (db, current) => {
+        if (current.status === 'awaiting_approval' && !options.confirmCompleted)
+          throw new AppError(409, 'CONFLICT', 'Confirme a troca do responsável deste documento pronto', {
+            reason: 'completed_confirmation_required',
+          });
         const target = await db.query<{ ok: boolean; name: string }>(
           `SELECT u.display_name AS name,
                   (u.status = 'active' AND (
@@ -892,7 +1336,11 @@ export function createTranslationService({
         );
         if (!target.rows[0]?.ok) throw new AppError(400, 'VALIDATION_FAILED', 'O novo responsável precisa ser da equipe do documento');
         await db.query('UPDATE translation_jobs SET assignee_id = $2, updated_at = now() WHERE id = $1', [jobId, userId]);
-        await audit(db, ctx, current, 'translation.reassigned', { from: current.assignee_id, to: userId });
+        await audit(db, ctx, current, 'translation.reassigned', {
+          from: current.assignee_id,
+          to: userId,
+          confirmedCompleted: options.confirmCompleted === true,
+        });
         await notify(
           db,
           { teamId: current.team_id, users: [userId], exclude: ctx.actor.id },
@@ -908,19 +1356,28 @@ export function createTranslationService({
   }
 
   /** Processa o documento de novo (falha ou rascunho a refazer); a revisão atual continua no histórico. */
-  async function reprocess(ctx: AuthenticatedContext, jobId: string) {
+  async function reprocess(ctx: AuthenticatedContext, jobId: string, input: CompletedChangeInput = {}) {
     await requireApprover(ctx, jobId);
     return transition(
       ctx,
       jobId,
-      (row) => ['in_review', 'awaiting_approval', 'failed'].includes(row.status),
+      (row) => ['in_review', 'awaiting_approval', 'failed', 'approved'].includes(row.status),
       async (db, row) => {
+        requireUnblocked(row);
+        requireChangeConfirmation(row, input);
+        await invalidateCompleted(db, ctx, row, input.reason?.trim() ?? 'Reprocessamento solicitado');
         await db.query(
           `UPDATE translation_jobs SET status = 'queued', requested_mode = 'auto', attempts = 0, run_after = now(), failure_code = NULL,
-                  updated_at = now() WHERE id = $1`,
+                  stage_checks='{}',inspection_revision=NULL,submitted_at=NULL,submitted_by=NULL,approved_at=NULL,approved_by=NULL,output_key=NULL,output_sha256=NULL,output_size=NULL,
+                  first_downloaded_at=NULL,last_downloaded_at=NULL,download_count=0,updated_at = now() WHERE id = $1`,
           [jobId],
         );
-        await audit(db, ctx, row, 'translation.reprocess_requested', { revision: row.current_revision });
+        await audit(db, ctx, row, 'translation.reprocess_requested', {
+          revision: row.current_revision,
+          previousStatus: row.status,
+          reason: input.reason?.trim() ?? null,
+          confirmedCompleted: input.confirmCompleted === true,
+        });
       },
     ).catch((error: unknown) => {
       // Uma falha reaberta não pode duplicar outra tradução ativa do mesmo documento e idioma.
@@ -941,10 +1398,20 @@ export function createTranslationService({
     try {
       await withTransaction(pool, async (db) => {
         const row = await loadJob(db, ctx, jobId, true);
+        requireUnblocked(row);
         if (row.status !== 'in_review' && row.status !== 'awaiting_approval')
           throw conflict(`Ação não permitida no estado "${row.status}"`);
         const draft = await currentDraft(db, jobId, row.current_revision);
         if (!draft) throw conflict('Não há rascunho para aprovar');
+        if (
+          row.inspection_required &&
+          row.inspection_revision !== row.current_revision &&
+          !(row.inspection_mode === 'sample' && !row.is_sample_document && row.sample_covered)
+        )
+          throw new AppError(409, 'CONFLICT', 'Compare o original com o Word e registre a inspeção desta revisão antes de concluir', {
+            reason: 'inspection_required',
+            currentRevision: row.current_revision,
+          });
         const content = Draft.parse(draft.content);
         const rules = await loadRules(db, row.translation_mode, row.target_language);
         const issues = checkDraft(content, row.extracted_text, await glossaryFor(db, row), rules);
@@ -965,7 +1432,7 @@ export function createTranslationService({
             translatorName: await nameOf(db, assigneeId),
             issuedAt,
           });
-          const key = `batches/${row.batch_id}/documents/${row.document_id}/translations/${row.id}.docx`;
+          const key = `batches/${row.batch_id}/documents/${row.document_id}/translations/${row.id}-r${row.current_revision}.docx`;
           keyHolder.key = key;
           await uploadBuffer(storage, key, docx);
           await db.query(
@@ -1004,6 +1471,7 @@ export function createTranslationService({
         await requireQuota(db, row, assigneeId);
         // Numeração conferida pela regra do tradutor e emitida sob bloqueio (ADR-014); o que veio na conclusão completa
         // ou corrige o que o usuário preencheu.
+        const numberingEntry = await db.query(`SELECT 1 FROM numbering_entries WHERE job_id=$1`, [jobId]);
         const issued = await numbering.issue(
           db,
           ctx,
@@ -1014,6 +1482,7 @@ export function createTranslationService({
               : {}),
             ...(input.number ? { number: input.number } : {}),
             ...(input.book ? { book: input.book } : {}),
+            ...(row.page_count && !numberingEntry.rowCount ? { pages: row.page_count } : {}),
           },
         );
         const mask = await masks(issued.translatorId, null, { source: row.source_language, target: row.target_language, look: rules });
@@ -1031,7 +1500,7 @@ export function createTranslationService({
           mask.name,
           { look: rules },
         );
-        const key = `batches/${row.batch_id}/documents/${row.document_id}/translations/${row.id}.docx`;
+        const key = `batches/${row.batch_id}/documents/${row.document_id}/translations/${row.id}-r${row.current_revision}.docx`;
         keyHolder.key = key;
         await uploadBuffer(storage, key, docx);
         const stored = await storage.head(key);
@@ -1141,14 +1610,14 @@ export function createTranslationService({
         translatorName: row.assignee_name ?? null,
         issuedAt: now(),
       });
-      return { docx, name: `RASCUNHO - ${outputFileName(row.document_name, rules)}` };
+      return { docx, name: await protocolOutputName(pool, row.document_id, `RASCUNHO - ${outputFileName(row.document_name, rules)}`) };
     }
     // Tradutor: o pedido na prévia, o da numeração preenchida ou o escolhido no envio (ADR-017).
     const entry = await numbering.getEntry(ctx, jobId, translatorId ?? row.preferred_translator_id ?? undefined).catch(() => null);
     const chosen = translatorId ?? entry?.rule?.translatorId ?? row.preferred_translator_id ?? null;
     const mask = chosen
       ? await masks(chosen, null, { source: row.source_language, target: row.target_language, look: rules })
-      : { name: '[tradutor a escolher]', data: new Uint8Array(await renderMaskTemplate(row.target_language)) };
+      : { name: '[tradutor a escolher]', data: new Uint8Array(await renderMaskTemplate(row.target_language, row.source_language)) };
     // Número, livro e folha previstos pela regra do tradutor; o número só é emitido na conclusão.
     const computed = entry?.check?.computed;
     const values = computed?.number
@@ -1161,18 +1630,148 @@ export function createTranslationService({
         }
       : null;
     const docx = await fillMask(mask.data, Draft.parse(draft.content), values, mask.name, { look: rules, draft: true });
-    return { docx, name: `RASCUNHO - ${outputFileName(row.document_name, rules)}` };
+    return { docx, name: await protocolOutputName(pool, row.document_id, `RASCUNHO - ${outputFileName(row.document_name, rules)}`) };
   }
 
-  async function openFinal(ctx: AuthenticatedContext, jobId: string) {
+  async function recordDownloads(
+    ctx: AuthenticatedContext,
+    jobIds: string[],
+    input: {
+      format?: 'docx' | 'pdf';
+      delivery?: 'single' | 'zip';
+      archive?: { batchId?: string; bytes: number };
+      expected?: Record<string, FinalArtifactReceipt>;
+    } = {},
+  ) {
+    const ids = [...new Set(jobIds.map((id) => id.toLowerCase()))].sort();
+    const archiveBatchId = input.archive?.batchId?.toLowerCase();
+    const expected = input.expected ? new Map(Object.entries(input.expected).map(([id, receipt]) => [id.toLowerCase(), receipt])) : null;
+    if (!ids.length || ids.length > 100 || ids.some((id) => !UUID.test(id)))
+      throw new AppError(400, 'VALIDATION_FAILED', 'Selecione de 1 a 100 documentos válidos para registrar o download');
+    if (input.archive && (!Number.isSafeInteger(input.archive.bytes) || input.archive.bytes < 0))
+      throw new AppError(400, 'VALIDATION_FAILED', 'O tamanho do arquivo ZIP é inválido');
+    await withTransaction(pool, async (db) => {
+      // A montagem do ZIP pode demorar; confirmar os acessos atuais antes de registrar a entrega inteira.
+      const current = (
+        await db.query<{ status: Actor['status']; org_role: Actor['orgRole'] }>('SELECT status,org_role FROM users WHERE id=$1 FOR SHARE', [
+          ctx.actor.id,
+        ])
+      ).rows[0];
+      if (!current || current.status !== 'active') throw forbidden('Sua conta não tem acesso ao download');
+      const memberships = await db.query<{ team_id: string; role: 'leader' | 'operator' }>(
+        'SELECT team_id,role FROM team_memberships WHERE user_id=$1 ORDER BY team_id FOR SHARE',
+        [ctx.actor.id],
+      );
+      const liveCtx: AuthenticatedContext = {
+        ...ctx,
+        actor: {
+          ...ctx.actor,
+          status: current.status,
+          orgRole: current.org_role,
+          memberships: new Map(memberships.rows.map((m) => [m.team_id, m.role])),
+        },
+      };
+      await db.query(
+        `SELECT b.id FROM batches b WHERE b.id IN (
+           SELECT d.batch_id FROM documents d JOIN translation_jobs j ON j.document_id=d.id WHERE j.id=ANY($1::uuid[])
+         ) ORDER BY b.id FOR SHARE`,
+        [ids],
+      );
+      const rows: JobRow[] = [];
+      // A mesma ordem de locks em todas as entregas evita deadlocks entre seleções sobrepostas.
+      for (const id of ids) {
+        const row = await loadJob(db, liveCtx, id, true);
+        if (row.status !== 'approved' || !row.output_key || row.annulled_at)
+          throw conflict('Um documento não está mais liberado para download');
+        if (archiveBatchId && row.batch_id !== archiveBatchId) throw conflict('Um documento não pertence mais à remessa selecionada');
+        const receipt = expected?.get(id);
+        if (
+          expected &&
+          (!receipt ||
+            receipt.revision !== row.current_revision ||
+            receipt.outputKey !== row.output_key ||
+            receipt.outputSha256 !== (row.output_sha256?.toString('hex') ?? null))
+        )
+          throw new AppError(409, 'CONFLICT', 'O documento foi alterado durante a preparação. Gere o download novamente', {
+            reason: 'artifact_changed',
+            translationId: id,
+          });
+        rows.push(row);
+      }
+      const downloadedAt = now();
+      await db.query(
+        `UPDATE translation_jobs SET first_downloaded_at=coalesce(first_downloaded_at,$2),last_downloaded_at=$2,
+         download_count=download_count+1,updated_at=now() WHERE id=ANY($1::uuid[])`,
+        [ids, downloadedAt],
+      );
+      for (const row of rows)
+        await audit(db, liveCtx, row, 'translation.downloaded', {
+          revision: row.current_revision,
+          outputKey: row.output_key,
+          outputSha256: row.output_sha256?.toString('hex') ?? null,
+          format: input.format ?? 'docx',
+          delivery: input.delivery ?? 'single',
+          firstDownload: row.first_downloaded_at === null,
+          waitingSeconds: row.approved_at ? Math.max(0, Math.floor((downloadedAt.getTime() - row.approved_at.getTime()) / 1000)) : null,
+        });
+      if (input.archive) {
+        for (const teamId of new Set(rows.map((row) => row.team_id))) {
+          const group = rows.filter((row) => row.team_id === teamId);
+          await recordAudit(db, {
+            actorUserId: liveCtx.actor.id,
+            action: 'translation.archive_downloaded',
+            targetType: archiveBatchId ? 'batch' : 'translation_archive',
+            ...(archiveBatchId ? { targetId: archiveBatchId } : {}),
+            ...(teamId ? { teamId } : {}),
+            correlationId: ctx.correlationId,
+            metadata: {
+              translationIds: group.map((row) => row.id),
+              format: input.format ?? 'docx',
+              count: group.length,
+              bytes: input.archive.bytes,
+              protocols: [...new Set(group.map((row) => row.protocol))],
+            },
+          });
+        }
+      }
+    });
+  }
+
+  const recordDownload = (
+    ctx: AuthenticatedContext,
+    jobId: string,
+    input: { format?: 'docx' | 'pdf'; delivery?: 'single' | 'zip'; expected?: FinalArtifactReceipt } = {},
+  ) =>
+    recordDownloads(ctx, [jobId], {
+      ...(input.format ? { format: input.format } : {}),
+      ...(input.delivery ? { delivery: input.delivery } : {}),
+      ...(input.expected ? { expected: { [jobId]: input.expected } } : {}),
+    });
+
+  async function openFinal(ctx: AuthenticatedContext, jobId: string, options: { trackDownload?: boolean } = {}) {
     const row = await loadJob(pool, ctx, jobId);
     if (row.status !== 'approved' || !row.output_key) throw conflict('A tradução ainda não foi aprovada');
     if (row.annulled_at) throw conflict('O número desta tradução foi anulado; ela não vale mais como tradução');
+    const receipt: FinalArtifactReceipt = {
+      revision: row.current_revision,
+      outputKey: row.output_key,
+      outputSha256: row.output_sha256?.toString('hex') ?? null,
+    };
     const stream = await storage.get(row.output_key);
-    await audit(pool, ctx, row, 'translation.downloaded');
+    try {
+      if (options.trackDownload !== false) await recordDownload(ctx, jobId, { expected: receipt });
+    } catch (error) {
+      stream.destroy();
+      throw error;
+    }
     // Nome do original com o sufixo do idioma, como pedem as skills (nunca renomear pelo conteúdo).
     const rules = await loadRules(pool, row.translation_mode, row.target_language);
-    return { stream, contentType: DOCX_TYPE, name: outputFileName(row.document_name, rules) };
+    return {
+      stream,
+      receipt,
+      contentType: DOCX_TYPE,
+      name: await protocolOutputName(pool, row.document_id, outputFileName(row.document_name, rules)),
+    };
   }
 
   // ---------- Glossário ----------
@@ -1368,6 +1967,10 @@ export function createTranslationService({
     autoReviewDraft,
     accept,
     returnForChanges,
+    recordInspection,
+    inspectionHistory,
+    registerNewFormat,
+    changeLanguages,
     cancel,
     reprocess,
     setChecks,
@@ -1377,6 +1980,8 @@ export function createTranslationService({
     approve,
     preview,
     openFinal,
+    recordDownload,
+    recordDownloads,
     listGlossary,
     addGlossary,
     removeGlossary,

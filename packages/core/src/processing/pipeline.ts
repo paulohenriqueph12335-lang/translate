@@ -47,6 +47,15 @@ class PermanentFailure extends Error {
   }
 }
 
+async function jobTeam(db: Queryable, jobId: string) {
+  return (
+    await db.query<{ team_id: string | null }>(
+      `SELECT b.team_id FROM translation_jobs j JOIN documents d ON d.id=j.document_id JOIN batches b ON b.id=d.batch_id WHERE j.id=$1`,
+      [jobId],
+    )
+  ).rows[0]?.team_id;
+}
+
 const SUPPORTED_FORMATS = new Set(['pdf', 'jpeg', 'png', 'docx', 'pptx']);
 const backoffMs = (attempt: number) => Math.min(30 * 60_000, 2 ** attempt * 30_000);
 
@@ -60,7 +69,7 @@ export async function claimNextJob(deps: ProcessingDeps): Promise<ClaimedJob | n
     const candidate = await db.query<ClaimedJob>(
       `SELECT id, document_id, source_language, target_language, requested_mode, translation_mode, attempts, max_attempts
          FROM translation_jobs
-        WHERE (status = 'queued' AND run_after <= now()) OR (status = 'processing' AND lease_expires_at < now())
+        WHERE consecutive_rejections < 3 AND ((status = 'queued' AND run_after <= now()) OR (status = 'processing' AND lease_expires_at < now()))
         ORDER BY run_after, created_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED`,
@@ -73,11 +82,13 @@ export async function claimNextJob(deps: ProcessingDeps): Promise<ClaimedJob | n
           WHERE id = $1`,
         [job.id],
       );
+      const teamId = await jobTeam(db, job.id);
       await recordAudit(db, {
         actorUserId: null,
         action: 'translation.failed',
         targetType: 'translation',
         targetId: job.id,
+        ...(teamId ? { teamId } : {}),
         metadata: { code: 'attempts_exhausted' },
       });
       await notifyFailure(db, job.id, 'attempts_exhausted');
@@ -126,11 +137,13 @@ export async function processNextJob(deps: ProcessingDeps) {
           WHERE id = $1 AND lease_owner = $2`,
         [job.id, deps.workerId, code],
       );
+      const teamId = await jobTeam(deps.pool, job.id);
       await recordAudit(deps.pool, {
         actorUserId: null,
         action: 'translation.failed',
         targetType: 'translation',
         targetId: job.id,
+        ...(teamId ? { teamId } : {}),
         metadata: { code },
       });
       await notifyFailure(deps.pool, job.id, code);
@@ -270,7 +283,13 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
       targetType: 'translation',
       targetId: job.id,
       ...(doc.team_id ? { teamId: doc.team_id } : {}),
-      metadata: { provider: translator.name, external: translator.external, ...result.stats },
+      metadata: {
+        provider: translator.name,
+        external: translator.external,
+        sourceLanguage: job.source_language,
+        targetLanguage: job.target_language,
+        ...result.stats,
+      },
     });
   }
   const { draft, origin, notice, corrections, issues } = result;

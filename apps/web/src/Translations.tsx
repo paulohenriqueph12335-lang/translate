@@ -26,6 +26,7 @@ import { DocumentPreview } from './DocumentPreview';
 import { FlowTracker, NewTranslation, WordPanel } from './Flow';
 import { ModeBadge, StagesPanel } from './Modes';
 import { NumberingPanel } from './TranslatorNumbering';
+import { DocumentTiming, elapsedLabel, InspectionGate, InspectionHistory, LanguageCorrection, RegisterFormat } from './TranslationWorkflow';
 import {
   dateTime,
   DateRange,
@@ -139,21 +140,35 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
           }}
         />
       )}
-      <Segmented
-        label="Situação"
-        value={tab}
-        options={[
-          ['review', 'Prévia pronta'],
-          ['approval', 'Aguardando conclusão'],
-          ['processing', 'Processando'],
-          ['approved', 'Concluídas'],
-          ['failed', 'Falhas'],
-          ['all', 'Todas'],
-        ]}
-        onChange={setTab}
-      />
+      <div className="workflow-nav" role="tablist" aria-label="Fases da documentação">
+        {(
+          [
+            ['processing', '1. Produção', 'Recebimento, tradução e revisão automática'],
+            ['review', '2. Conferência', 'Compare original e Word; corrija as fases'],
+            ['approval', '3. Aprovação', 'Decisão da liderança e numeração'],
+            ['approved', '4. Entrega', 'Word, PDF e pacotes ZIP'],
+            ['failed', 'Pendências', 'Falhas de processamento que precisam de atenção'],
+            ['all', 'Todas', 'Localize qualquer documento ou protocolo'],
+          ] as Array<[Tab, string, string]>
+        ).map(([key, title, hint]) => (
+          <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
+            <strong>
+              {title}{' '}
+              {facets.data?.statusCounts && (
+                <span className="badge soft">
+                  {(key === 'all'
+                    ? Object.values(facets.data.statusCounts)
+                    : TAB_STATUS[key].map((status) => facets.data!.statusCounts[status] ?? 0)
+                  ).reduce((sum, count) => sum + (count ?? 0), 0)}
+                </span>
+              )}
+            </strong>
+            <span className="small-text">{hint}</span>
+          </button>
+        ))}
+      </div>
       <div className="filters top-gap">
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar arquivo, lote, tipo ou número" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, arquivo, remessa, tipo ou número" />
         {(isDirector || (teams.data?.items.length ?? 0) > 1) && (
           <select aria-label="Equipe" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
             <option value="">Todas as equipes</option>
@@ -214,7 +229,8 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
           <li key={item.id} onClick={() => onOpen(item.id)}>
             <div>
               <strong>
-                {item.document.name} <ModeBadge mode={item.translationMode} /> <StatusBadge status={item.status} />
+                {item.batch.protocol && <span className="badge soft">{item.batch.protocol}</span>} {item.document.name}{' '}
+                <ModeBadge mode={item.translationMode} /> <StatusBadge status={item.status} />
                 {item.patternKnown === false && <span className="badge warn">Tipo novo</span>}
                 {!item.assignee && item.status !== 'approved' && <span className="badge info">Sem responsável</span>}
                 {item.annulled && <span className="badge danger">Número anulado</span>}
@@ -226,6 +242,15 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
                 {item.assignee ? `com ${item.assignee.name}` : `enviado por ${item.uploadedBy}`} · {dateTime(item.createdAt)}
                 {item.number ? ` · nº ${item.number}` : ''}
               </span>
+              {item.timing && (
+                <span className="muted small-text">
+                  Estimativa: {elapsedLabel(item.timing.estimatedSeconds)} · Sem atividade: {elapsedLabel(item.timing.idleSeconds)}
+                  {item.status === 'approved' && !item.timing.firstDownloadedAt
+                    ? ` · Pronto sem download há ${elapsedLabel(item.timing.waitingDownloadSeconds)}`
+                    : ''}
+                </span>
+              )}
+              {item.reviewLifecycle?.blocked && <span className="badge danger">3 reprovações · novo formato obrigatório</span>}
               <TagList tags={item.document.tags} onPick={setTag} />
             </div>
             <button className="small" onClick={() => onOpen(item.id)}>
@@ -298,12 +323,14 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
   const [review, setReview] = useState<AutoReviewResult | null>(null);
+  const [reviewedComparison, setReviewedComparison] = useState(false);
   const reload = () => setVersion((current) => current + 1);
 
   // Ao (re)carregar, descarta edições locais da revisão anterior.
   useEffect(() => {
     setDraft(data?.draft?.content ?? null);
   }, [data]);
+  useEffect(() => setReviewedComparison(false), [data?.draft?.revision]);
 
   // Enquanto processa, a tela se atualiza sozinha.
   const status = data?.translation.status;
@@ -320,6 +347,23 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   const errors = data.draft?.issues.filter((issue) => issue.severity === 'error') ?? [];
   const warnings = data.draft?.issues.filter((issue) => issue.severity === 'warning') ?? [];
   const isDirector = me.user.orgRole === 'director';
+  const sampleExempt = t.batch.inspectionMode === 'sample' && !t.reviewLifecycle?.isSampleDocument && t.reviewLifecycle?.sampleCovered;
+
+  async function inspectBeforeApproval() {
+    if (!data?.draft) return false;
+    if (sampleExempt) return true;
+    if (!reviewedComparison) {
+      setFeedback({ error: 'Compare o original e o Word e confirme a conferência antes de aprovar.' });
+      return false;
+    }
+    await api('POST', `/translations/${id}/inspections`, {
+      decision: 'approved',
+      baseRevision: data.draft.revision,
+      failedStages: [],
+      scope: t.batch.inspectionMode ?? 'all',
+    });
+    return true;
+  }
 
   async function run<T>(label: string, call: () => Promise<T>) {
     setBusy(true);
@@ -334,6 +378,13 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
     } finally {
       setBusy(false);
     }
+  }
+
+  async function claimDocument() {
+    const completed = t.status === 'awaiting_approval';
+    if (completed && !window.confirm('Este documento já está pronto. Deseja assumir sua responsabilidade?')) return;
+    const result = await run('Agora esta tradução é sua.', () => api('POST', `/translations/${id}/claim`, { confirmCompleted: completed }));
+    if (result) reload();
   }
 
   /** Grava as edições como nova revisão; devolve `false` se não conseguiu. */
@@ -364,8 +415,12 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   }
 
   async function acceptWord() {
+    if (dirty || (!sampleExempt && !reviewedComparison)) {
+      setFeedback({ error: 'Salve as alterações e confirme a comparação do original com o Word antes de aprovar.' });
+      return;
+    }
     const done = await run('Aprovado: a tradução seguiu para a próxima fase.', () =>
-      api<TranslationDetail>('POST', `/translations/${id}/accept`),
+      inspectBeforeApproval().then((inspected) => (inspected ? api<TranslationDetail>('POST', `/translations/${id}/accept`) : undefined)),
     );
     if (done) {
       setFeedback({
@@ -379,8 +434,18 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   }
 
   async function ready() {
+    if (dirty) {
+      if (await save()) setFeedback({ ok: 'Alterações salvas. Confira a nova prévia e o original antes de aprovar.' });
+      return;
+    }
     if (!(await save())) return;
-    const done = await run('Marcada como pronta: a liderança foi avisada para concluir.', () => api('POST', `/translations/${id}/submit`));
+    if (!sampleExempt && !reviewedComparison) {
+      setFeedback({ error: 'Confira o Word e o original após salvar, antes de marcar como pronta.' });
+      return;
+    }
+    const done = await run('Marcada como pronta: a liderança foi avisada para concluir.', () =>
+      inspectBeforeApproval().then((inspected) => (inspected ? api('POST', `/translations/${id}/submit`) : undefined)),
+    );
     if (done) reload();
   }
 
@@ -391,7 +456,10 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           ← Traduções
         </button>
         <div className="review-title">
-          <h2>{t.document.name}</h2>
+          <h2>
+            {t.batch.protocol ? `${t.batch.protocol} – ` : ''}
+            {t.document.name}
+          </h2>
           <p className="muted small-text">
             <StatusBadge status={t.status} /> {t.documentType ?? t.sourceTitle ?? 'Tipo ainda não identificado'} ·{' '}
             {pairLabel(t.sourceLanguage, t.targetLanguage)} · {t.team?.name ?? 'Sem equipe'} · enviado por {t.uploadedBy} em{' '}
@@ -406,11 +474,24 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             {t.assignee ? <strong>{t.assignee.name}</strong> : <span className="muted">ninguém ainda — a equipe pode assumir</span>}
             {t.assignee?.id === me.user.id ? ' (você)' : ''}
           </p>
-          <DocumentTags documentId={t.document.id} tags={t.document.tags} onSaved={reload} />
+          <DocumentTags
+            documentId={t.document.id}
+            tags={t.document.tags}
+            completed={t.status === 'approved' || t.status === 'awaiting_approval'}
+            onSaved={reload}
+          />
         </div>
       </div>
 
       <FlowTracker t={t} />
+      {t.permissions.claim && (
+        <div className="toolbar">
+          <button className="primary" disabled={busy} onClick={() => void claimDocument()}>
+            Assumir documento para conferir
+          </button>
+        </div>
+      )}
+      <DocumentTiming translation={t} />
       {(t.status === 'queued' || t.status === 'processing') && (
         <p className="alert info">Traduzindo e revisando o documento… esta tela se atualiza sozinha e a prévia em Word aparece aqui.</p>
       )}
@@ -422,13 +503,49 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           canAuthorize={t.permissions.approve}
           defaultTranslatorId={t.preferredTranslator?.id ?? null}
           defaultPages={t.pageCount}
-          onSaved={reload}
+          completed={t.status === 'awaiting_approval'}
+          onSaved={() => {
+            setReviewedComparison(false);
+            reload();
+          }}
         />
       )}
       {data.draft &&
         (t.status === 'in_review' || t.status === 'awaiting_approval' || (t.status === 'approved' && t.permissions.download)) && (
-          <WordPanel t={t} revision={data.draft.revision} busy={busy || dirty} onAccept={() => void acceptWord()} />
+          <WordPanel
+            t={t}
+            revision={data.draft.revision}
+            busy={busy || dirty}
+            canAccept={!!sampleExempt || reviewedComparison}
+            onAccept={() => void acceptWord()}
+          />
         )}
+      {data.draft && (t.status === 'in_review' || t.status === 'awaiting_approval') && (
+        <InspectionGate
+          t={t}
+          revision={data.draft.revision}
+          reviewed={reviewedComparison}
+          onReviewed={setReviewedComparison}
+          busy={busy || dirty}
+          onDone={reload}
+        />
+      )}
+      {draft && data.draft && (
+        <RegisterFormat
+          t={t}
+          revision={data.draft.revision}
+          draft={draft}
+          onDraft={setDraft}
+          onEdit={() => setEditing(true)}
+          onDone={() => {
+            setEditing(false);
+            setReviewedComparison(false);
+            reload();
+          }}
+        />
+      )}
+      <LanguageCorrection key={`${id}-${t.sourceLanguage}-${t.targetLanguage}`} t={t} me={me} onDone={reload} />
+      <InspectionHistory items={data.inspections ?? []} />
       {/* Auxílio da IA (ADR-021) junto da prévia: a sugestão de diagramação pendente aparece aberta. */}
       {data.draft && !editing && <AiAssist translationId={id} status={t.status} onApplied={reload} />}
       <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
@@ -437,25 +554,27 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
         <summary>Ajustes manuais (opcional): texto, checklist, revisão e conclusão com outro tradutor</summary>
         <div className="action-bar">
           {t.permissions.claim && (
-            <button
-              className="primary"
-              disabled={busy}
-              onClick={() => void run('Agora esta tradução é sua.', () => api('POST', `/translations/${id}/claim`)).then(reload)}
-            >
+            <button className="primary" disabled={busy} onClick={() => void claimDocument()}>
               Assumir
             </button>
           )}
           {t.permissions.reassign && t.team && (
-            <ReassignControl teamId={t.team.id} current={t.assignee?.id ?? null} id={id} onDone={reload} />
+            <ReassignControl
+              teamId={t.team.id}
+              current={t.assignee?.id ?? null}
+              id={id}
+              completed={t.status === 'approved' || t.status === 'awaiting_approval'}
+              onDone={reload}
+            />
           )}
-          {t.permissions.edit && !editing && (
+          {(t.permissions.edit || t.permissions.registerNewFormat) && !editing && (
             <button onClick={() => setEditing(true)} disabled={busy}>
               Editar texto
             </button>
           )}
           {editing && (
             <>
-              <button className="primary" onClick={() => void save()} disabled={busy || !dirty}>
+              <button className="primary" onClick={() => void save()} disabled={busy || !dirty || t.reviewLifecycle?.blocked}>
                 Salvar alterações
               </button>
               <button
@@ -476,7 +595,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           )}
           {t.permissions.submit && dirty && (
             <button className="primary" onClick={() => void ready()} disabled={busy}>
-              Salvar e marcar como pronta
+              Salvar e voltar à conferência
             </button>
           )}
           {t.permissions.approve && (
@@ -526,6 +645,8 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             canManageTranslators={me.memberships.some((m) => m.role === 'leader')}
             sworn={t.useMask}
             dirty={dirty}
+            beforeConclude={inspectBeforeApproval}
+            compared={!!sampleExempt || reviewedComparison}
             onGoTranslators={onGoTranslators}
             onDone={() => {
               setPanel(null);
@@ -548,6 +669,8 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           <RedoPanel
             id={id}
             canReturn={t.permissions.returnForChanges}
+            revision={data.draft?.revision ?? 0}
+            inspectionScope={t.batch.inspectionMode ?? 'all'}
             onDone={(text) => {
               setPanel(null);
               setFeedback({ ok: text });
@@ -562,6 +685,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             stages={t.stages}
             checklist={data.checklist}
             editable={t.permissions.edit || t.permissions.approve}
+            completed={t.status === 'awaiting_approval'}
             onChange={reload}
           />
         )}
@@ -637,7 +761,19 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
 }
 
 /** Reatribuir a alguém da equipe (Supervisor e Diretor). */
-function ReassignControl({ teamId, current, id, onDone }: { teamId: string; current: string | null; id: string; onDone: () => void }) {
+function ReassignControl({
+  teamId,
+  current,
+  id,
+  completed,
+  onDone,
+}: {
+  teamId: string;
+  current: string | null;
+  id: string;
+  completed: boolean;
+  onDone: () => void;
+}) {
   const members = useLoad(
     () => api<{ items: Array<{ userId: string; displayName: string; role: string }> }>('GET', `/teams/${teamId}/members`),
     [teamId],
@@ -651,7 +787,12 @@ function ReassignControl({ teamId, current, id, onDone }: { teamId: string; curr
         onChange={(e) => {
           const userId = e.target.value;
           if (!userId) return;
-          api('PUT', `/translations/${id}/assignee`, { userId })
+          if (
+            completed &&
+            !window.confirm('Este documento já está pronto. Tem certeza de que deseja mudar o responsável? A alteração será auditada.')
+          )
+            return;
+          api('PUT', `/translations/${id}/assignee`, { userId, ...(completed ? { confirmCompleted: true } : {}) })
             .then(onDone)
             .catch((caught: unknown) => setError(message(caught)));
         }}
@@ -686,6 +827,12 @@ function NumberingRequestPanel({ id, onDone }: { id: string; onDone: () => void 
   const invalid = reason.trim().length < 5 || (kind === 'change' && Object.keys(parsed).length === 0);
 
   async function send() {
+    if (
+      !window.confirm(
+        'Tem certeza de que deseja pedir a alteração ou anulação da numeração deste documento concluído? O pedido e sua justificativa ficarão registrados.',
+      )
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -758,6 +905,8 @@ function ConcludePanel({
   canManageTranslators,
   sworn,
   dirty,
+  beforeConclude,
+  compared,
   onGoTranslators,
   onDone,
 }: {
@@ -767,6 +916,8 @@ function ConcludePanel({
   /** Só a juramentada precisa do tradutor juramentado e da máscara (ADR-015). */
   sworn: boolean;
   dirty: boolean;
+  beforeConclude: () => Promise<boolean>;
+  compared: boolean;
   onGoTranslators: () => void;
   onDone: () => void;
 }) {
@@ -799,6 +950,7 @@ function ConcludePanel({
     setBusy(true);
     setError(null);
     try {
+      if (!(await beforeConclude())) return;
       // A numeração preenchida no painel "Numeração" é conferida de novo e emitida agora (ADR-014).
       await api('POST', `/translations/${id}/approve`, errors ? { overrideReason: reason.trim() } : {});
       onDone();
@@ -825,7 +977,11 @@ function ConcludePanel({
       )}
       <Feedback error={error ?? translators.error} />
       <div className="actions">
-        <button className="primary" disabled={busy || dirty || (errors > 0 && reason.trim().length < 10)} onClick={() => void conclude()}>
+        <button
+          className="primary"
+          disabled={busy || dirty || !compared || (errors > 0 && reason.trim().length < 10)}
+          onClick={() => void conclude()}
+        >
           {busy ? 'Concluindo…' : 'Concluir e liberar download'}
         </button>
       </div>
@@ -833,17 +989,37 @@ function ConcludePanel({
   );
 }
 
-function RedoPanel({ id, canReturn, onDone }: { id: string; canReturn: boolean; onDone: (message: string) => void }) {
+function RedoPanel({
+  id,
+  canReturn,
+  revision,
+  inspectionScope,
+  onDone,
+}: {
+  id: string;
+  canReturn: boolean;
+  revision: number;
+  inspectionScope: 'all' | 'sample';
+  onDone: (message: string) => void;
+}) {
   const [comment, setComment] = useState('');
   const [reprocess, setReprocess] = useState(!canReturn);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedStages, setFailedStages] = useState<string[]>([]);
 
   async function send() {
     setBusy(true);
     setError(null);
     try {
-      await api('POST', `/translations/${id}/return`, { comment: comment.trim(), reprocess });
+      await api('POST', `/translations/${id}/inspections`, {
+        decision: 'rejected',
+        baseRevision: revision,
+        failedStages,
+        scope: inspectionScope,
+        comment: comment.trim(),
+        reprocess,
+      });
       onDone(reprocess ? 'O documento será processado de novo; a equipe foi avisada.' : 'Devolvida para a equipe com o motivo.');
     } catch (caught) {
       setError(message(caught));
@@ -855,6 +1031,26 @@ function RedoPanel({ id, canReturn, onDone }: { id: string; canReturn: boolean; 
   return (
     <div className="card panel">
       <h3>Refazer</h3>
+      <fieldset>
+        <legend>Fases com falha</legend>
+        {[
+          ['correction', 'Correção'],
+          ['translation', 'Tradução'],
+          ['layout', 'Diagramação'],
+          ['review', 'Revisão'],
+        ].map(([key, label]) => (
+          <label className="check" key={key}>
+            <input
+              type="checkbox"
+              checked={failedStages.includes(key!)}
+              onChange={(e) =>
+                setFailedStages((current) => (e.target.checked ? [...current, key!] : current.filter((value) => value !== key)))
+              }
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
       <label>
         O que precisa ser refeito?
         <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ex.: conferir as notas da 3ª série." />
@@ -865,7 +1061,11 @@ function RedoPanel({ id, canReturn, onDone }: { id: string; canReturn: boolean; 
       </label>
       <Feedback error={error} />
       <div className="actions">
-        <button className="primary" disabled={busy || comment.trim().length < 3} onClick={() => void send()}>
+        <button
+          className="primary"
+          disabled={busy || !revision || !failedStages.length || comment.trim().length < 3}
+          onClick={() => void send()}
+        >
           {busy ? 'Enviando…' : reprocess ? 'Reprocessar e avisar a equipe' : 'Devolver para a equipe'}
         </button>
       </div>
@@ -874,7 +1074,17 @@ function RedoPanel({ id, canReturn, onDone }: { id: string; canReturn: boolean; 
 }
 
 /** Etiquetas do documento, editáveis por quem trabalha com ele. */
-export function DocumentTags({ documentId, tags, onSaved }: { documentId: string; tags: string[]; onSaved: () => void }) {
+export function DocumentTags({
+  documentId,
+  tags,
+  completed = false,
+  onSaved,
+}: {
+  documentId: string;
+  tags: string[];
+  completed?: boolean;
+  onSaved: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(tags);
   const [error, setError] = useState<string | null>(null);
@@ -898,14 +1108,19 @@ export function DocumentTags({ documentId, tags, onSaved }: { documentId: string
       <TagInput value={value} onChange={setValue} suggestions={suggestions.data?.items.map((item) => item.tag) ?? []} />
       <button
         className="small primary"
-        onClick={() =>
-          api('PUT', `/documents/${documentId}/tags`, { tags: value })
+        onClick={() => {
+          if (
+            completed &&
+            !window.confirm('Este documento está pronto. Tem certeza de que deseja alterar as etiquetas? A mudança ficará na auditoria.')
+          )
+            return;
+          void api('PUT', `/documents/${documentId}/tags`, { tags: value, ...(completed ? { confirmCompleted: true } : {}) })
             .then(() => {
               setEditing(false);
               onSaved();
             })
-            .catch((caught: unknown) => setError(message(caught)))
-        }
+            .catch((caught: unknown) => setError(message(caught)));
+        }}
       >
         Salvar
       </button>

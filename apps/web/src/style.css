@@ -1,5 +1,418 @@
 @import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
 
+/* The PDF is rendered locally so the comparison also works without browser PDF plugins. */
+.pdf-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.comparison-pane h4 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pdf-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.75rem;
+}
+.pdf-toolbar select {
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+.pdf-pages {
+  height: 580px;
+  overflow: auto;
+  padding: 0.75rem;
+  background: #e5e5e5;
+}
+.pdf-pages canvas {
+  display: block;
+  margin: 0 auto;
+  background: white;
+  box-shadow: 0 1px 6px #0002;
+}
+.pdf-text {
+  padding: 0.6rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.75rem;
+}
+.pdf-text p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 250px;
+  overflow-y: auto;
+}
+@media (max-width: 600px) {
+  .pdf-pages {
+    height: 440px;
+  }
+}
+
+/* Painéis e fluxo operacional: escolhas explícitas e a documentação lado a lado. */
+.dashboard-picker {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin: 20px 0;
+  background: var(--sheet);
+}
+.dashboard-picker summary,
+.format-registration summary,
+.workflow-adjustment summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+.dashboard-picker-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px 20px;
+  margin: 16px 0;
+}
+.dashboard-widget {
+  min-width: 0;
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+.dashboard-widget.wide {
+  grid-column: 1 / -1;
+}
+.dashboard-widget-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.dashboard-widget-controls button.small {
+  font-size: 12px;
+  padding: 5px 8px;
+}
+.dashboard-print-only {
+  display: none;
+}
+.dashboard-expanded-placeholder {
+  padding: 36px 20px;
+  border: 1px dashed var(--rule);
+  color: var(--muted);
+  background: var(--sheet);
+}
+.dashboard-dialog {
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 24px;
+  width: min(1180px, calc(100vw - 32px));
+  max-width: 100%;
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+}
+.dashboard-dialog::backdrop {
+  background: rgb(0 0 0 / 65%);
+  backdrop-filter: blur(3px);
+}
+.dashboard-dialog-header {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.dashboard-dialog-header h2 {
+  margin: 0;
+}
+.smart-search {
+  margin: 20px 0 28px;
+}
+.smart-search h3 {
+  margin-top: 0;
+}
+.smart-search .search {
+  width: 100%;
+  max-width: 740px;
+  margin-bottom: 12px;
+}
+.smart-search-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 20px;
+}
+.smart-search-group {
+  min-width: 0;
+}
+.smart-search-group h4 {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 0;
+}
+.smart-search-group button.link {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.smart-search-group .list li {
+  overflow-wrap: anywhere;
+}
+.audit-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.audit-summary > * {
+  padding: 16px;
+  border: 1px solid var(--rule);
+  background: var(--sheet);
+  border-radius: var(--radius);
+}
+.audit-summary strong {
+  display: block;
+  font-size: 26px;
+  font-family: var(--mono);
+}
+.audit-incidents {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+}
+.audit-incident {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.audit-incident.critical {
+  border-left: 3px solid var(--danger);
+  padding-left: 12px;
+}
+.severity-badge {
+  font-size: 12px;
+  border: 1px solid var(--rule);
+  padding: 3px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.severity-badge.critical,
+.severity-badge.error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger-line);
+}
+.severity-badge.warning {
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-color: var(--warn-line);
+}
+.severity-badge.info {
+  color: var(--muted);
+  background: var(--gray-50);
+}
+.workflow-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 20px 0;
+}
+.workflow-nav button {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  text-align: left;
+  padding: 16px;
+  border: 1px solid var(--rule);
+  background: var(--sheet);
+  min-width: 0;
+}
+.workflow-nav button.active {
+  background: var(--ink);
+  color: var(--on-ink);
+  border-color: var(--ink);
+}
+.workflow-nav button span {
+  opacity: 0.8;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.document-timing {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.document-timing > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 16px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+.document-timing strong {
+  font-family: var(--mono);
+  font-size: 18px;
+}
+.document-timing small {
+  line-height: 1.4;
+}
+.document-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+}
+.comparison-pane {
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  overflow: hidden;
+}
+.comparison-pane > .word-head {
+  padding: 12px;
+  margin: 0;
+  min-height: 85px;
+}
+.comparison-pane h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.comparison-pane .word-frame {
+  width: 100%;
+  height: min(76vh, 850px);
+  min-height: 420px;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+.comparison-image {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  display: block;
+  background: #fff;
+}
+.comparison-fallback {
+  padding: 20px;
+  min-height: 240px;
+}
+.inspection-gate,
+.workflow-adjustment,
+.format-registration {
+  margin: 20px 0;
+}
+.inspection-gate h3 {
+  margin: 0;
+}
+.inspection-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 0;
+}
+.inspection-gate .check {
+  margin: 16px 0;
+}
+.inspection-gate fieldset {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+.format-registration > label,
+.workflow-adjustment > label {
+  margin: 16px 0;
+}
+.inspection-history {
+  padding-left: 24px;
+}
+.inspection-history li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.inspection-history li > span {
+  display: block;
+  margin-top: 6px;
+}
+.protocol-fields {
+  padding: 16px;
+  background: var(--gray-50);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  margin: 16px 0;
+}
+.protocol-fields label {
+  margin: 12px 0;
+}
+.archive-controls {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+.pattern-comparison {
+  margin-top: 20px;
+}
+@media (max-width: 1100px) {
+  .document-timing {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 800px) {
+  .document-comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workflow-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-dialog {
+    padding: 16px;
+  }
+}
+@media (max-width: 450px) {
+  .document-timing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workflow-nav {
+    gap: 6px;
+  }
+  .workflow-nav button {
+    padding: 12px 10px;
+  }
+  .dashboard-dialog-header {
+    align-items: start;
+    flex-direction: column;
+  }
+}
+@media print {
+  .dashboard-print-only {
+    display: block;
+  }
+  .dashboard-widget-controls,
+  .dashboard-picker,
+  .dashboard-dialog,
+  .smart-search,
+  .archive-controls,
+  .inspection-gate,
+  .workflow-adjustment,
+  .format-registration {
+    display: none !important;
+  }
+  .dashboard-widget {
+    break-inside: avoid;
+  }
+  .dashboard-widget-grid {
+    display: block;
+  }
+}
+
 /*
  * Identidade: papel e tinta da tradução juramentada, em linguagem contemporânea (.impeccable/briefs/web-app.md).
  * Preto de tinta no menu e nas ações, off-white de papel no chão, cinzas para a estrutura. Cor só para estados.

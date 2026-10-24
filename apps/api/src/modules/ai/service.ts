@@ -59,6 +59,7 @@ interface JobRow {
   target_language: Language;
   extracted_text: string | null;
   current_revision: number | null;
+  consecutive_rejections: number;
   document_name: string;
   content: unknown;
   issues: Array<{ code: string; severity: string }> | null;
@@ -315,7 +316,7 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
     const row = (
       await pool.query<JobRow>(
         `SELECT j.id, b.team_id, b.owner_id, j.assignee_id, j.status, j.translation_mode, j.source_language, j.target_language,
-                j.extracted_text, j.current_revision, d.display_name AS document_name, r.content, r.issues
+                j.extracted_text, j.current_revision, j.consecutive_rejections, d.display_name AS document_name, r.content, r.issues
            FROM translation_jobs j JOIN documents d ON d.id = j.document_id JOIN batches b ON b.id = d.batch_id
            LEFT JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision
           WHERE j.id = $1`,
@@ -425,6 +426,7 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
 
   async function proposeLayout(ctx: AuthenticatedContext, translationId: string) {
     const job = await loadJob(ctx, translationId);
+    if (job.consecutive_rejections >= 3) throw conflict('Registre uma nova forma de formatação antes de pedir outra tentativa');
     if (job.status !== 'in_review' && job.status !== 'awaiting_approval')
       throw conflict('A diagramação só muda enquanto a tradução está em revisão');
     await gate(ctx, 'layout_combination', translationId);
@@ -459,11 +461,11 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
 
   /** Última combinação proposta da tradução (a que espera aprovação), para a tela. */
   async function pendingFor(ctx: AuthenticatedContext, translationId: string) {
-    await loadJob(ctx, translationId);
+    const job = await loadJob(ctx, translationId);
     const row = (
       await pool.query<{ id: string }>(
-        `SELECT id FROM ai_layout_combinations WHERE translation_id = $1 AND status = 'proposed' ORDER BY created_at DESC LIMIT 1`,
-        [translationId],
+        `SELECT id FROM ai_layout_combinations WHERE translation_id = $1 AND revision=$2 AND status = 'proposed' ORDER BY created_at DESC LIMIT 1`,
+        [translationId, job.current_revision],
       )
     ).rows[0];
     return { combination: row ? await combinationView(row.id) : null };
@@ -472,13 +474,15 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
   /** Rascunho com a combinação aplicada, para a prévia (nada é gravado). */
   async function proposedDraft(ctx: AuthenticatedContext, combinationId: string) {
     const combination = (
-      await pool.query<{ translation_id: string; sample: LayoutCombination['sample']; rationale: string | null }>(
-        'SELECT translation_id, sample, rationale FROM ai_layout_combinations WHERE id = $1',
+      await pool.query<{ translation_id: string; revision: number; sample: LayoutCombination['sample']; rationale: string | null }>(
+        'SELECT translation_id, revision, sample, rationale FROM ai_layout_combinations WHERE id = $1',
         [combinationId],
       )
     ).rows[0];
     if (!combination) throw notFound('Combinação não encontrada');
     const job = await loadJob(ctx, combination.translation_id);
+    if (combination.revision !== job.current_revision)
+      throw conflict('O documento ou seus idiomas mudaram; solicite uma nova proposta de diagramação');
     const parsed = Draft.safeParse(job.content);
     if (!parsed.success) throw conflict('A tradução não tem rascunho');
     const applied = applyLayoutCombination(parsed.data, { sample: combination.sample, rationale: combination.rationale ?? '' });
@@ -487,12 +491,34 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
   }
 
   /** Aprovada pela pessoa na prévia: vira revisão do documento e passa a valer para documentos parecidos. */
-  async function decide(ctx: AuthenticatedContext, combinationId: string, approve: boolean) {
+  async function decide(
+    ctx: AuthenticatedContext,
+    combinationId: string,
+    approve: boolean,
+    options: { confirmCompleted?: boolean; reason?: string } = {},
+  ) {
     const { job, draft, changes } = await proposedDraft(ctx, combinationId);
     if (!canEditTranslation(ctx.actor, { teamId: job.team_id, ownerId: job.owner_id }, job.assignee_id) && !isDirector(ctx.actor)) {
       throw forbidden('Somente quem trabalha na tradução ou a liderança aprova a combinação');
     }
     await withTransaction(pool, async (db) => {
+      const locked = (
+        await db.query<{ status: string; current_revision: number; consecutive_rejections: number }>(
+          'SELECT status,current_revision,consecutive_rejections FROM translation_jobs WHERE id=$1 FOR UPDATE',
+          [job.id],
+        )
+      ).rows[0];
+      if (!locked || !['in_review', 'awaiting_approval'].includes(locked.status)) throw conflict('A tradução não está em revisão');
+      if (
+        approve &&
+        locked.status === 'awaiting_approval' &&
+        (!options.confirmCompleted || !options.reason || options.reason.trim().length < 5)
+      )
+        throw new AppError(409, 'CONFLICT', 'Confirme a alteração do documento pronto pela IA e informe o motivo', {
+          reason: 'completed_confirmation_required',
+        });
+      if (locked.consecutive_rejections >= 3) throw conflict('Registre uma nova forma de formatação antes de tentar novamente');
+      if (locked.current_revision !== job.current_revision) throw conflict('O documento mudou; recarregue a prévia da combinação');
       const current = (
         await db.query<{ status: string }>('SELECT status FROM ai_layout_combinations WHERE id = $1 FOR UPDATE', [combinationId])
       ).rows[0];
@@ -530,7 +556,14 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
         targetId: job.id,
         ...(job.team_id ? { teamId: job.team_id } : {}),
         correlationId: ctx.correlationId,
-        metadata: { combination: combinationId },
+        metadata: {
+          combination: combinationId,
+          confirmedCompleted: options.confirmCompleted === true,
+          reason: options.reason ?? null,
+          sourceLanguage: job.source_language,
+          targetLanguage: job.target_language,
+          revision: job.current_revision,
+        },
       });
     });
     // O conhecimento de diagramação passa a incluir a combinação aprovada já na próxima tradução.

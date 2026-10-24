@@ -223,8 +223,10 @@ export function createTranslatorNumberingService({ pool }: ServiceDeps) {
         owner_id: string;
         document_name: string;
         source_language: string;
+        current_revision: number | null;
+        consecutive_rejections: number;
       }>(
-        `SELECT j.id, j.status, b.team_id, b.owner_id, d.display_name AS document_name, j.source_language
+        `SELECT j.id, j.status, b.team_id, b.owner_id, d.display_name AS document_name, j.source_language,j.current_revision,j.consecutive_rejections
            FROM translation_jobs j JOIN documents d ON d.id = j.document_id JOIN batches b ON b.id = d.batch_id
           WHERE j.id = $1 ${lock ? 'FOR UPDATE OF j' : ''}`,
         [jobId],
@@ -562,11 +564,23 @@ export function createTranslatorNumberingService({ pool }: ServiceDeps) {
   }
 
   /** O usuário grava a numeração; a conferência roda e os problemas ficam registrados (e avisam os Supervisores). */
-  async function saveEntry(ctx: AuthenticatedContext, jobId: string, input: EntryInput & { translatorId: string }) {
+  async function saveEntry(
+    ctx: AuthenticatedContext,
+    jobId: string,
+    input: EntryInput & { translatorId: string; confirmCompleted?: boolean },
+  ) {
     return withTransaction(pool, async (db) => {
       const job = await loadJob(db, ctx, jobId, true);
       if (job.status !== 'in_review' && job.status !== 'awaiting_approval')
         throw conflict('A numeração só muda enquanto a tradução está em revisão');
+      if (job.consecutive_rejections >= 3)
+        throw new AppError(409, 'CONFLICT', 'Registre uma nova forma de formatação antes de alterar o Word', {
+          reason: 'review_attempts_exhausted',
+        });
+      if (job.status === 'awaiting_approval' && !input.confirmCompleted)
+        throw new AppError(409, 'CONFLICT', 'Confirme a alteração da numeração deste documento pronto', {
+          reason: 'completed_confirmation_required',
+        });
       const previous = await entryOf(db, jobId);
       if (previous?.status === 'issued') throw conflict('O número já foi emitido; peça alteração em Numeração');
       const rule = await loadRule(db, input.translatorId);
@@ -574,6 +588,41 @@ export function createTranslatorNumberingService({ pool }: ServiceDeps) {
       const authorized = previous?.translator_id === rule.id ? previous.zero_protocol_authorized_by : null;
       const check = checkEntry(rule.numbering_scheme, rule.config, input, await stateFor(db, rule, jobId, input, ctx.actor, !!authorized));
       await upsertDraft(db, ctx, jobId, rule.id, input, check, authorized);
+      const saved = (await entryOf(db, jobId))!;
+      const displayed = (entry: EntryRow) => ({
+        translator: entry.translator_id,
+        number: entry.number,
+        book: entry.book,
+        sheetStart: entry.sheet_start,
+        sheetEnd: entry.sheet_end,
+        pages: entry.pages,
+        protocol: entry.protocol,
+        medium: entry.medium,
+        language: entry.language,
+        free: entry.free,
+        protocolValue: toNumber(entry.protocol_value),
+        translatorFee: toNumber(entry.translator_fee),
+        pageCharge: toNumber(entry.page_charge),
+      });
+      const changed = !previous || JSON.stringify(displayed(previous)) !== JSON.stringify(displayed(saved));
+      let revision = job.current_revision;
+      if (changed && job.current_revision) {
+        const next = (
+          await db.query<{ revision: number }>(`SELECT coalesce(max(revision),0)+1 AS revision FROM translation_drafts WHERE job_id=$1`, [
+            jobId,
+          ])
+        ).rows[0]!.revision;
+        await db.query(
+          `INSERT INTO translation_drafts(job_id,revision,content,issues,origin,author_id)
+           SELECT job_id,$3,content,issues,'human',$4 FROM translation_drafts WHERE job_id=$1 AND revision=$2`,
+          [jobId, job.current_revision, next, ctx.actor.id],
+        );
+        await db.query(`UPDATE translation_jobs SET current_revision=$2,inspection_revision=NULL,updated_at=now() WHERE id=$1`, [
+          jobId,
+          next,
+        ]);
+        revision = next;
+      }
       const errors = check.anomalies.filter((anomaly) => anomaly.severity === 'error');
       const before = new Set((previous?.anomalies ?? []).map((anomaly) => anomaly.message));
       const fresh = errors.filter((anomaly) => !before.has(anomaly.message));
@@ -584,7 +633,15 @@ export function createTranslatorNumberingService({ pool }: ServiceDeps) {
         targetId: jobId,
         ...(job.team_id ? { teamId: job.team_id } : {}),
         correlationId: ctx.correlationId,
-        metadata: { translator: rule.name, number: check.computed.number, anomalies: errors.map((anomaly) => anomaly.code) },
+        metadata: {
+          translator: rule.name,
+          number: check.computed.number,
+          anomalies: errors.map((anomaly) => anomaly.code),
+          changed,
+          revision,
+          previousRevision: job.current_revision,
+          confirmedCompleted: input.confirmCompleted === true,
+        },
       });
       // Anomalia nova (duplicado, fora do estoque, fora da sequência…): os Supervisores ficam sabendo.
       if (fresh.length) {
@@ -599,7 +656,7 @@ export function createTranslatorNumberingService({ pool }: ServiceDeps) {
           },
         );
       }
-      return { entry: toEntry((await entryOf(db, jobId))!), rule: ruleView(rule), check };
+      return { entry: toEntry(saved), rule: ruleView(rule), check, revision };
     });
   }
 
@@ -648,16 +705,27 @@ export function createTranslatorNumberingService({ pool }: ServiceDeps) {
   }
 
   /** Protocolo zerado (Walter): só Supervisor ou Diretor autoriza. */
-  async function authorizeZeroProtocol(ctx: AuthenticatedContext, jobId: string) {
+  async function authorizeZeroProtocol(ctx: AuthenticatedContext, jobId: string, options: { confirmCompleted?: boolean } = {}) {
     if (!canAuthorize(ctx.actor)) throw forbidden('Somente o Supervisor ou o Diretor autoriza protocolo zerado');
     await withTransaction(pool, async (db) => {
       const job = await loadJob(db, ctx, jobId, true);
+      if (!['in_review', 'awaiting_approval'].includes(job.status)) throw conflict('A autorização só muda durante a revisão');
+      if (job.status === 'awaiting_approval' && !options.confirmCompleted)
+        throw new AppError(409, 'CONFLICT', 'Confirme a autorização de protocolo zerado deste documento pronto', {
+          reason: 'completed_confirmation_required',
+        });
+      if (job.consecutive_rejections >= 3)
+        throw new AppError(409, 'CONFLICT', 'Registre uma nova forma de formatação antes de tentar novamente', {
+          reason: 'review_attempts_exhausted',
+        });
       const entry = await entryOf(db, jobId);
       if (!entry || entry.status !== 'draft') throw conflict('Preencha a numeração antes de autorizar');
       await db.query('UPDATE numbering_entries SET zero_protocol_authorized_by = $2, updated_at = now() WHERE job_id = $1', [
         jobId,
         ctx.actor.id,
       ]);
+      if (entry.zero_protocol_authorized_by !== ctx.actor.id)
+        await db.query('UPDATE translation_jobs SET last_activity_at=now() WHERE id=$1', [jobId]);
       await recordAudit(db, {
         actorUserId: ctx.actor.id,
         action: 'numbering.zero_protocol_authorized',
@@ -665,6 +733,7 @@ export function createTranslatorNumberingService({ pool }: ServiceDeps) {
         targetId: jobId,
         ...(job.team_id ? { teamId: job.team_id } : {}),
         correlationId: ctx.correlationId,
+        metadata: { confirmedCompleted: options.confirmCompleted === true },
       });
     });
     return getEntry(ctx, jobId);

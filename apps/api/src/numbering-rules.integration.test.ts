@@ -9,7 +9,7 @@ import type { ObjectStorage } from '@tradutor/core/storage';
 import { renderMaskTemplate } from '@tradutor/core/translation';
 import { approvedTranscriptDraft } from '@tradutor/core/fixtures';
 import { bootstrapDirector } from './modules/identity/bootstrap.js';
-import { createTestApp, TestClient, submitReady, allowTranslatorNotes } from './test/helpers.js';
+import { createTestApp, TestClient, submitReady, allowTranslatorNotes, inspectReady } from './test/helpers.js';
 
 /**
  * Regras de numeração por tradutor (ADR-014): o Supervisor configura e envia os números por CSV; o usuário preenche a
@@ -60,13 +60,18 @@ const fill = (job: string, body: Record<string, unknown>, client = c.op!) =>
 const errorCodes = (response: { body: { check: { anomalies: Array<{ code: string; severity: string }> } } }) =>
   response.body.check.anomalies.filter((anomaly) => anomaly.severity === 'error').map((anomaly) => anomaly.code);
 
+async function approveInspected(job: string) {
+  await inspectReady(c.sup!, job);
+  return c.sup!.post(`/api/v1/translations/${job}/approve`, {});
+}
+
 /** Preenche, marca como pronta e conclui; devolve o número exibido. */
 async function issue(seed: string, body: Record<string, unknown>) {
   const job = await inReview(seed);
   const saved = await fill(job, body);
   assert.deepEqual(errorCodes(saved), [], JSON.stringify(saved.body.check));
   assert.equal((await submitReady(c.op!, job)).status, 200);
-  const done = await c.sup!.post(`/api/v1/translations/${job}/approve`, {});
+  const done = await approveInspected(job);
   assert.equal(done.status, 200, JSON.stringify(done.body));
   return { job, number: done.body.translation.number as string };
 }
@@ -112,6 +117,34 @@ describe('configuração pelo Supervisor', () => {
   });
 });
 
+describe('alteração da numeração de documento pronto', () => {
+  it('exige confirmação, cria revisão e invalida a comparação anterior somente quando os valores mudam', async () => {
+    const translatorId = await translator('Conferência da numeração', 'free_text', {});
+    const job = await inReview('numeracao-conferida');
+    assert.equal((await fill(job, { translatorId, number: 'CONFERENCIA-01' })).status, 200);
+    assert.equal((await submitReady(c.op!, job)).status, 200);
+    const before = (await c.op!.get(`/api/v1/translations/${job}`)).body;
+    assert.equal(before.translation.reviewLifecycle.lastInspectionRevision, before.draft.revision);
+    const denied = await fill(job, { translatorId, number: 'CONFERENCIA-02' });
+    assert.equal(denied.status, 409);
+    assert.equal(denied.body.error.details.reason, 'completed_confirmation_required');
+    const changed = await fill(job, { translatorId, number: 'CONFERENCIA-02', confirmCompleted: true });
+    assert.equal(changed.status, 200);
+    const after = (await c.op!.get(`/api/v1/translations/${job}`)).body;
+    assert.equal(after.draft.revision, before.draft.revision + 1);
+    assert.equal(after.translation.reviewLifecycle.lastInspectionRevision, null);
+    assert.equal((await c.sup!.post(`/api/v1/translations/${job}/approve`, {})).body.error.details.reason, 'inspection_required');
+    const stale = await c.op!.post(`/api/v1/translations/${job}/inspections`, {
+      decision: 'approved',
+      baseRevision: before.draft.revision,
+    });
+    assert.equal(stale.status, 409);
+    assert.equal((await fill(job, { translatorId, number: 'CONFERENCIA-02', confirmCompleted: true })).status, 200);
+    assert.equal((await c.op!.get(`/api/v1/translations/${job}`)).body.draft.revision, after.draft.revision);
+    assert.equal((await approveInspected(job)).body.translation.number, 'CONFERENCIA-02');
+  });
+});
+
 describe('Patricia: livro e folha automáticos, troca de livro e trava', () => {
   it('sem livro cadastrado a numeração trava; com livro, número e folhas seguem as páginas', async () => {
     const job = await inReview('p0');
@@ -128,7 +161,7 @@ describe('Patricia: livro e folha automáticos, troca de livro e trava', () => {
     assert.deepEqual(errorCodes(ok), []);
     assert.deepEqual([ok.body.check.computed.number, ok.body.check.computed.book, ok.body.check.computed.sheetStart], ['501', '12', 1]);
     assert.equal((await submitReady(c.op!, job)).status, 200);
-    const done = await c.sup!.post(`/api/v1/translations/${job}/approve`, {});
+    const done = await approveInspected(job);
     assert.equal(done.body.translation.number, '501 – Livro 12 – Folha 1 a 2');
   });
 
@@ -144,7 +177,7 @@ describe('Patricia: livro e folha automáticos, troca de livro e trava', () => {
     await c.sup!.post(`/api/v1/sworn-translators/${ids.patricia}/numbering/books`, { book: '13', nextNumber: 900 });
     assert.deepEqual(errorCodes(await fill(job, { translatorId: ids.patricia, pages: 1 })), []);
     await submitReady(c.op!, job);
-    assert.equal((await c.sup!.post(`/api/v1/translations/${job}/approve`, {})).body.translation.number, '900 – Livro 13 – Folha 1');
+    assert.equal((await approveInspected(job)).body.translation.number, '900 – Livro 13 – Folha 1');
     const books = (await c.sup!.get(`/api/v1/sworn-translators/${ids.patricia}/numbering/books`)).body.items;
     assert.deepEqual(
       books.map((book: { book: string; status: string; nextSheet: number }) => [book.book, book.status, book.nextSheet]),
@@ -185,7 +218,7 @@ describe('Carla: lotes por idioma, 2 usos em protocolos diferentes, lote gratuit
     ]);
     assert.deepEqual(errorCodes(await fill(job, { translatorId: ids.carla, number: '100', language: 'Francês', protocol: 'P-2' })), []);
     await submitReady(c.op!, job);
-    assert.equal((await c.sup!.post(`/api/v1/translations/${job}/approve`, {})).status, 200);
+    assert.equal((await approveInspected(job)).status, 200);
     const third = await inReview('c3');
     assert.deepEqual(errorCodes(await fill(third, { translatorId: ids.carla, number: '100', language: 'Francês', protocol: 'P-3' })), [
       'uses_exhausted',
@@ -214,7 +247,7 @@ describe('Walter: protocolo e assinatura', () => {
     assert.deepEqual(errorCodes(authorized), []);
     assert.equal(authorized.body.entry.zeroProtocolAuthorizedBy, 'sup');
     await submitReady(c.op!, job);
-    assert.equal((await c.sup!.post(`/api/v1/translations/${job}/approve`, {})).status, 200);
+    assert.equal((await approveInspected(job)).status, 200);
 
     await issue('w2', { translatorId: ids.walter, number: 'NB-2026-1112', protocolValue: 80 });
     // R$ 120,00 pagos (2 × 60) ≥ teto de R$ 100,00: a próxima assinatura é gratuita.
@@ -253,7 +286,7 @@ describe('estoque: reservar, bloquear, avisar, excluir; lembrete; painel', () =>
     const ok = await fill(job, { translatorId: ids.bruno, number: '12' });
     assert.equal(ok.body.check.computed.book, '3');
     await submitReady(c.op!, job);
-    assert.equal((await c.sup!.post(`/api/v1/translations/${job}/approve`, {})).body.translation.number, '12 – Livro 3');
+    assert.equal((await approveInspected(job)).body.translation.number, '12 – Livro 3');
     // Lembrete do tradutor para quem trabalhou na tradução.
     assert.equal(
       (await c.op!.get('/api/v1/notifications?kind=numbering_reminder')).body.items[0].body,
@@ -267,7 +300,7 @@ describe('estoque: reservar, bloquear, avisar, excluir; lembrete; painel', () =>
       .op2!.request('PUT', `/api/v1/translations/${job2}/numbering`, { translatorId: ids.bruno, number: '10' })
       .then((r) => assert.deepEqual(errorCodes(r), []));
     await submitReady(c.op!, job2);
-    assert.equal((await c.sup!.post(`/api/v1/translations/${job2}/approve`, {})).status, 200);
+    assert.equal((await approveInspected(job2)).status, 200);
     const alerts = (await c.sup!.get('/api/v1/notifications?kind=numbering_used,numbering_low')).body.items.map(
       (n: { title: string }) => n.title,
     );

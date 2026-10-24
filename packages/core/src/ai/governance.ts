@@ -262,7 +262,12 @@ export async function proposeLayoutWithAi(
     provider,
     'layout_combination',
     config,
-    { structure, allowed: { roles: [...new Set(roles)], align: ALIGNS, size: SIZES, label_width: '20 a 50' } },
+    {
+      sourceLanguage: draft.sourceLanguage,
+      targetLanguage: draft.targetLanguage,
+      structure,
+      allowed: { roles: [...new Set(roles)], align: ALIGNS, size: SIZES, label_width: '20 a 50' },
+    },
     LayoutOutput,
   );
   if (outcome.status !== 'ok') return outcome;

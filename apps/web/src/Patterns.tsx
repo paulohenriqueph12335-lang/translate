@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   api,
   ApiError,
@@ -6,15 +6,38 @@ import {
   MODES,
   modeLabel,
   splitPair,
+  stageLabel,
+  type Stage,
   type DocumentPattern,
   type PatternTest,
   type PatternVerdict,
   type TranslationMode,
 } from './api';
 import { PairSelect } from './Modes';
+import { PdfPreview } from './PdfPreview';
 import { dateTime, Feedback, message, Section, useLoad } from './ui';
 
 const TONE: Record<PatternVerdict, string> = { can: '', review: 'warn', cannot: 'danger' };
+type LayoutPreset = 'source' | 'left' | 'justify' | 'center';
+interface PatternTrial {
+  id: string;
+  revision: number;
+  consecutiveRejections: number;
+  blocked: boolean;
+  formatGeneration: number;
+  layoutPreset: LayoutPreset;
+  requiresRegeneration: boolean;
+  decision: 'approved' | 'rejected' | null;
+  failedStages: Stage[];
+  comment: string | null;
+}
+type ReviewedPatternTest = PatternTest & { trial?: PatternTrial };
+const layoutOptions: Array<[LayoutPreset, string]> = [
+  ['source', 'Estrutura do original'],
+  ['left', 'Alinhar à esquerda'],
+  ['justify', 'Justificar parágrafos e células'],
+  ['center', 'Centralizar parágrafos e células'],
+];
 
 function VerdictBadge({ verdict, label }: { verdict: PatternVerdict; label: string }) {
   return <span className={`badge verdict ${TONE[verdict]}`}>{label}</span>;
@@ -94,18 +117,19 @@ function PatternTester() {
   const [mode, setMode] = useState<TranslationMode>('sworn');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<PatternTest | null>(null);
+  const [result, setResult] = useState<ReviewedPatternTest | null>(null);
+  const [trial, setTrial] = useState<PatternTrial | null>(null);
+  const [layoutPreset, setLayoutPreset] = useState<LayoutPreset>('source');
   const input = useRef<HTMLInputElement>(null);
 
   async function test() {
     if (!file) return;
     setBusy(true);
     setError(null);
-    setResult(null);
     try {
       const [sourceLanguage, targetLanguage] = splitPair(pair);
       const response = await fetch(
-        `/api/v1/document-patterns/test?sourceLanguage=${sourceLanguage}&targetLanguage=${targetLanguage}&mode=${mode}`,
+        `/api/v1/document-patterns/test?sourceLanguage=${sourceLanguage}&targetLanguage=${targetLanguage}&mode=${mode}&includePreview=true&layoutPreset=${layoutPreset}`,
         {
           method: 'POST',
           headers: { 'X-CSRF-Protection': '1', 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
@@ -113,8 +137,15 @@ function PatternTester() {
         },
       );
       const data = await response.json();
-      if (!response.ok) throw new ApiError(response.status, data?.error?.code ?? 'ERROR', data?.error?.message ?? 'Falha no teste');
-      setResult(data as PatternTest);
+      if (!response.ok) {
+        if (data?.error?.details?.trial) setTrial(data.error.details.trial as PatternTrial);
+        throw new ApiError(response.status, data?.error?.code ?? 'ERROR', data?.error?.message ?? 'Falha no teste');
+      }
+      setResult(data as ReviewedPatternTest);
+      if (data.trial) {
+        setTrial(data.trial as PatternTrial);
+        setLayoutPreset(data.trial.layoutPreset as LayoutPreset);
+      }
     } catch (caught) {
       setError(message(caught));
     } finally {
@@ -137,7 +168,10 @@ function PatternTester() {
   return (
     <div className="card pattern-test">
       <h3>Testar um documento novo</h3>
-      <p className="muted small-text">O arquivo é analisado e traduzido só para o teste: nada é guardado e nenhuma tradução é criada.</p>
+      <p className="muted small-text">
+        O arquivo e seu texto não são guardados. O sistema registra a identificação por digest, a diagramação sem conteúdo e as decisões de
+        revisão do ensaio; nenhuma tradução de produção é criada.
+      </p>
       <div className="filters">
         <button type="button" onClick={() => input.current?.click()}>
           {file ? file.name : 'Escolher arquivo'}
@@ -150,19 +184,50 @@ function PatternTester() {
           onChange={(event) => {
             setFile(event.target.files?.[0] ?? null);
             setResult(null);
+            setTrial(null);
+            setLayoutPreset('source');
             event.target.value = '';
           }}
         />
-        <PairSelect value={pair} onChange={setPair} />
-        <select aria-label="Modalidade" value={mode} onChange={(e) => setMode(e.target.value as TranslationMode)}>
+        <PairSelect
+          value={pair}
+          onChange={(value) => {
+            setPair(value);
+            setResult(null);
+            setTrial(null);
+            setLayoutPreset('source');
+          }}
+        />
+        <select
+          aria-label="Modalidade"
+          value={mode}
+          onChange={(e) => {
+            setMode(e.target.value as TranslationMode);
+            setResult(null);
+            setTrial(null);
+            setLayoutPreset('source');
+          }}
+        >
           {MODES.map((value) => (
             <option key={value} value={value}>
               {modeLabel[value]}
             </option>
           ))}
         </select>
-        <button className="primary" disabled={!file || busy} onClick={() => void test()}>
-          {busy ? 'Testando…' : 'Testar'}
+        <select
+          aria-label="Diagramação do ensaio"
+          value={layoutPreset}
+          disabled={busy || trial?.blocked || trial?.requiresRegeneration}
+          onChange={(e) => setLayoutPreset(e.target.value as LayoutPreset)}
+        >
+          {layoutOptions.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <button className="primary" disabled={!file || busy || trial?.blocked} onClick={() => void test()}>
+          {busy ? 'Testando…' : trial ? 'Gerar Word e comparar novamente' : 'Testar'}
         </button>
       </div>
       <Feedback error={error} />
@@ -225,6 +290,326 @@ function PatternTester() {
           )}
         </div>
       )}
+      {file && (result || trial) && (
+        <PatternComparison
+          file={file}
+          result={result}
+          trial={trial}
+          busy={busy}
+          onTrial={(value) => {
+            setTrial(value);
+            setLayoutPreset(value.layoutPreset);
+          }}
+          onGenerate={() => void test()}
+        />
+      )}
     </div>
+  );
+}
+
+/** O teste de formato usa o mesmo Word do resultado e o arquivo original, sem guardar documentos do usuário. */
+function PatternComparison({
+  file,
+  result,
+  trial,
+  busy,
+  onTrial,
+  onGenerate,
+}: {
+  file: File;
+  result: PatternTest | null;
+  trial: PatternTrial | null;
+  busy: boolean;
+  onTrial: (trial: PatternTrial) => void;
+  onGenerate: () => void;
+}) {
+  const [urls, setUrls] = useState<{ original: string | null; word: string | null; docx: string | null }>({
+    original: null,
+    word: null,
+    docx: null,
+  });
+  const [reason, setReason] = useState('');
+  const [failedStages, setFailedStages] = useState<Stage[]>([]);
+  const [reviewed, setReviewed] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [formatName, setFormatName] = useState('');
+  const [explanation, setExplanation] = useState('');
+  const [newPreset, setNewPreset] = useState<LayoutPreset>('center');
+  const history = useLoad(
+    () =>
+      trial
+        ? api<{
+            history: Array<{
+              revision: number;
+              formatGeneration: number;
+              decision: string;
+              failedStages: Stage[];
+              comment: string | null;
+              reviewedAt: string;
+            }>;
+          }>('GET', `/document-patterns/trials/${trial.id}`)
+        : Promise.resolve({ history: [] }),
+    [trial?.id, trial?.revision, trial?.decision, trial?.formatGeneration],
+  );
+  useEffect(() => {
+    setReviewed(false);
+    setReason('');
+    setFailedStages([]);
+    setError(null);
+  }, [trial?.id, trial?.revision, trial?.formatGeneration]);
+  async function inspect(decision: 'approved' | 'rejected') {
+    if (!trial) return;
+    setSending(true);
+    setError(null);
+    try {
+      const response = await api<{ trial: PatternTrial }>('POST', `/document-patterns/trials/${trial.id}/inspect`, {
+        baseRevision: trial.revision,
+        decision,
+        failedStages: decision === 'rejected' ? failedStages : [],
+        comment: reason.trim() || undefined,
+      });
+      onTrial(response.trial);
+    } catch (caught) {
+      setError(message(caught));
+    } finally {
+      setSending(false);
+    }
+  }
+  async function registerFormat() {
+    if (!trial) return;
+    setSending(true);
+    setError(null);
+    try {
+      const response = await api<{ trial: PatternTrial }>('POST', `/document-patterns/trials/${trial.id}/formats`, {
+        baseRevision: trial.revision,
+        name: formatName.trim(),
+        explanation: explanation.trim(),
+        layoutPreset: newPreset,
+      });
+      onTrial(response.trial);
+      setFormatName('');
+      setExplanation('');
+      setReviewed(false);
+    } catch (caught) {
+      setError(message(caught));
+    } finally {
+      setSending(false);
+    }
+  }
+  const decode = (value: string, type: string) =>
+    new Blob([Uint8Array.from(atob(value), (character) => character.charCodeAt(0))], { type });
+  useEffect(() => {
+    if (!result) {
+      setUrls({ original: null, word: null, docx: null });
+      return;
+    }
+    const created: string[] = [];
+    const url = (blob: Blob) => {
+      const value = URL.createObjectURL(blob);
+      created.push(value);
+      return value;
+    };
+    const image = result.format === 'png' || result.format === 'jpeg';
+    setUrls({
+      original: result.originalPreviewPdf
+        ? url(decode(result.originalPreviewPdf, 'application/pdf'))
+        : result.format === 'pdf'
+          ? url(new Blob([file], { type: 'application/pdf' }))
+          : image
+            ? url(new Blob([file], { type: `image/${result.format}` }))
+            : null,
+      word: result.previewPdf ? url(decode(result.previewPdf, 'application/pdf')) : null,
+      docx: result.previewDocx
+        ? url(decode(result.previewDocx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'))
+        : null,
+    });
+    return () => created.forEach((value) => URL.revokeObjectURL(value));
+  }, [file, result]);
+  return (
+    <section className="pattern-comparison">
+      <h4>Compare antes de aceitar a formatação</h4>
+      <div className="document-comparison">
+        <section className="comparison-pane">
+          <div className="word-head">
+            <h4>Original: {file.name}</h4>
+          </div>
+          {urls.original ? (
+            result?.format === 'png' || result?.format === 'jpeg' ? (
+              <img className="comparison-image" alt={`Original ${file.name}`} src={urls.original} />
+            ) : (
+              <PdfPreview title="Original do teste de formatação" url={urls.original} />
+            )
+          ) : (
+            <p className="comparison-fallback">
+              A prévia do original não está disponível neste formato. Confira o arquivo local antes de decidir.
+            </p>
+          )}
+        </section>
+        <section className="comparison-pane">
+          <div className="word-head">
+            <h4>Word da formatação proposta</h4>
+            {urls.docx && (
+              <a className="button small" href={urls.docx} download={`TESTE - ${file.name.replace(/\.[^.]+$/, '')}.docx`}>
+                Baixar Word
+              </a>
+            )}
+          </div>
+          {urls.word ? (
+            <PdfPreview title="Word proposto no teste de formatação" url={urls.word} />
+          ) : (
+            <div className="comparison-fallback">
+              <p>{result?.previewError ?? 'Converta ou baixe o Word para conferir a formatação.'}</p>
+              <p className="muted small-text">O resultado técnico acima não equivale à aprovação humana.</p>
+            </div>
+          )}
+        </section>
+      </div>
+      <p className="muted small-text">
+        A revisão do ensaio fica registrada sem guardar o arquivo ou seu texto. A aprovação deste teste não conclui traduções de produção.
+      </p>
+      {trial && (
+        <section className="inspection-gate">
+          <h4>Revisão persistida do ensaio</h4>
+          <p>
+            Revisão {trial.revision} · formato {trial.formatGeneration} · {trial.consecutiveRejections} de 3 reprovações consecutivas
+          </p>
+          {trial.blocked && (
+            <p className="alert error" role="alert">
+              Erros consecutivos: três reprovações. Registre uma nova formatação com alteração real antes da quarta tentativa.
+            </p>
+          )}
+          {trial.requiresRegeneration && (
+            <p className="alert info">
+              Novo formato registrado. Gere o Word novamente e compare a nova revisão antes de decidir. Se a diagramação não mudar, registre
+              outra opção abaixo.
+            </p>
+          )}
+          {trial.decision === 'approved' && (
+            <p className="alert success" role="status">
+              Esta revisão do ensaio foi aprovada e a decisão está na auditoria.
+            </p>
+          )}
+          {trial.decision === 'rejected' && (
+            <p className="alert error">
+              Revisão reprovada: {trial.comment} · fases: {trial.failedStages.map((stage) => stageLabel[stage]).join(', ')}. Corrija a
+              diagramação e gere um novo resultado; repetir o mesmo resultado mantém a mesma revisão.
+            </p>
+          )}
+          {!trial.blocked && !trial.requiresRegeneration && !trial.decision && trial.revision > 0 && (
+            <div className="form">
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={reviewed}
+                  disabled={busy || sending || !result?.previewDocx}
+                  onChange={(e) => setReviewed(e.target.checked)}
+                />
+                Comparei o original e o Word desta revisão.
+              </label>
+              <fieldset disabled={busy || sending}>
+                <legend>Fases com falha, se houver reprovação</legend>
+                <div className="inspection-stages">
+                  {(['correction', 'translation', 'layout', 'review'] as Stage[]).map((stage) => (
+                    <label className="check" key={stage}>
+                      <input
+                        type="checkbox"
+                        checked={failedStages.includes(stage)}
+                        onChange={(e) =>
+                          setFailedStages((current) =>
+                            e.target.checked ? [...current, stage] : current.filter((value) => value !== stage),
+                          )
+                        }
+                      />
+                      {stageLabel[stage]}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <label>
+                Comentário ou motivo da reprovação
+                <textarea rows={3} maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)} />
+              </label>
+              <div className="actions">
+                <button
+                  className="primary"
+                  disabled={busy || sending || !reviewed || failedStages.length > 0}
+                  onClick={() => void inspect('approved')}
+                >
+                  Aprovar revisão do ensaio
+                </button>
+                <button
+                  className="danger"
+                  disabled={busy || sending || !reviewed || !failedStages.length || reason.trim().length < 3}
+                  onClick={() => void inspect('rejected')}
+                >
+                  Reprovar e registrar as fases
+                </button>
+              </div>
+            </div>
+          )}
+          {trial.requiresRegeneration && (
+            <button className="primary" disabled={busy || sending} onClick={onGenerate}>
+              {busy ? 'Gerando…' : 'Gerar Word com o novo formato'}
+            </button>
+          )}
+          {trial.revision > 0 && (
+            <details className="format-registration" open={trial.blocked || trial.requiresRegeneration}>
+              <summary>Registrar nova forma de formatação</summary>
+              <div className="form">
+                <label>
+                  Nome do formato
+                  <input value={formatName} minLength={3} maxLength={120} onChange={(e) => setFormatName(e.target.value)} />
+                </label>
+                <label>
+                  Motivo e alterações propostas
+                  <textarea rows={3} value={explanation} minLength={5} maxLength={2000} onChange={(e) => setExplanation(e.target.value)} />
+                </label>
+                <label>
+                  Diagramação que será aplicada no Word
+                  <select value={newPreset} onChange={(e) => setNewPreset(e.target.value as LayoutPreset)}>
+                    {layoutOptions.map(([value, label]) => (
+                      <option value={value} key={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="muted small-text">
+                  O servidor compara as propriedades de layout. Apenas trocar o nome ou escolher uma opção que produza a mesma estrutura não
+                  libera outra tentativa.
+                </p>
+                <button
+                  disabled={busy || sending || formatName.trim().length < 3 || explanation.trim().length < 5}
+                  onClick={() => void registerFormat()}
+                >
+                  {trial.requiresRegeneration ? 'Substituir formato pendente' : 'Registrar novo formato e liberar geração'}
+                </button>
+              </div>
+            </details>
+          )}
+          <Feedback error={error ?? history.error} />
+          {!!history.data?.history.length && (
+            <details>
+              <summary>Histórico de revisões do ensaio</summary>
+              <ol className="inspection-history">
+                {history.data.history.map((item) => (
+                  <li key={`${item.revision}-${item.decision}`}>
+                    <strong>
+                      Revisão {item.revision} · formato {item.formatGeneration} · {item.decision === 'approved' ? 'Aprovada' : 'Reprovada'}
+                    </strong>
+                    <span>
+                      {dateTime(item.reviewedAt)}
+                      {item.failedStages.length ? ` · ${item.failedStages.map((stage) => stageLabel[stage]).join(', ')}` : ''}
+                    </span>
+                    {item.comment && <span>{item.comment}</span>}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+        </section>
+      )}
+    </section>
   );
 }

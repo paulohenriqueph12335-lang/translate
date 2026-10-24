@@ -805,6 +805,7 @@ export function NumberingPanel({
   onSaved,
   defaultTranslatorId = null,
   defaultPages = null,
+  completed = false,
 }: {
   translationId: string;
   editable: boolean;
@@ -814,6 +815,7 @@ export function NumberingPanel({
   defaultTranslatorId?: string | null;
   /** Páginas do original, para a regra por folhas. */
   defaultPages?: number | null;
+  completed?: boolean;
 }) {
   const translators = useLoad(() => api<{ items: SwornTranslator[] }>('GET', '/sworn-translators?active=true'), []);
   const ready = (translators.data?.items ?? []).filter((item) => item.ready);
@@ -842,18 +844,6 @@ export function NumberingPanel({
         if (!result.rule && !chosen && defaultTranslatorId) {
           void load(defaultTranslatorId);
           return;
-        }
-        // Aberta com o tradutor do envio e sem nada gravado: grava as páginas do original para a conferência valer já.
-        if (!result.entry && chosen && chosen === defaultTranslatorId && defaultPages && editable) {
-          void api<{ entry: Entry; rule: Rule; check: Check }>('PUT', `/translations/${translationId}/numbering`, {
-            translatorId: chosen,
-            pages: defaultPages,
-          })
-            .then((saved) => {
-              setState(saved);
-              setForm((current) => ({ ...current, pages: String(defaultPages) }));
-            })
-            .catch(() => undefined);
         }
         setState(result);
         const entry = result.entry && (!chosen || result.entry.translatorId === chosen) ? result.entry : null;
@@ -903,6 +893,11 @@ export function NumberingPanel({
 
   async function save() {
     if (!translatorId) return;
+    if (
+      completed &&
+      !window.confirm('Este documento já está pronto. Deseja alterar a numeração? Será necessário conferir a nova versão do Word.')
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -917,6 +912,7 @@ export function NumberingPanel({
         free: form.free,
         protocolValue: numberOrNull(form.protocolValue),
         translatorFee: numberOrNull(form.translatorFee),
+        confirmCompleted: completed,
       });
       setState(result);
       onSaved?.();
@@ -928,8 +924,9 @@ export function NumberingPanel({
   }
 
   async function authorize() {
+    if (completed && !window.confirm('Este documento já está pronto. Deseja alterar a autorização de protocolo zerado?')) return;
     try {
-      setState(await api('POST', `/translations/${translationId}/numbering/authorize-zero-protocol`));
+      setState(await api('POST', `/translations/${translationId}/numbering/authorize-zero-protocol`, { confirmCompleted: completed }));
     } catch (caught) {
       setError(message(caught));
     }

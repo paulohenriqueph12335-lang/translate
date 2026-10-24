@@ -8,7 +8,7 @@ import type { ObjectStorage } from '@tradutor/core/storage';
 import { approvedTranscriptDraft } from '@tradutor/core/fixtures';
 import type { MachineTranslator } from '@tradutor/core/translation';
 import { bootstrapDirector } from './modules/identity/bootstrap.js';
-import { createTestApp, swornTranslator, TestClient, submitReady, allowTranslatorNotes } from './test/helpers.js';
+import { createTestApp, swornTranslator, TestClient, submitReady, allowTranslatorNotes, inspectReady } from './test/helpers.js';
 
 /**
  * Fluxo simplificado (ADR-010): envio com etiquetas → processamento automático → aviso de tipo novo →
@@ -136,7 +136,10 @@ describe('Operador marca como pronto; Líder/Diretor conclui ou pede para refaze
   });
 
   it('refazer devolve com o motivo e avisa quem marcou como pronto', async () => {
-    const returned = await c.lider!.post(`/api/v1/translations/${ids.job}/return`, { comment: 'Conferir as notas.' });
+    const returned = await c.lider!.post(`/api/v1/translations/${ids.job}/return`, {
+      comment: 'Conferir as notas.',
+      failedStages: ['review'],
+    });
     assert.equal(returned.body.translation.status, 'in_review');
     const notice = (await c.op!.get('/api/v1/notifications?kind=translation_returned')).body.items[0];
     assert.match(notice.body, /Conferir as notas\./);
@@ -144,20 +147,30 @@ describe('Operador marca como pronto; Líder/Diretor conclui ou pede para refaze
 
   it('refazer com reprocessamento gera nova revisão automática e mantém o motivo', async () => {
     assert.equal((await c.op!.post(`/api/v1/translations/${ids.job}/reprocess`)).status, 403);
+    const current = await c.op!.get(`/api/v1/translations/${ids.job}`);
+    await c.op!.request('PUT', `/api/v1/translations/${ids.job}/draft`, {
+      baseRevision: current.body.draft.revision,
+      draft: approvedTranscriptDraft,
+    });
     await submitReady(c.op!, ids.job);
-    const again = await c.lider!.post(`/api/v1/translations/${ids.job}/return`, { comment: 'Gerar de novo.', reprocess: true });
+    const again = await c.lider!.post(`/api/v1/translations/${ids.job}/return`, {
+      comment: 'Gerar de novo.',
+      reprocess: true,
+      failedStages: ['layout'],
+    });
     assert.equal(again.body.translation.status, 'queued');
     await processNextJob(processing());
     const detail = await c.op!.get(`/api/v1/translations/${ids.job}`);
     assert.equal(detail.body.translation.status, 'in_review');
-    assert.equal(detail.body.draft.revision, 3);
+    assert.equal(detail.body.draft.revision, 4);
     assert.equal(detail.body.draft.origin, 'machine');
     assert.equal(detail.body.translation.reviewComment, 'Gerar de novo.');
   });
 
   it('concluir sem tradutor configurado explica o motivo; depois de configurar, libera o download e avisa', async () => {
-    await c.op!.request('PUT', `/api/v1/translations/${ids.job}/draft`, { baseRevision: 3, draft: approvedTranscriptDraft });
+    await c.op!.request('PUT', `/api/v1/translations/${ids.job}/draft`, { baseRevision: 4, draft: approvedTranscriptDraft });
     await submitReady(c.op!, ids.job);
+    await inspectReady(c.lider!, ids.job!);
     const blocked = await c.lider!.post(`/api/v1/translations/${ids.job}/approve`);
     assert.equal(blocked.status, 409);
     assert.equal(blocked.body.error.details.reason, 'translator_required');
@@ -220,7 +233,12 @@ describe('filtros, downloads e associação entre original e tradução', () => 
       facets.approvers.map((a: { name: string }) => a.name),
       ['lider'],
     );
-    assert.deepEqual((await c.opb!.get('/api/v1/translation-facets')).body, { documentTypes: [], tags: [], approvers: [] });
+    assert.deepEqual((await c.opb!.get('/api/v1/translation-facets')).body, {
+      documentTypes: [],
+      tags: [],
+      approvers: [],
+      statusCounts: {},
+    });
   });
 
   it('a busca de documentos traz as traduções geradas de cada original', async () => {
@@ -239,7 +257,10 @@ describe('filtros, downloads e associação entre original e tradução', () => 
   });
 
   it('etiquetas podem ser corrigidas depois e a lista de etiquetas reflete o uso', async () => {
-    const updated = await c.op!.request('PUT', `/api/v1/documents/${ids.doc}/tags`, { tags: ['Histórico Escolar', 'Ensino Médio'] });
+    const updated = await c.op!.request('PUT', `/api/v1/documents/${ids.doc}/tags`, {
+      tags: ['Histórico Escolar', 'Ensino Médio'],
+      confirmCompleted: true,
+    });
     assert.deepEqual(updated.body.document.tags, ['histórico escolar', 'ensino médio']);
     assert.equal((await c.opb!.request('PUT', `/api/v1/documents/${ids.doc}/tags`, { tags: ['x'] })).status, 404);
     const tags = (await c.op!.get('/api/v1/tags')).body.items;

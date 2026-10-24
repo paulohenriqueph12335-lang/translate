@@ -139,7 +139,7 @@ describe('quem envia e para onde vai o lote', () => {
         'POST',
         '/api/v1/batches',
         { 'idempotency-key': 'chave-idempotente-001' },
-        { files: [file('a.pdf', samples.pdf('idem'))] },
+        { files: [file('a.pdf', samples.pdf('idem'))], protocolOmissionReason: 'Remessa sintética de teste sem protocolo externo.' },
       );
     const first = await send();
     const second = await send();

@@ -19,6 +19,7 @@ import type { ObjectStorage } from '@tradutor/core/storage';
 import type { Language, Mode } from '@tradutor/core/translation';
 import { CONTENT_TYPES, detectFormat, extensionOf, formatForExtension, type DetectedFormat } from './format.js';
 import { spoolToTempFile, TooLargeError, type SpooledFile } from './spool.js';
+import { docxToPdf, pdfName } from '../../http/pdf.js';
 
 export type DocumentStatus = 'awaiting_upload' | 'uploading' | 'stored' | 'rejected' | 'upload_failed' | 'cancelled';
 export type BatchStatus = 'open' | 'completed';
@@ -69,6 +70,10 @@ interface BatchRow {
   owner_id: string;
   owner_name: string;
   name: string | null;
+  protocol: string | null;
+  no_protocol_reason: string | null;
+  inspection_mode: 'all' | 'sample';
+  inspection_sample_size: number | null;
   declared_bytes: string;
   created_at: Date;
   cursor_at: string;
@@ -106,6 +111,10 @@ const toBatch = (row: BatchRow) => {
   return {
     id: row.id,
     name: row.name,
+    protocol: row.protocol,
+    protocolOmissionReason: row.no_protocol_reason,
+    inspectionMode: row.inspection_mode,
+    inspectionSampleSize: row.inspection_sample_size,
     /** `null` enquanto o lote do Diretor aguarda direcionamento. */
     team: row.team_id ? { id: row.team_id, name: row.team_name ?? '' } : null,
     assignedAt: row.assigned_at?.toISOString() ?? null,
@@ -126,7 +135,7 @@ const toBatch = (row: BatchRow) => {
 
 const BATCH_SELECT = `
   SELECT b.id, b.team_id, t.name::text AS team_name, b.assigned_at, b.owner_id, b.source_language, b.target_language, b.translation_mode, b.use_mask, b.preferred_translator_id,
-         (SELECT name FROM sworn_translators WHERE id = b.preferred_translator_id) AS preferred_translator_name, u.display_name AS owner_name, b.name, b.declared_bytes, b.created_at,
+         (SELECT name FROM sworn_translators WHERE id = b.preferred_translator_id) AS preferred_translator_name, u.display_name AS owner_name, b.name, b.protocol, b.no_protocol_reason, b.inspection_mode, b.inspection_sample_size, b.declared_bytes, b.created_at,
          to_char(b.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
          count(d.id) AS total,
          count(d.id) FILTER (WHERE d.status = 'stored') AS stored,
@@ -162,6 +171,9 @@ export interface CreateBatchInput {
   /** Obrigatório para Líder de mais de uma equipe; proibido para o Diretor, cujo lote nasce sem equipe. */
   teamId?: string;
   name?: string;
+  protocol?: string;
+  protocolOmissionReason?: string;
+  inspectionMode?: 'all' | 'sample';
   files: Array<{ name: string; size: number }>;
   /** Par de idiomas da tradução automática; todo documento armazenado é processado (ADR-010). */
   translation: { sourceLanguage: Language; targetLanguage: Language };
@@ -296,6 +308,28 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
 
   async function createBatch(ctx: AuthenticatedContext, input: CreateBatchInput, idempotencyKey?: string) {
     const teamId = resolveTeam(ctx.actor, input.teamId);
+    const protocol = input.protocol?.trim().replace(/\s+/g, ' ') || null;
+    const omissionReason = input.protocolOmissionReason?.trim() || null;
+    if (
+      protocol
+        ? omissionReason !== null || !/^[\p{L}\p{N}][\p{L}\p{N} ._-]{2,79}$/u.test(protocol)
+        : !omissionReason || omissionReason.length < 10 || omissionReason.length > 1000 || !/[\p{L}]/u.test(omissionReason)
+    ) {
+      throw new AppError(
+        400,
+        'VALIDATION_FAILED',
+        'Informe o protocolo (3 a 80 caracteres) ou uma justificativa de 10 a 1000 caracteres para a ausência dele',
+      );
+    }
+    if (input.files.length >= 20 && !input.inspectionMode) {
+      throw new AppError(
+        400,
+        'VALIDATION_FAILED',
+        'Para remessas com 20 arquivos ou mais, escolha inspecionar todos os documentos ou uma amostra',
+      );
+    }
+    const inspectionMode = input.inspectionMode ?? 'all';
+    const inspectionSampleSize = inspectionMode === 'sample' ? Math.min(10, input.files.length) : null;
     if (input.files.length > config.UPLOAD_MAX_BATCH_FILES) {
       throw new AppError(400, 'VALIDATION_FAILED', `Um lote aceita no máximo ${config.UPLOAD_MAX_BATCH_FILES} arquivos`);
     }
@@ -343,9 +377,9 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
         }
         const created = await db.query<{ id: string }>(
           `INSERT INTO batches (team_id, owner_id, name, idempotency_key, declared_bytes, assigned_at, assigned_by, source_language, target_language, translation_mode,
-                                use_mask, preferred_translator_id)
+                                use_mask, preferred_translator_id, protocol, no_protocol_reason, inspection_mode, inspection_sample_size)
            VALUES ($1, $2, $3, $4, $5, CASE WHEN $1::uuid IS NULL THEN NULL ELSE now() END, CASE WHEN $1::uuid IS NULL THEN NULL ELSE $2::uuid END, $6, $7, $8,
-                   $9, $10)
+                   $9, $10, $11, $12, $13, $14)
            RETURNING id`,
           [
             teamId,
@@ -358,6 +392,10 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
             input.mode ?? 'sworn',
             input.useMask ?? true,
             (input.mode ?? 'sworn') === 'sworn' && input.useMask !== false ? (input.translatorId ?? null) : null,
+            protocol,
+            omissionReason,
+            inspectionMode,
+            inspectionSampleSize,
           ],
         );
         const id = created.rows[0]!.id;
@@ -385,6 +423,10 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
             rejected: items.filter((item) => item.reason).length,
             declaredBytes: acceptedBytes,
             tags: input.tags ?? [],
+            protocol,
+            protocolOmissionReason: omissionReason,
+            inspectionMode,
+            inspectionSampleSize,
           },
         });
         return id;
@@ -410,7 +452,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     if (query.q) {
       const pattern = sql.param(likePattern(query.q));
       sql.conditions.push(
-        `(unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern}) OR unaccent(u.display_name) ILIKE unaccent(${pattern})
+        `(unaccent(coalesce(b.protocol, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern}) OR unaccent(u.display_name) ILIKE unaccent(${pattern})
           OR EXISTS (SELECT 1 FROM documents s WHERE s.batch_id = b.id AND unaccent(s.display_name) ILIKE unaccent(${pattern})))`,
       );
     }
@@ -635,7 +677,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
    * Direciona (ou redireciona) um lote para uma equipe. A partir daí todos da equipe trabalham com ele;
    * os objetos não mudam de lugar, pois a chave independe da equipe.
    */
-  async function assignBatch(ctx: AuthenticatedContext, batchId: string, teamId: string) {
+  async function assignBatch(ctx: AuthenticatedContext, batchId: string, teamId: string, confirmCompleted = false) {
     if (!canAssignBatch(ctx.actor)) {
       await loadBatch(pool, ctx, batchId);
       throw forbidden('Somente o Diretor direciona lotes');
@@ -647,11 +689,23 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
       const team = await db.query('SELECT 1 FROM teams WHERE id = $1 FOR SHARE', [teamId]);
       if (!team.rowCount) throw notFound('Equipe não encontrada');
       if (batch.team_id === teamId) return;
+      const completed = await db.query(
+        "SELECT 1 FROM translation_jobs j JOIN documents d ON d.id=j.document_id WHERE d.batch_id=$1 AND j.status IN ('approved','awaiting_approval') LIMIT 1",
+        [batchId],
+      );
+      if (completed.rowCount && !confirmCompleted)
+        throw new AppError(409, 'CONFLICT', 'Esta remessa já possui documentos prontos. Confirme que deseja alterar a equipe responsável', {
+          reason: 'completed_confirmation_required',
+        });
       await db.query('UPDATE batches SET team_id = $2, assigned_at = now(), assigned_by = $3 WHERE id = $1', [
         batchId,
         teamId,
         ctx.actor.id,
       ]);
+      await db.query(
+        'UPDATE translation_jobs SET last_activity_at=now() WHERE document_id IN (SELECT id FROM documents WHERE batch_id=$1)',
+        [batchId],
+      );
       await recordAudit(db, {
         actorUserId: ctx.actor.id,
         action: 'batch.assigned',
@@ -659,7 +713,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
         targetId: batchId,
         teamId,
         correlationId: ctx.correlationId,
-        metadata: { from: batch.team_id, to: teamId },
+        metadata: { from: batch.team_id, to: teamId, completedDocument: !!completed.rowCount, confirmedCompleted: confirmCompleted },
       });
       // Documentos armazenados antes da criação desta regra ainda podem estar fora da fila.
       await enqueueTranslations(db, { batchId }, ctx.actor.id);
@@ -706,6 +760,53 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     return { stream, name: row.display_name, contentType: CONTENT_TYPES[original.format], size: Number(original.size_bytes) };
   }
 
+  /** Prévia autenticada, sem contabilizar download: Word é convertido para PDF, demais formatos são servidos diretamente. */
+  async function previewOriginal(ctx: AuthenticatedContext, documentId: string) {
+    const row = await loadDocument(pool, ctx, documentId);
+    if (row.status !== 'stored') throw conflict('Documento ainda não está disponível');
+    const result = await pool.query<{ object_key: string; format: DetectedFormat; size_bytes: string }>(
+      `SELECT object_key, format, size_bytes FROM document_versions WHERE document_id = $1 AND kind = 'original'`,
+      [documentId],
+    );
+    const version = result.rows[0];
+    if (!version) throw notFound('Versão original não encontrada');
+    if (!['pdf', 'docx', 'jpeg', 'png'].includes(version.format))
+      throw new AppError(422, 'FILE_INVALID', 'Baixe o original para inspecionar este formato');
+    if (Number(version.size_bytes) > Math.min(maxFileBytes, 50 * 1024 * 1024))
+      throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Prévia limitada a arquivos de até 50 MB; baixe o original para conferir');
+    const chunks: Buffer[] = [];
+    let size = 0;
+    try {
+      for await (const chunk of await storage.get(version.object_key)) {
+        const data = Buffer.from(chunk);
+        size += data.length;
+        if (size > Math.min(maxFileBytes, 50 * 1024 * 1024))
+          throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Prévia acima do limite de 50 MB');
+        chunks.push(data);
+      }
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(503, 'DEPENDENCY_UNAVAILABLE', 'Armazenamento indisponível');
+    }
+    const content = Buffer.concat(chunks);
+    const buffer = version.format === 'docx' ? await docxToPdf(config.CONVERTER_URL, content, row.display_name) : content;
+    await recordAudit(pool, {
+      actorUserId: ctx.actor.id,
+      action: 'document.previewed',
+      targetType: 'document',
+      targetId: documentId,
+      ...(row.team_id ? { teamId: row.team_id } : {}),
+      correlationId: ctx.correlationId,
+      metadata: { format: version.format, comparison: true },
+    });
+    return {
+      buffer,
+      name: version.format === 'docx' ? pdfName(row.display_name) : row.display_name,
+      contentType: version.format === 'docx' ? 'application/pdf' : CONTENT_TYPES[version.format],
+      size: buffer.length,
+    };
+  }
+
   /**
    * Documentos enviados com as traduções geradas a partir de cada um (ADR-010): base da área de downloads e da
    * localização de um original pelo seu resultado, e vice-versa.
@@ -739,7 +840,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     if (query.q) {
       const pattern = sql.param(likePattern(query.q));
       sql.conditions.push(
-        `(unaccent(d.display_name) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern})
+        `(unaccent(d.display_name) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.protocol, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern})
           OR unaccent(u.display_name) ILIKE unaccent(${pattern})
           OR EXISTS (SELECT 1 FROM translation_jobs j WHERE j.document_id = d.id
                       AND (unaccent(coalesce(j.document_type, '')) ILIKE unaccent(${pattern})
@@ -755,6 +856,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     const result = await pool.query<
       DocumentRow & {
         batch_name: string | null;
+        batch_protocol: string | null;
         team_id: string | null;
         team_name: string | null;
         owner_id: string;
@@ -771,7 +873,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
         }>;
       }
     >(
-      `SELECT d.*, b.name AS batch_name, b.team_id, t.name::text AS team_name, b.owner_id, u.display_name AS owner_name,
+      `SELECT d.*, b.name AS batch_name, b.protocol AS batch_protocol, b.team_id, t.name::text AS team_name, b.owner_id, u.display_name AS owner_name,
               to_char(coalesce(d.stored_at, d.updated_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
               (SELECT coalesce(jsonb_agg(jsonb_build_object(
                         'id', j.id, 'sourceLanguage', j.source_language, 'targetLanguage', j.target_language, 'status', j.status,
@@ -792,7 +894,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     return {
       items: rows.map((row) => ({
         ...toDocument(row),
-        batch: { id: row.batch_id, name: row.batch_name },
+        batch: { id: row.batch_id, name: row.batch_name, protocol: row.batch_protocol },
         team: row.team_id ? { id: row.team_id, name: row.team_name ?? '' } : null,
         uploadedBy: { id: row.owner_id, displayName: row.owner_name },
         translations: row.translations,
@@ -802,13 +904,23 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
   }
 
   /** Etiquetas de um documento: quem vê o documento ajuda a classificá-lo. */
-  async function updateTags(ctx: AuthenticatedContext, documentId: string, tags: string[]) {
+  async function updateTags(ctx: AuthenticatedContext, documentId: string, tags: string[], confirmCompleted = false) {
     return withTransaction(pool, async (db) => {
       const row = await loadDocument(db, ctx, documentId, true);
+      const completed = await db.query(
+        "SELECT 1 FROM translation_jobs WHERE document_id = $1 AND status IN ('approved', 'awaiting_approval') LIMIT 1",
+        [documentId],
+      );
+      if (completed.rowCount && !confirmCompleted)
+        throw new AppError(409, 'CONFLICT', 'Este documento já está pronto. Confirme que deseja alterar suas etiquetas', {
+          reason: 'confirmation_required',
+        });
       const updated = await db.query<DocumentRow>('UPDATE documents SET tags = $2, updated_at = now() WHERE id = $1 RETURNING *', [
         documentId,
         tags,
       ]);
+      const changed = JSON.stringify(row.tags) !== JSON.stringify(tags);
+      if (changed) await db.query('UPDATE translation_jobs SET last_activity_at = now() WHERE document_id = $1', [documentId]);
       await recordAudit(db, {
         actorUserId: ctx.actor.id,
         action: 'document.tagged',
@@ -816,7 +928,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
         targetId: documentId,
         ...(row.team_id ? { teamId: row.team_id } : {}),
         correlationId: ctx.correlationId,
-        metadata: { tags },
+        metadata: { tags, changed, completedDocument: !!completed.rowCount, confirmed: confirmCompleted },
       });
       return toDocument(updated.rows[0]!);
     });
@@ -844,6 +956,7 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
     cancelDocument,
     cancelBatch,
     openOriginal,
+    previewOriginal,
     searchDocuments,
     updateTags,
     listTags,

@@ -1,5 +1,6 @@
 import { TranslatorNumberingDashboard } from './TranslatorNumbering';
-import { useMemo, useState, type ReactNode } from 'react';
+import { DashboardWidgets } from './DashboardWidgets';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, pairLabel, roleLabel, translationStatusLabel, type Me, type Team, type TranslationStatus } from './api';
 import { ChartCard, downloadCsv, duration, INK_BLUE, Meter, OUTCOME_COLORS, percent, RankedBars, SEPIA, StackedShare } from './Charts';
 import {
@@ -20,7 +21,7 @@ import {
   type Insight,
   type PeriodState,
 } from './Insights';
-import { dateTime, Feedback, normalize, Section, useLoad } from './ui';
+import { dateTime, Feedback, normalize, SearchInput, Section, useLoad } from './ui';
 
 const OUTCOMES = ['Acerto de primeira', 'Refeita', 'Concluída com justificativa'];
 
@@ -142,7 +143,15 @@ const byKey = <T,>(rows: T[], value: (row: T) => number | string | null, dir: So
   });
 
 /** Painel do Diretor: período com comparação, fila ao vivo, tendência, funil, idiomas, tipos, equipes e pessoas. */
-export function OrganizationPanel({ onOpenTeam }: { onOpenTeam: (teamId: string) => void }) {
+export function OrganizationPanel({
+  onOpenTeam,
+  me,
+  initialSearch = '',
+}: {
+  onOpenTeam: (teamId: string) => void;
+  me?: Me;
+  initialSearch?: string;
+}) {
   const { state: period, control } = usePeriodFilter(30);
   const [teamId, setTeamId] = useState('');
   const teams = useLoad(() => api<{ items: Team[] }>('GET', '/teams'), []);
@@ -153,6 +162,16 @@ export function OrganizationPanel({ onOpenTeam }: { onOpenTeam: (teamId: string)
   const t = org?.totals;
   const p = prev?.totals ?? null;
   const docs = docsOf(data?.current ?? null);
+  const [reportSearch, setReportSearch] = useState(initialSearch);
+  useEffect(() => setReportSearch(initialSearch), [initialSearch]);
+  const reportTokens = normalize(reportSearch).split(/\s+/).filter(Boolean);
+  const reportDocuments = docs.filter((doc) =>
+    reportTokens.every((token) =>
+      normalize(
+        `${doc.name} ${doc.protocol ?? ''} ${doc.assignee ?? ''} ${doc.documentType ?? ''} ${doc.number ?? ''} ${translationStatusLabel[doc.status]}`,
+      ).includes(token),
+    ),
+  );
   const teamSort = useSort<'name' | 'received' | 'approved' | 'inProgress' | 'change'>('approved');
 
   function exportCsv() {
@@ -196,6 +215,55 @@ export function OrganizationPanel({ onOpenTeam }: { onOpenTeam: (teamId: string)
         </button>
       </div>
       <Feedback error={error ?? teams.error} />
+      <div className="filters no-print">
+        <SearchInput
+          value={reportSearch}
+          onChange={setReportSearch}
+          placeholder="Pesquisar documentos no relatório por protocolo, arquivo ou pessoa"
+        />
+      </div>
+      {reportSearch.trim() && (
+        <div className="card top-gap">
+          <h3>Documentos encontrados no relatório ({reportDocuments.length})</h3>
+          <p className="muted small-text">Documentos do período selecionado, até os 300 mais recentes de cada equipe.</p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Protocolo / documento</th>
+                  <th>Responsável</th>
+                  <th>Situação</th>
+                  <th>Concluído em</th>
+                  <th>Até primeiro download</th>
+                  <th>Sem atividade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reportDocuments.map((doc) => (
+                  <tr key={doc.id}>
+                    <td>
+                      {doc.protocol ?? 'Sem protocolo'}
+                      <span className="block-line">{doc.name}</span>
+                    </td>
+                    <td>{doc.assignee ?? 'Sem responsável'}</td>
+                    <td>{translationStatusLabel[doc.status]}</td>
+                    <td>{doc.approvedAt ? dateTime(doc.approvedAt) : 'Em andamento'}</td>
+                    <td>
+                      {doc.firstDownloadedAt
+                        ? duration(doc.minutesUntilFirstDownload)
+                        : doc.approvedAt
+                          ? `Aguardando há ${duration(doc.readyWithoutDownloadMinutes)}`
+                          : '—'}
+                    </td>
+                    <td>{duration(doc.idleMinutes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!reportDocuments.length && <p className="empty">Nenhum documento no período e equipe selecionados.</p>}
+        </div>
+      )}
       <LiveNow teamId={teamId || undefined} canReadAudit />
       {org && t && (
         <div className={`dash-body ${loading ? 'stale' : ''}`} aria-busy={loading}>
@@ -239,7 +307,7 @@ export function OrganizationPanel({ onOpenTeam }: { onOpenTeam: (teamId: string)
               detail="do envio à conclusão"
             />
           </div>
-          <div className="chart-grid">
+          <DashboardWidgets userId={me?.user.id} namespace="organization">
             <ChartCard title="Tendência por semana" subtitle="Período atual em azul; o anterior, tracejado em sépia" wide>
               <WeeklyTrend
                 period={period}
@@ -354,7 +422,7 @@ export function OrganizationPanel({ onOpenTeam }: { onOpenTeam: (teamId: string)
                 ))}
               </ul>
             </ChartCard>
-          </div>
+          </DashboardWidgets>
         </div>
       )}
     </Section>
@@ -370,7 +438,7 @@ const DOC_STATUSES: Array<[string, string]> = [
 const inProgressStatuses: TranslationStatus[] = ['queued', 'processing', 'in_review', 'awaiting_approval'];
 
 /** Painel da equipe (Supervisor e Diretor): ao vivo, tendência, funil, pessoas por semana, tempos e documentos. */
-export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: string | null }) {
+export function TeamPanel({ me, initialTeamId, initialSearch = '' }: { me: Me; initialTeamId?: string | null; initialSearch?: string }) {
   const isDirector = me.user.orgRole === 'director';
   const teams = useLoad(() => api<{ items: Team[] }>('GET', '/teams'), []);
   const choices = (teams.data?.items ?? []).filter((team) => isDirector || team.myRole === 'leader');
@@ -391,7 +459,8 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
   const peopleSort = useSort<'name' | 'delivered' | 'inProgress' | 'redone' | 'review' | 'total'>('delivered');
   const [person, setPerson] = useState('');
   const [status, setStatus] = useState('');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  useEffect(() => setSearch(initialSearch), [initialSearch]);
 
   const people = useMemo(() => {
     if (!team) return [];
@@ -405,7 +474,15 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
     (doc) =>
       (!person || doc.assignee === person) &&
       (!status || (status === 'progress' ? inProgressStatuses.includes(doc.status) : doc.status === status)) &&
-      (!search || normalize(`${doc.name} ${doc.documentType ?? ''} ${doc.number ?? ''}`).includes(normalize(search))),
+      (!search ||
+        normalize(search)
+          .split(/\s+/)
+          .filter(Boolean)
+          .every((token) =>
+            normalize(
+              `${doc.name} ${doc.protocol ?? ''} ${doc.assignee ?? ''} ${translationStatusLabel[doc.status]} ${doc.documentType ?? ''} ${doc.number ?? ''}`,
+            ).includes(token),
+          )),
   );
 
   function exportPeople() {
@@ -453,6 +530,11 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
         'Total (min)',
         'Refeito',
         'Número',
+        'Protocolo',
+        'Primeiro download',
+        'Espera até primeiro download (min)',
+        'Sem atividade (min)',
+        'Pronto sem download (min)',
       ],
       documents.map((doc) => [
         doc.name,
@@ -467,6 +549,11 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
         doc.totalMinutes,
         doc.redoCount,
         doc.number,
+        doc.protocol,
+        doc.firstDownloadedAt,
+        doc.minutesUntilFirstDownload,
+        doc.idleMinutes,
+        doc.readyWithoutDownloadMinutes,
       ]),
     );
   }
@@ -547,7 +634,7 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
               format={duration}
             />
           </div>
-          <div className="chart-grid">
+          <DashboardWidgets userId={me.user.id} namespace="team" revealId={initialSearch ? 'documentos' : undefined}>
             <ChartCard title="Tendência por semana" subtitle="Período atual em azul; o anterior, tracejado em sépia" wide>
               <WeeklyTrend period={period} current={data!.current} previous={data!.previous} />
             </ChartCard>
@@ -629,7 +716,7 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
                 <input
                   type="search"
                   aria-label="Buscar documento"
-                  placeholder="Buscar por nome, tipo ou número"
+                  placeholder="Buscar protocolo, nome, pessoa, tipo ou número"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -663,6 +750,9 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
                       <th>Revisão</th>
                       <th>Conclusão</th>
                       <th>Total</th>
+                      <th>Concluído em</th>
+                      <th>Até primeiro download</th>
+                      <th>Sem atividade</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -670,6 +760,7 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
                       <tr key={doc.id}>
                         <td className="name-cell">
                           {doc.name}
+                          {doc.protocol && <strong className="block-line small-text">{doc.protocol}</strong>}
                           <span className="muted small-text block-line">
                             {dateTime(doc.createdAt)}
                             {doc.number ? ` · nº ${doc.number}` : ''}
@@ -682,6 +773,22 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
                         <td>{duration(doc.reviewMinutes)}</td>
                         <td>{duration(doc.conclusionMinutes)}</td>
                         <td>{duration(doc.totalMinutes)}</td>
+                        <td>{doc.approvedAt ? dateTime(doc.approvedAt) : 'Em andamento'}</td>
+                        <td>
+                          {doc.firstDownloadedAt ? (
+                            <>
+                              <span>{duration(doc.minutesUntilFirstDownload)}</span>
+                              <span className="muted small-text block-line">{dateTime(doc.firstDownloadedAt)}</span>
+                            </>
+                          ) : doc.approvedAt ? (
+                            `Aguardando há ${duration(doc.readyWithoutDownloadMinutes)}`
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td title={doc.lastActivityAt ? `Última atividade: ${dateTime(doc.lastActivityAt)}` : undefined}>
+                          {duration(doc.idleMinutes)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -689,7 +796,7 @@ export function TeamPanel({ me, initialTeamId }: { me: Me; initialTeamId?: strin
               </div>
               {documents.length === 0 && <p className="empty">Nenhum documento com esses filtros.</p>}
             </ChartCard>
-          </div>
+          </DashboardWidgets>
         </div>
       )}
       {/* Uso de números e gratuitos de cada tradutor (ADR-014): o controle administrativo do Supervisor. */}

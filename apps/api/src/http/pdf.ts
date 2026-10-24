@@ -7,7 +7,7 @@ import { AppError } from './errors.js';
 export async function docxToPdf(converterUrl: string | undefined, docx: Buffer, name: string): Promise<Buffer> {
   if (!converterUrl) throw new AppError(503, 'DEPENDENCY_UNAVAILABLE', 'Conversão para PDF não configurada (CONVERTER_URL)');
   const form = new FormData();
-  form.append('files', new Blob([new Uint8Array(docx)]), name.endsWith('.docx') ? name : `${name}.docx`);
+  form.append('files', new Blob([new Uint8Array(docx)]), /\.(docx|pptx)$/i.test(name) ? name : `${name}.docx`);
   let response: Response;
   try {
     response = await fetch(`${converterUrl.replace(/\/$/, '')}/forms/libreoffice/convert`, {

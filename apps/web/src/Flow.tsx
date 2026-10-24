@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import {
   api,
+  ApiError,
   formatBytes,
   splitPair,
   uploadContent,
@@ -14,6 +15,8 @@ import {
 } from './api';
 import { ModeSelect, PairSelect } from './Modes';
 import { Feedback, message, useLoad } from './ui';
+import { captureUpload, planUploadRetries, type UploadSnapshot } from './upload-plan';
+import { PdfPreview } from './PdfPreview';
 
 /**
  * Fluxo automático (ADR-017): coloca o documento e o sistema traduz, revisa e entrega a prévia em Word; quem aprova
@@ -21,6 +24,77 @@ import { Feedback, message, useLoad } from './ui';
  */
 
 const extensionOf = (name: string) => /\.([A-Za-z0-9]+)$/.exec(name)?.[1]?.toLowerCase() ?? '';
+
+export function useBatchProtocol(fileCount: number) {
+  const [protocol, setProtocol] = useState('');
+  const [withoutProtocol, setWithoutProtocol] = useState(false);
+  const [reason, setReason] = useState('');
+  const [inspection, setInspection] = useState<'' | 'all' | 'sample'>('');
+  const validProtocol = withoutProtocol
+    ? reason.trim().length >= 10 && /[\p{L}]/u.test(reason)
+    : /^[\p{L}\p{N}][\p{L}\p{N} ._-]{2,79}$/u.test(protocol.trim());
+  return {
+    ready: validProtocol && (fileCount < 20 || !!inspection),
+    payload: {
+      ...(withoutProtocol ? { protocolOmissionReason: reason.trim() } : { protocol: protocol.trim() }),
+      inspectionMode: fileCount >= 20 ? inspection : 'all',
+    },
+    fields: (
+      <fieldset className="protocol-fields top-gap">
+        <legend>Protocolo da remessa</legend>
+        <p className="muted small-text">
+          Identifique a remessa antes de traduzir. O protocolo aparecerá no início dos nomes de Word e PDF e poderá ser pesquisado na
+          auditoria.
+        </p>
+        <label className="check">
+          <input type="checkbox" checked={withoutProtocol} onChange={(event) => setWithoutProtocol(event.target.checked)} />
+          Esta remessa não possui protocolo
+        </label>
+        {withoutProtocol ? (
+          <label>
+            Explique por que não há protocolo
+            <textarea
+              required
+              minLength={10}
+              maxLength={1000}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Informe uma justificativa para a auditoria (mínimo 10 caracteres)."
+            />
+          </label>
+        ) : (
+          <label>
+            Protocolo
+            <input
+              required
+              minLength={3}
+              maxLength={80}
+              value={protocol}
+              onChange={(event) => setProtocol(event.target.value)}
+              placeholder="ABC-10003"
+            />
+            <small className="muted">Use letras, números, espaços, ponto, hífen ou sublinhado.</small>
+          </label>
+        )}
+        {fileCount >= 20 && (
+          <label className="top-gap">
+            Esta remessa contém {fileCount} arquivos. Como deseja inspecionar o original e o Word?
+            <select required value={inspection} onChange={(event) => setInspection(event.target.value as 'all' | 'sample')}>
+              <option value="" disabled>
+                Escolha a inspeção…
+              </option>
+              <option value="all">Inspecionar todos os documentos</option>
+              <option value="sample">Inspecionar uma amostra inicial de 10 documentos</option>
+            </select>
+            <small className="muted">
+              A escolha fica registrada. Você pode abrir qualquer documento individualmente; a amostra não aprova os demais automaticamente.
+            </small>
+          </label>
+        )}
+      </fieldset>
+    ),
+  };
+}
 
 export function NewTranslation({
   teams,
@@ -43,28 +117,38 @@ export function NewTranslation({
   const [useMask, setUseMask] = useState(true);
   const [translatorId, setTranslatorId] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const protocol = useBatchProtocol(files.length);
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState<Map<string, number>>(new Map());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
+  const submission = useRef<UploadSnapshot<File> | null>(null);
+  const [locked, setLocked] = useState(false);
+  const [permanentFailure, setPermanentFailure] = useState(false);
+  const [createdIds, setCreatedIds] = useState<string[]>([]);
   const sworn = mode === 'sworn';
   const accepted = limits.data?.extensions ?? ['pdf', 'docx', 'pptx', 'jpg', 'jpeg', 'png'];
 
   const add = (list: FileList | null) => {
+    if (busy || locked) return;
     const picked = list ? [...list] : [];
     if (picked.length) setFiles((current) => [...current, ...picked.filter((file) => accepted.includes(extensionOf(file.name)))]);
   };
 
   async function start() {
+    if (busy) return;
+    if (!protocol.ready) {
+      setError('Informe o protocolo ou sua justificativa e escolha a inspeção para remessas grandes.');
+      return;
+    }
     setBusy(true);
     setError(null);
-    try {
-      const [sourceLanguage, targetLanguage] = splitPair(pair);
-      const created = await api<{ batch: Batch; documents: DocumentItem[] }>(
-        'POST',
-        '/batches',
+    const [sourceLanguage, targetLanguage] = splitPair(pair);
+    const active =
+      submission.current ??
+      captureUpload(
+        files,
         {
           ...(isDirector ? {} : { teamId }),
           translation: { sourceLanguage, targetLanguage },
@@ -72,157 +156,190 @@ export function NewTranslation({
           ...(sworn ? { useMask } : {}),
           ...(sworn && useMask && translatorId ? { translatorId } : {}),
           files: files.map((file) => ({ name: file.name, size: file.size })),
+          ...protocol.payload,
         },
-        { 'Idempotency-Key': idempotencyKey },
+        crypto.randomUUID(),
       );
-      const waiting = created.documents.filter((doc) => doc.status === 'awaiting_upload');
-      for (const doc of waiting) {
-        const file = files[doc.position]!;
-        await uploadContent(doc.id, file, (fraction) => setProgress((current) => new Map(current).set(doc.id, fraction)));
+    submission.current = active;
+    setLocked(true);
+    try {
+      const created = await api<{ batch: Batch; documents: DocumentItem[] }>('POST', '/batches', active.body, {
+        'Idempotency-Key': active.key,
+      });
+      active.batchId = created.batch.id;
+      const waiting = planUploadRetries(created.documents, active.files);
+      for (const { document, file } of waiting) {
+        await uploadContent(document.id, file, (fraction) => setProgress((current) => new Map(current).set(document.id, fraction)));
       }
       // Cada documento armazenado entra sozinho na fila; abre as traduções criadas.
       const ids: string[] = [];
-      for (const doc of waiting) {
+      for (const doc of created.documents.filter(
+        (document) => document.status === 'stored' || waiting.some((item) => item.document.id === document.id),
+      )) {
         const found = await api<{ items: TranslationSummary[] }>('GET', `/translations?documentId=${doc.id}&limit=1`);
         if (found.items[0]) ids.push(found.items[0].id);
       }
+      setCreatedIds(ids);
+      const rejected = created.documents.filter((doc) => doc.status === 'rejected' || doc.status === 'cancelled');
+      if (rejected.length) {
+        setPermanentFailure(true);
+        throw new Error(
+          `A remessa possui ${rejected.length} arquivo(s) recusado(s) ou cancelado(s): ${rejected.map((doc) => doc.name).join(', ')}. Confira os motivos em Envios e crie uma nova remessa para os arquivos corrigidos. As traduções válidas foram preservadas.`,
+        );
+      }
+      if (!ids.length)
+        throw new Error('A remessa ainda não possui traduções disponíveis. Confira o andamento em Envios antes de tentar novamente.');
       onStarted(ids);
     } catch (caught) {
+      if (!active.batchId && caught instanceof ApiError && caught.status >= 400 && caught.status < 500) {
+        submission.current = null;
+        setLocked(false);
+      }
       setError(message(caught));
     } finally {
       setBusy(false);
     }
   }
 
-  const sending = progress.size > 0;
+  const sending = busy && progress.size > 0;
   return (
     <div className="card new-translation">
       <h3>Nova tradução</h3>
       <p className="muted small-text">
         Coloque o documento: o sistema traduz, revisa e mostra o Word pronto. Você confere e aprova; o Word final sai em seguida.
       </p>
-      <div
-        className={`dropzone ${dragging ? 'over' : ''}`}
-        onDragOver={(event: DragEvent) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event: DragEvent) => {
-          event.preventDefault();
-          setDragging(false);
-          add(event.dataTransfer.files);
-        }}
-        onClick={() => input.current?.click()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && input.current?.click()}
-      >
-        <strong>{files.length ? `${files.length} arquivo(s) escolhido(s)` : 'Arraste o documento aqui ou clique para escolher'}</strong>
-        <span className="muted">
-          {accepted.map((ext) => ext.toUpperCase()).join(', ')}
-          {limits.data ? ` · até ${limits.data.maxFileMb} MB` : ''}
-        </span>
-        <input
-          ref={input}
-          type="file"
-          multiple
-          hidden
-          accept={accepted.map((ext) => `.${ext}`).join(',')}
-          onChange={(event) => {
-            add(event.target.files);
-            event.target.value = '';
+      <fieldset disabled={busy || locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <div
+          className={`dropzone ${dragging ? 'over' : ''}`}
+          onDragOver={(event: DragEvent) => {
+            event.preventDefault();
+            setDragging(true);
           }}
-        />
-      </div>
-      {files.length > 0 && (
-        <ul className="list compact files">
-          {files.map((file, index) => (
-            <li key={`${file.name}-${index}`}>
-              <div>
-                <strong>{file.name}</strong>
-                <span className="muted">{formatBytes(file.size)}</span>
-              </div>
-              {!busy && (
-                <button type="button" className="small" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>
-                  Remover
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="filters top-gap">
-        {!isDirector && teams.length > 1 && (
-          <label className="inline">
-            Equipe
-            <select required value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-              <option value="" disabled>
-                Escolha…
-              </option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event: DragEvent) => {
+            event.preventDefault();
+            setDragging(false);
+            add(event.dataTransfer.files);
+          }}
+          onClick={() => input.current?.click()}
+          role="button"
+          tabIndex={busy || locked ? -1 : 0}
+          aria-disabled={busy || locked}
+          onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && input.current?.click()}
+        >
+          <strong>{files.length ? `${files.length} arquivo(s) escolhido(s)` : 'Arraste o documento aqui ou clique para escolher'}</strong>
+          <span className="muted">
+            {accepted.map((ext) => ext.toUpperCase()).join(', ')}
+            {limits.data ? ` · até ${limits.data.maxFileMb} MB` : ''}
+          </span>
+          <input
+            ref={input}
+            type="file"
+            multiple
+            hidden
+            accept={accepted.map((ext) => `.${ext}`).join(',')}
+            onChange={(event) => {
+              add(event.target.files);
+              event.target.value = '';
+            }}
+          />
+        </div>
+        {files.length > 0 && (
+          <ul className="list compact files">
+            {files.map((file, index) => (
+              <li key={`${file.name}-${index}`}>
+                <div>
+                  <strong>{file.name}</strong>
+                  <span className="muted">{formatBytes(file.size)}</span>
+                </div>
+                {!busy && !locked && (
+                  <button type="button" className="small" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>
+                    Remover
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
-        <label className="inline">
-          Traduzir de
-          <PairSelect value={pair} onChange={setPair} />
-        </label>
-      </div>
-      <div className="tags-field">
-        <span className="field-label">Modalidade</span>
-        <ModeSelect value={mode} onChange={setMode} />
-      </div>
-      {sworn && (
-        <div className="tags-field mask-choice">
-          <span className="field-label">Máscara do tradutor</span>
-          <div className="mode-options" role="radiogroup" aria-label="Máscara do tradutor">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={useMask}
-              className={`mode-option ${useMask ? 'on' : ''}`}
-              onClick={() => setUseMask(true)}
-            >
-              <strong>Com máscara</strong>
-              <span className="muted small-text">
-                Timbre, abertura e encerramento do tradutor, com número, livro e folha pela regra dele.
-              </span>
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={!useMask}
-              className={`mode-option ${!useMask ? 'on' : ''}`}
-              onClick={() => setUseMask(false)}
-            >
-              <strong>Sem máscara</strong>
-              <span className="muted small-text">Só o documento traduzido no layout do original, sem tradutor nem numeração.</span>
-            </button>
-          </div>
-          {useMask && (
-            <label className="top-gap">
-              Tradutor juramentado
-              <select value={translatorId} onChange={(e) => setTranslatorId(e.target.value)}>
-                <option value="">Escolher depois, na prévia</option>
-                {ready.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                    {item.languages ? ` (${item.languages})` : ''}
+
+        <div className="filters top-gap">
+          {!isDirector && teams.length > 1 && (
+            <label className="inline">
+              Equipe
+              <select required value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                <option value="" disabled>
+                  Escolha…
+                </option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
                   </option>
                 ))}
               </select>
-              {translators.data && !ready.length && (
-                <small className="warn-text">Nenhum tradutor com máscara pronta: cadastre em Tradutores juramentados.</small>
-              )}
             </label>
           )}
+          <label className="inline">
+            Traduzir de
+            <PairSelect value={pair} onChange={setPair} />
+          </label>
         </div>
+        {protocol.fields}
+        <div className="tags-field">
+          <span className="field-label">Modalidade</span>
+          <ModeSelect value={mode} onChange={setMode} />
+        </div>
+        {sworn && (
+          <div className="tags-field mask-choice">
+            <span className="field-label">Máscara do tradutor</span>
+            <div className="mode-options" role="radiogroup" aria-label="Máscara do tradutor">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={useMask}
+                className={`mode-option ${useMask ? 'on' : ''}`}
+                onClick={() => setUseMask(true)}
+              >
+                <strong>Com máscara</strong>
+                <span className="muted small-text">
+                  Timbre, abertura e encerramento do tradutor, com número, livro e folha pela regra dele.
+                </span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={!useMask}
+                className={`mode-option ${!useMask ? 'on' : ''}`}
+                onClick={() => setUseMask(false)}
+              >
+                <strong>Sem máscara</strong>
+                <span className="muted small-text">Só o documento traduzido no layout do original, sem tradutor nem numeração.</span>
+              </button>
+            </div>
+            {useMask && (
+              <label className="top-gap">
+                Tradutor juramentado
+                <select value={translatorId} onChange={(e) => setTranslatorId(e.target.value)}>
+                  <option value="">Escolher depois, na prévia</option>
+                  {ready.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                      {item.languages ? ` (${item.languages})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {translators.data && !ready.length && (
+                  <small className="warn-text">Nenhum tradutor com máscara pronta: cadastre em Tradutores juramentados.</small>
+                )}
+              </label>
+            )}
+          </div>
+        )}
+      </fieldset>
+      {locked && !busy && (
+        <p className="muted small-text">
+          A remessa já foi iniciada. Retomar o envio preserva os mesmos arquivos, protocolo e idiomas. Acompanhe recusas e envios pendentes
+          em Envios.
+        </p>
       )}
       {sending && (
         <p className="muted small-text">
@@ -231,9 +348,14 @@ export function NewTranslation({
       )}
       <Feedback error={error} />
       <div className="actions">
-        <button className="primary" disabled={busy || !files.length || (!isDirector && !teamId)} onClick={() => void start()}>
-          {busy ? 'Enviando…' : 'Traduzir'}
+        <button
+          className="primary"
+          disabled={busy || permanentFailure || !files.length || !protocol.ready || (!isDirector && !teamId)}
+          onClick={() => void start()}
+        >
+          {busy ? 'Enviando…' : locked ? 'Retomar envio' : 'Traduzir'}
         </button>
+        {permanentFailure && createdIds.length > 0 && <button onClick={() => onStarted(createdIds)}>Abrir traduções válidas</button>}
         <button type="button" className="ghost" disabled={busy} onClick={onCancel}>
           Cancelar
         </button>
@@ -292,15 +414,16 @@ export function WordPanel({
   revision,
   busy,
   onAccept,
+  canAccept = true,
 }: {
   t: TranslationSummary;
   revision: number | null;
   busy: boolean;
   onAccept: () => void;
+  canAccept?: boolean;
 }) {
   const final = t.status === 'approved' && t.permissions.download;
   const base = final ? `/api/v1/translations/${t.id}/final` : `/api/v1/translations/${t.id}/preview`;
-  const [failed, setFailed] = useState(false);
   // A revisão no endereço força recarregar quando o rascunho muda.
   const pinned = !final && revision ? `&revision=${revision}` : '';
   const pdf = `${base}?format=pdf${pinned}`;
@@ -327,17 +450,169 @@ export function WordPanel({
             Baixar PDF
           </a>
           {t.permissions.accept && (
-            <button className="primary" disabled={busy} onClick={onAccept}>
+            <button className="primary" disabled={busy || !canAccept} onClick={onAccept}>
               {t.status === 'awaiting_approval' || t.permissions.approve ? 'Aprovar e concluir' : 'Aprovar Word'}
             </button>
           )}
         </div>
       </div>
-      {failed ? (
-        <p className="muted small-text">A visualização em PDF não está disponível agora; baixe o Word para conferir.</p>
+      <DocumentComparison
+        originalDocumentId={t.document.id}
+        originalName={t.document.name}
+        translatedUrl={pdf}
+        translatedDownloadUrl={`${base}?format=docx${pinned}`}
+        translatedTitle={final ? 'Word final' : 'Prévia em Word'}
+      />
+    </div>
+  );
+}
+
+/** Comparação com prévias autenticadas e fallback para conferência manual quando a conversão estiver indisponível. */
+export function DocumentComparison({
+  originalDocumentId,
+  originalName,
+  translatedUrl,
+  translatedDownloadUrl,
+  translatedTitle = 'Word traduzido',
+}: {
+  originalDocumentId: string;
+  originalName: string;
+  translatedUrl: string;
+  translatedDownloadUrl?: string;
+  translatedTitle?: string;
+}) {
+  return (
+    <div className="document-comparison">
+      <ComparisonPreview
+        title={`Original: ${originalName}`}
+        url={`/api/v1/documents/${originalDocumentId}/preview`}
+        downloadUrl={`/api/v1/documents/${originalDocumentId}/original`}
+      />
+      <ComparisonPreview title={translatedTitle} url={translatedUrl} downloadUrl={translatedDownloadUrl ?? translatedUrl} />
+    </div>
+  );
+}
+
+function ComparisonPreview({ title, url, downloadUrl }: { title: string; url: string; downloadUrl: string }) {
+  const [file, setFile] = useState<{ url: string; type: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    let objectUrl: string | undefined;
+    setFile(null);
+    setError(null);
+    void (async () => {
+      try {
+        const response = await fetch(url, { credentials: 'same-origin', signal: controller.signal });
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+          throw new Error(body?.error?.message ?? 'A visualização não está disponível agora.');
+        }
+        const blob = await response.blob();
+        if (!['application/pdf', 'image/png', 'image/jpeg'].includes(blob.type))
+          throw new Error('Este formato exige conferência pelo arquivo original.');
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
+        setFile({ url: objectUrl, type: blob.type });
+      } catch (caught) {
+        if (!controller.signal.aborted) setError(message(caught));
+      }
+    })();
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url, attempt]);
+  return (
+    <section className="comparison-pane">
+      <div className="word-head">
+        <h4>{title}</h4>
+        <a className="button small" href={downloadUrl}>
+          Baixar para conferir
+        </a>
+      </div>
+      {error ? (
+        <div className="comparison-fallback">
+          <Feedback error={error} />
+          <p>Baixe este arquivo e confira manualmente antes de registrar a inspeção.</p>
+          <button className="small" onClick={() => setAttempt((current) => current + 1)}>
+            Tentar prévia novamente
+          </button>
+        </div>
+      ) : !file ? (
+        <p className="muted" role="status">
+          Preparando visualização…
+        </p>
+      ) : file.type.startsWith('image/') ? (
+        <img className="comparison-image" src={file.url} alt={title} />
       ) : (
-        <iframe key={pdf} className="word-frame" title="Documento em Word" src={pdf} onError={() => setFailed(true)} />
+        <PdfPreview title={title} url={file.url} />
       )}
+    </section>
+  );
+}
+
+/** Download autenticado por POST: evita URLs enormes e mantém a seleção fora do histórico do navegador. */
+export function ArchiveDownloadButtons({
+  translationIds,
+  batchId,
+  disabled = false,
+}: {
+  translationIds?: string[];
+  batchId?: string;
+  disabled?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function download(format: 'docx' | 'pdf') {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/v1/translation-archives', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Protection': '1' },
+        body: JSON.stringify({ ...(batchId ? { batchId } : { translationIds }), format }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(body?.error?.message ?? 'Não foi possível preparar o ZIP.');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      const encodedName = /filename\*=UTF-8''([^;]+)/i.exec(response.headers.get('content-disposition') ?? '')?.[1];
+      anchor.download = encodedName ? decodeURIComponent(encodedName) : `Traduções-${format === 'docx' ? 'Word' : 'PDF'}.zip`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch (caught) {
+      setError(message(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="archive-controls">
+      <div className="actions">
+        <button
+          className="small"
+          disabled={busy || disabled || (!batchId && !translationIds?.length)}
+          onClick={() => void download('docx')}
+        >
+          {busy ? 'Preparando ZIP…' : 'Baixar ZIP Word'}
+        </button>
+        <button className="small" disabled={busy || disabled || (!batchId && !translationIds?.length)} onClick={() => void download('pdf')}>
+          Baixar ZIP PDF
+        </button>
+      </div>
+      <small className="muted">
+        Até 100 documentos, 50 MB por documento e 128 MB por ZIP. Pastas por protocolo, par de idiomas e formato.
+      </small>
+      <Feedback error={error} />
     </div>
   );
 }

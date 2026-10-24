@@ -26,6 +26,8 @@ Decisões que mudam limites, dependências ou operação ficam registradas como 
 - [ADR-022 — Escolha com IA ou sem IA por pessoa e comparação dos protocolos](022-ai-choice-comparison.md)
 - [ADR-023 — Navegação compacta por papel](023-compact-navigation.md)
 - [ADR-024 — Configurações pessoais, aparência e troca de senha](024-personal-settings.md)
+- [ADR-025 — Painéis pessoais, protocolos e fluxo documental rastreável](025-operational-document-flow.md)
+- [ADR-028 — Revisão persistida dos ensaios de novos formatos](028-pattern-trial-reviews.md)
 
 ## Modelo para novas decisões
 

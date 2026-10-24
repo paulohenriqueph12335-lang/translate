@@ -34,7 +34,7 @@ export function AutoTranslationNotice({
       )}
       {!data.translatorsReady && (
         <p className="alert warn-box">
-          Nenhuma tradução pode ser concluída antes de cadastrar um tradutor juramentado com a máscara em Word.{' '}
+          Para concluir traduções juramentadas, cadastre um tradutor juramentado com a máscara em Word.{' '}
           {canManageTranslators && onGoTranslators ? (
             <button className="link" onClick={onGoTranslators}>
               Cadastrar agora

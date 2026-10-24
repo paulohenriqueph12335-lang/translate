@@ -6,6 +6,8 @@ import type { Config } from './config.js';
 import type { Actor } from './modules/access/policy.js';
 import { createAiService } from './modules/ai/service.js';
 import { createAuditService } from './modules/audit/service.js';
+import { createSearchService } from './modules/search/service.js';
+import { createArchiveService } from './modules/documents/archive.js';
 import { createNotificationService } from './modules/notifications/service.js';
 import { createNumberingService } from './modules/numbering/service.js';
 import { createTranslatorNumberingService } from './modules/numbering/translator-numbering.js';
@@ -94,6 +96,7 @@ export async function buildApp({
   const deps = { pool, config, ...(now ? { now } : {}) };
   const translators = createTranslatorService({ ...deps, storage });
   const translatorNumbering = createTranslatorNumberingService(deps);
+  const translations = createTranslationService({ ...deps, storage, masks: translators.maskFor, numbering: translatorNumbering, machine });
   const services = {
     identity: createIdentityService(deps),
     setup: createSetupService({
@@ -103,8 +106,10 @@ export async function buildApp({
     users: createUserAdminService(deps),
     teams: createTeamService(deps),
     audit: createAuditService(deps),
+    search: createSearchService(deps),
     documents: createDocumentService({ ...deps, storage }),
-    translations: createTranslationService({ ...deps, storage, masks: translators.maskFor, numbering: translatorNumbering, machine }),
+    translations,
+    archives: createArchiveService(deps, translations),
     translatorNumbering,
     profiles: createProfileService(deps),
     patterns: createPatternService({ ...deps, machine }),

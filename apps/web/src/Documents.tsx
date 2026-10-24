@@ -19,6 +19,7 @@ import {
   type TranslationMode,
 } from './api';
 import { ModeSelect, PairSelect } from './Modes';
+import { ArchiveDownloadButtons, useBatchProtocol } from './Flow';
 import { DocumentTags, StatusBadge } from './Translations';
 import { dateTime, Feedback, message, SearchInput, Section, Segmented, TagInput, useDebounced, useLoad } from './ui';
 
@@ -35,7 +36,15 @@ interface UploadState {
 
 const extensionOf = (name: string) => /\.([A-Za-z0-9]+)$/.exec(name)?.[1]?.toLowerCase() ?? '';
 
-export function Documents({ me, onOpenTranslation }: { me: Me; onOpenTranslation: (id: string) => void }) {
+export function Documents({
+  me,
+  onOpenTranslation,
+  initialSearch = '',
+}: {
+  me: Me;
+  onOpenTranslation: (id: string) => void;
+  initialSearch?: string;
+}) {
   const isDirector = me.user.orgRole === 'director';
   const { data: teamsData } = useLoad(() => api<{ items: Team[] }>('GET', '/teams'), []);
   const { data: limits } = useLoad(() => api<UploadLimits>('GET', '/batches/limits'), []);
@@ -111,7 +120,14 @@ export function Documents({ me, onOpenTranslation }: { me: Me; onOpenTranslation
         <p className="empty">Você ainda não participa de equipes. Peça a um Supervisor ou ao Diretor para incluí-lo.</p>
       )}
       <div className="split wide">
-        <History teams={teams} isDirector={isDirector} selected={selected} onSelect={setSelected} version={version} />
+        <History
+          teams={teams}
+          isDirector={isDirector}
+          selected={selected}
+          onSelect={setSelected}
+          version={version}
+          initialSearch={initialSearch}
+        />
         {selected && (
           <BatchDetail
             key={selected}
@@ -153,6 +169,7 @@ function NewBatch({
   const [tags, setTags] = useState<string[]>([]);
   const suggestions = useLoad(() => api<{ items: Array<{ tag: string }> }>('GET', '/tags'), []);
   const [files, setFiles] = useState<File[]>([]);
+  const protocol = useBatchProtocol(files.length);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +209,10 @@ function NewBatch({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!protocol.ready) {
+      setError('Informe o protocolo ou sua justificativa e escolha a inspeção para remessas grandes.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -205,6 +226,7 @@ function NewBatch({
           ...(tags.length ? { tags } : {}),
           ...(name.trim() ? { name: name.trim() } : {}),
           files: files.map((file) => ({ name: file.name, size: file.size })),
+          ...protocol.payload,
         },
         { 'Idempotency-Key': idempotencyKey },
       );
@@ -219,6 +241,7 @@ function NewBatch({
   return (
     <form className="card new-batch" onSubmit={submit}>
       <h3>Novo lote</h3>
+      {protocol.fields}
       <div className="filters">
         {isDirector ? (
           <span className="muted small-text">O lote ficará aguardando direcionamento; escolha a equipe depois do envio.</span>
@@ -324,7 +347,10 @@ function NewBatch({
       {tooBig && <Feedback error={`O lote passa de ${limits.maxBatchMb} MB.`} />}
       <Feedback error={error} />
       <div className="actions">
-        <button className="primary" disabled={busy || (!isDirector && !teamId) || valid.length === 0 || tooMany || tooBig}>
+        <button
+          className="primary"
+          disabled={busy || !protocol.ready || (!isDirector && !teamId) || valid.length === 0 || tooMany || tooBig}
+        >
           {busy ? 'Criando…' : `Criar lote e enviar ${valid.length} arquivo(s)`}
         </button>
         <button type="button" className="ghost" onClick={onCancel}>
@@ -341,14 +367,17 @@ function History({
   selected,
   onSelect,
   version,
+  initialSearch,
 }: {
   teams: Team[];
   isDirector: boolean;
   selected: string | null;
   onSelect: (id: string) => void;
   version: number;
+  initialSearch: string;
 }) {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  useEffect(() => setSearch(initialSearch), [initialSearch]);
   const q = useDebounced(search.trim());
   const [teamId, setTeamId] = useState('');
   const [status, setStatus] = useState<'all' | 'open' | 'completed'>('all');
@@ -389,7 +418,7 @@ function History({
   return (
     <div className="stack">
       <div className="filters">
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar lote, pessoa ou arquivo" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, lote, pessoa ou arquivo" />
         {showTeamFilter && (
           <select aria-label="Equipe" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
             <option value="">Todas as equipes</option>
@@ -435,6 +464,7 @@ function History({
           <li key={batch.id} className={batch.id === selected ? 'selected' : ''} onClick={() => onSelect(batch.id)}>
             <div>
               <strong>
+                {batch.protocol ? `${batch.protocol} – ` : ''}
                 {batch.name ?? `Lote de ${dateTime(batch.createdAt)}`}{' '}
                 <span className={`badge ${batch.status === 'open' ? 'warn' : ''}`}>
                   {batch.status === 'open' ? 'Envio pendente' : 'Envio concluído'}
@@ -530,6 +560,9 @@ function BatchDetail({
   const retryable = documents.filter(
     (doc) => (doc.status === 'awaiting_upload' || doc.status === 'upload_failed') && uploads.files.has(doc.id),
   );
+  const hasReadyDocuments = documents.some((document) =>
+    document.translations?.some((translation) => translation.status === 'approved' || translation.status === 'awaiting_approval'),
+  );
 
   async function run(label: string, call: () => Promise<unknown>) {
     try {
@@ -538,17 +571,39 @@ function BatchDetail({
       onChange();
     } catch (caught) {
       setFeedback({ error: message(caught) });
+      onChange();
     }
   }
 
   return (
     <div className="card detail">
-      <h3>{batch.name ?? `Lote de ${dateTime(batch.createdAt)}`}</h3>
+      <h3>
+        {batch.protocol ? `${batch.protocol} – ` : ''}
+        {batch.name ?? `Lote de ${dateTime(batch.createdAt)}`}
+      </h3>
       <p className="muted small-text">
         {batch.team?.name ?? 'Sem equipe'} · enviado por {batch.owner.displayName} · {dateTime(batch.createdAt)} ·{' '}
         {formatBytes(batch.declaredBytes)}
       </p>
       <Progress counts={batch.counts} />
+      <p className="muted small-text">
+        {batch.protocol
+          ? `Protocolo: ${batch.protocol}`
+          : batch.protocolOmissionReason
+            ? `Sem protocolo: ${batch.protocolOmissionReason}`
+            : 'Remessa histórica sem protocolo registrado.'}
+      </p>
+      <p className="muted small-text">
+        Inspeção:{' '}
+        {batch.inspectionMode === 'sample'
+          ? `amostra inicial de ${batch.inspectionSampleSize} documentos; abra outros individualmente sempre que necessário`
+          : 'todos os documentos'}
+        . A aprovação exige conferência individual antes da conclusão.
+      </p>
+      <ArchiveDownloadButtons
+        batchId={batch.id}
+        disabled={!documents.some((doc) => doc.translations?.some((translation) => translation.status === 'approved'))}
+      />
 
       {isDirector && (
         <div className={`assign ${batch.team ? '' : 'pending'}`}>
@@ -566,12 +621,22 @@ function BatchDetail({
           <button
             className="small primary"
             disabled={!target}
-            onClick={() =>
-              run(batch.team ? 'Lote redirecionado.' : 'Lote direcionado; a equipe já pode trabalhar com ele.', async () => {
-                await api('POST', `/batches/${batch.id}/assign`, { teamId: target });
+            onClick={() => {
+              if (
+                hasReadyDocuments &&
+                !window.confirm(
+                  'Esta remessa já possui documentos prontos. Tem certeza de que deseja alterar a equipe responsável e os acessos a esses documentos?',
+                )
+              )
+                return;
+              void run(batch.team ? 'Lote redirecionado.' : 'Lote direcionado; a equipe já pode trabalhar com ele.', async () => {
+                await api('POST', `/batches/${batch.id}/assign`, {
+                  teamId: target,
+                  ...(hasReadyDocuments ? { confirmCompleted: true } : {}),
+                });
                 setTarget('');
-              })
-            }
+              });
+            }}
           >
             {batch.team ? 'Redirecionar' : 'Direcionar'}
           </button>
@@ -622,7 +687,21 @@ function BatchDetail({
                 <tr key={doc.id}>
                   <td className="name-cell" title={doc.name}>
                     {doc.name}
-                    {doc.status === 'stored' && <DocumentTags documentId={doc.id} tags={doc.tags} onSaved={onChange} />}
+                    {batch.inspectionMode === 'sample' && doc.position < (batch.inspectionSampleSize ?? 10) && (
+                      <span className="badge">Amostra de inspeção</span>
+                    )}
+                    {doc.status === 'stored' && (
+                      <DocumentTags
+                        documentId={doc.id}
+                        tags={doc.tags}
+                        completed={
+                          doc.translations?.some(
+                            (translation) => translation.status === 'approved' || translation.status === 'awaiting_approval',
+                          ) ?? false
+                        }
+                        onSaved={onChange}
+                      />
+                    )}
                   </td>
                   <td>{formatBytes(doc.size)}</td>
                   <td>
@@ -659,10 +738,18 @@ function BatchDetail({
                         onChange={(e) => {
                           const [sourceLanguage, targetLanguage] = e.target.value.split('-');
                           if (!sourceLanguage) return;
+                          if (
+                            doc.translations?.some((translation) => translation.status === 'approved') &&
+                            !window.confirm(
+                              'Este documento já possui uma tradução pronta. Tem certeza de que deseja criar uma nova tradução em outro idioma?',
+                            )
+                          )
+                            return;
                           void run('Tradução para o outro idioma iniciada.', async () => {
                             const started = await api<{ translation: { id: string } }>('POST', `/documents/${doc.id}/translations`, {
                               sourceLanguage,
                               targetLanguage,
+                              confirmCompleted: true,
                             });
                             onOpenTranslation(started.translation.id);
                           });

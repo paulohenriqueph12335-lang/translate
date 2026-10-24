@@ -472,6 +472,7 @@ export function AiAssist({
       {combination && editable && (
         <CombinationReview
           combination={combination}
+          completed={status === 'awaiting_approval'}
           onDone={(approved) => {
             setFeedback({
               ok: approved ? 'Diagramação aplicada; o sistema passa a usá-la em documentos parecidos.' : 'Sugestão descartada.',
@@ -513,17 +514,37 @@ export function AiAssist({
 
 function CombinationReview({
   combination,
+  completed,
   onDone,
   onError,
 }: {
   combination: AiCombination;
+  completed: boolean;
   onDone: (approved: boolean) => void;
   onError: (error: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const decide = (approve: boolean) => {
+    let reason: string | undefined;
+    if (approve && completed) {
+      if (
+        !window.confirm(
+          'Este documento já está pronto. Tem certeza de que deseja aplicar outra diagramação? Uma nova revisão e conferência serão necessárias.',
+        )
+      )
+        return;
+      reason = window.prompt('Informe o motivo desta alteração (mínimo 5 caracteres):')?.trim();
+      if (!reason || reason.length < 5) {
+        onError('Informe um motivo com pelo menos 5 caracteres.');
+        return;
+      }
+    }
     setBusy(true);
-    api('POST', `/ai/layout-combinations/${combination.id}/${approve ? 'approve' : 'reject'}`)
+    api(
+      'POST',
+      `/ai/layout-combinations/${combination.id}/${approve ? 'approve' : 'reject'}`,
+      approve && completed ? { confirmCompleted: true, reason } : {},
+    )
       .then(() => onDone(approve))
       .catch((caught: unknown) => onError(message(caught)))
       .finally(() => setBusy(false));

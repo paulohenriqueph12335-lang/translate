@@ -76,22 +76,31 @@ export function StagesPanel({
   stages,
   checklist,
   editable,
+  completed = false,
   onChange,
 }: {
   translationId: string;
   stages: Stage[];
   checklist: ChecklistItem[];
   editable: boolean;
+  completed?: boolean;
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function toggle(keys: string[], checked: boolean) {
+    if (
+      completed &&
+      !window.confirm(
+        'Este documento está pronto para aprovação. Tem certeza de que deseja alterar o checklist? A mudança ficará registrada.',
+      )
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
-      await api('PUT', `/translations/${translationId}/checks`, { keys, checked });
+      await api('PUT', `/translations/${translationId}/checks`, { keys, checked, ...(completed ? { confirmCompleted: true } : {}) });
       onChange();
     } catch (caught) {
       setError(message(caught));

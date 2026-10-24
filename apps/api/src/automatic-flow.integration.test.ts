@@ -10,7 +10,7 @@ import { processNextJob, type ProcessingDeps } from '@tradutor/core/processing';
 import type { ObjectStorage } from '@tradutor/core/storage';
 import type { MachineTranslator } from '@tradutor/core/translation';
 import { bootstrapDirector } from './modules/identity/bootstrap.js';
-import { createTestApp, swornTranslator, TestClient } from './test/helpers.js';
+import { createTestApp, inspectReady, swornTranslator, TestClient } from './test/helpers.js';
 
 /**
  * Fluxo automático até o Word (ADR-017): envio com ou sem máscara e com o tradutor escolhido; tradução e revisão
@@ -136,6 +136,7 @@ describe('fluxo automático até o Word', () => {
   });
 
   it('o Usuário aprova o Word e a liderança conclui; o número sai pela regra do tradutor', async () => {
+    assert.equal((await inspectReady(c.op!, ids.sworn)).status, 200);
     const accepted = await c.op!.post(`/api/v1/translations/${ids.sworn}/accept`);
     assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
     assert.equal(accepted.body.translation.status, 'awaiting_approval');
@@ -152,6 +153,7 @@ describe('fluxo automático até o Word', () => {
     const job = await upload(c.lider!, 'direto.pdf', 'direto', { mode: 'sworn', translatorId: ids.translator });
     // A prévia já mostra o próximo número antes de qualquer preenchimento.
     assert.match(await docxText((await c.lider!.raw('GET', `/api/v1/translations/${job}/preview`)).rawPayload), /502/);
+    assert.equal((await inspectReady(c.lider!, job)).status, 200);
     const done = await c.lider!.post(`/api/v1/translations/${job}/accept`);
     assert.equal(done.status, 200, JSON.stringify(done.body));
     assert.equal(done.body.translation.number, '502 – Livro 12 – Folha 2');
@@ -161,6 +163,7 @@ describe('fluxo automático até o Word', () => {
     const job = await upload(c.lider!, 'sem-mascara.pdf', 'semmascara', { mode: 'sworn', useMask: false });
     const detail = await c.lider!.get(`/api/v1/translations/${job}`);
     assert.equal(detail.body.translation.useMask, false);
+    assert.equal((await inspectReady(c.lider!, job)).status, 200);
     const done = await c.lider!.post(`/api/v1/translations/${job}/accept`);
     assert.equal(done.status, 200, JSON.stringify(done.body));
     assert.equal(done.body.translation.status, 'approved');

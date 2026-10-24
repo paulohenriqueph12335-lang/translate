@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   api,
   formatBytes,
@@ -12,6 +12,7 @@ import {
   LANGUAGE_PAIRS,
 } from './api';
 import { StatusBadge } from './Translations';
+import { ArchiveDownloadButtons } from './Flow';
 import {
   dateTime,
   DateRange,
@@ -89,6 +90,8 @@ function ConcludedTranslations({
   const [pair, setPair] = useState('');
   const [approvedBy, setApprovedBy] = useState('');
   const [period, setPeriod] = useState({ from: '', to: '' });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => setSelected(new Set()), [q, teamId, documentType, tag, pair, approvedBy, period.from, period.to]);
   const list = usePaged<TranslationSummary>(
     `/translations${queryString({
       limit: 30,
@@ -109,7 +112,7 @@ function ConcludedTranslations({
   return (
     <>
       <div className="filters top-gap">
-        <SearchInput value={search} onChange={setSearch} placeholder="Arquivo, lote, tipo ou nº (0001/2026)" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Protocolo, arquivo, lote, tipo ou nº (0001/2026)" />
         <TeamSelect teams={teams} value={teamId} onChange={setTeamId} />
         <select aria-label="Tipo de documento" value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
           <option value="">Todos os tipos</option>
@@ -162,10 +165,42 @@ function ConcludedTranslations({
         )}
       </div>
       <Feedback error={list.error} />
+      <div className="card top-gap">
+        <div className="actions">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={!!list.items.length && list.items.every((item) => selected.has(item.id))}
+              onChange={(event) =>
+                setSelected((current) => {
+                  const next = new Set(current);
+                  for (const item of list.items) {
+                    if (event.target.checked) next.add(item.id);
+                    else next.delete(item.id);
+                  }
+                  return next;
+                })
+              }
+            />
+            Selecionar resultados carregados
+          </label>
+          <span className="muted">{selected.size} selecionado(s)</span>
+          {selected.size > 0 && (
+            <button className="link" onClick={() => setSelected(new Set())}>
+              Limpar seleção
+            </button>
+          )}
+        </div>
+        <ArchiveDownloadButtons translationIds={[...selected]} disabled={selected.size > 100} />
+        {selected.size > 100 && <p className="warn-text">Selecione no máximo 100 documentos por ZIP.</p>}
+      </div>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
+              <th>
+                <span className="sr-only">Selecionar</span>
+              </th>
               <th>Nº</th>
               <th>Documento</th>
               <th>Tipo</th>
@@ -177,6 +212,21 @@ function ConcludedTranslations({
           <tbody>
             {list.items.map((item) => (
               <tr key={item.id}>
+                <td>
+                  <input
+                    aria-label={`Selecionar ${item.document.name}`}
+                    type="checkbox"
+                    checked={selected.has(item.id)}
+                    onChange={(event) =>
+                      setSelected((current) => {
+                        const next = new Set(current);
+                        if (event.target.checked) next.add(item.id);
+                        else next.delete(item.id);
+                        return next;
+                      })
+                    }
+                  />
+                </td>
                 <td className="nowrap">{item.number?.split(' – ')[0]}</td>
                 <td className="name-cell">
                   <button className="link" onClick={() => onOpen(item.id)} title="Abrir a tradução">
@@ -184,7 +234,8 @@ function ConcludedTranslations({
                   </button>
                   <TagList tags={item.document.tags} onPick={setTag} />
                   <span className="muted small-text">
-                    {pairLabel(item.sourceLanguage, item.targetLanguage)} · lote {item.batch.name ?? 'sem nome'} · enviado por{' '}
+                    {pairLabel(item.sourceLanguage, item.targetLanguage)} ·{' '}
+                    {item.batch.protocol ? `protocolo ${item.batch.protocol} · ` : ''}lote {item.batch.name ?? 'sem nome'} · enviado por{' '}
                     {item.uploadedBy}
                   </span>
                 </td>
@@ -195,8 +246,11 @@ function ConcludedTranslations({
                   <span className="muted small-text block-line">{item.approvedBy}</span>
                 </td>
                 <td className="actions">
-                  <a className="button small primary" href={`/api/v1/translations/${item.id}/final`}>
-                    Tradução
+                  <a className="button small primary" href={`/api/v1/translations/${item.id}/final?format=docx&download=true`}>
+                    Word
+                  </a>
+                  <a className="button small" href={`/api/v1/translations/${item.id}/final?format=pdf&download=true`}>
+                    PDF
                   </a>
                   <a className="button small" href={`/api/v1/documents/${item.document.id}/original`}>
                     Original
@@ -248,7 +302,7 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
   return (
     <>
       <div className="filters top-gap">
-        <SearchInput value={search} onChange={setSearch} placeholder="Arquivo, lote, pessoa, tipo ou nº" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Protocolo, arquivo, lote, pessoa, tipo ou nº" />
         <TeamSelect teams={teams} value={teamId} onChange={setTeamId} />
         <select aria-label="Etiqueta" value={tag} onChange={(e) => setTag(e.target.value)}>
           <option value="">Todas as etiquetas</option>
@@ -304,7 +358,8 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
               <strong>{doc.name}</strong>
               <span className="muted">
                 {doc.format?.toUpperCase()} · {formatBytes(doc.size)} · {doc.team?.name ?? 'Sem equipe'} · lote{' '}
-                {doc.batch.name ?? 'sem nome'} · enviado por {doc.uploadedBy.displayName}
+                {doc.batch.name ?? 'sem nome'}
+                {doc.batch.protocol ? ` · protocolo ${doc.batch.protocol}` : ''} · enviado por {doc.uploadedBy.displayName}
                 {doc.storedAt ? ` em ${dateTime(doc.storedAt)}` : ''}
               </span>
               <TagList tags={doc.tags} onPick={setTag} />

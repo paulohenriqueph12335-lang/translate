@@ -7,7 +7,7 @@ import { processNextJob, type ProcessingDeps } from '@tradutor/core/processing';
 import type { ObjectStorage } from '@tradutor/core/storage';
 import { SKILL_GLOSSARY, seedSkillGlossary, type MachineTranslator } from '@tradutor/core/translation';
 import { bootstrapDirector } from './modules/identity/bootstrap.js';
-import { createTestApp, TestClient } from './test/helpers.js';
+import { createTestApp, inspectReady, TestClient } from './test/helpers.js';
 
 /**
  * Modalidades (ADR-015): juramentada, certificada, técnica e simples, cada uma com suas etapas, regras por idioma de
@@ -139,6 +139,7 @@ describe('modalidades de tradução', () => {
     assert.equal((await c.op!.post(`/api/v1/translations/${job}/submit`)).body.translation.status, 'awaiting_approval');
 
     // Sem tradutor juramentado nem número: só a juramentada usa a máscara e a numeração.
+    assert.equal((await inspectReady(c.lider!, job)).status, 200);
     const done = await c.lider!.post(`/api/v1/translations/${job}/approve`, {});
     assert.equal(done.status, 200, JSON.stringify(done.body));
     assert.equal(done.body.translation.status, 'approved');

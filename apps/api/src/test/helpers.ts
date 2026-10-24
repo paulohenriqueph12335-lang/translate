@@ -43,6 +43,18 @@ export class TestClient {
     const headers: Record<string, string> = {};
     if (this.options.csrf !== false) headers['x-csrf-protection'] = '1';
     if (this.cookie) headers.cookie = this.cookie;
+    // Fixtures antigas de outras funcionalidades explicitam a ausência de protocolo, sem mudar nomes esperados.
+    // Casos negativos do contrato novo usam raw() para preservar o corpo exato enviado.
+    if (method === 'POST' && url === '/api/v1/batches' && body && typeof body === 'object' && !Array.isArray(body)) {
+      const input = body as Record<string, unknown>;
+      body = {
+        ...input,
+        ...(!('protocol' in input) && !('protocolOmissionReason' in input)
+          ? { protocolOmissionReason: 'Remessa sintética de teste sem protocolo externo.' }
+          : {}),
+        ...(Array.isArray(input.files) && input.files.length >= 20 && !('inspectionMode' in input) ? { inspectionMode: 'all' } : {}),
+      };
+    }
     const response = await this.app.inject({ method, url, headers, ...(body !== undefined ? { payload: body as object } : {}) });
     const setCookie = response.cookies.find((cookie) => cookie.name === 'sid');
     if (setCookie) this.cookie = setCookie.value ? `sid=${setCookie.value}` : undefined;
@@ -167,8 +179,10 @@ export async function swornTranslator(supervisor: TestClient, name = 'Ana Beatri
       sheet: String(sequence).padStart(3, '0'),
     };
   };
-  const conclude = (client: TestClient, job: string, extra: Record<string, unknown> = {}) =>
-    client.post(`/api/v1/translations/${job}/approve`, { ...next(), ...extra });
+  const conclude = async (client: TestClient, job: string, extra: Record<string, unknown> = {}) => {
+    await inspectReady(client, job);
+    return client.post(`/api/v1/translations/${job}/approve`, { ...next(), ...extra });
+  };
   return { id, next, conclude };
 }
 
@@ -180,7 +194,25 @@ export async function submitReady(client: TestClient, jobId: string | undefined)
   const detail = await client.get(`/api/v1/translations/${jobId}`);
   const keys = ((detail.body?.checklist ?? []) as Array<{ key: string }>).map((item) => item.key);
   if (keys.length) await client.request('PUT', `/api/v1/translations/${jobId}/checks`, { keys, checked: true });
-  return client.post(`/api/v1/translations/${jobId}/submit`);
+  const submitted = await client.post(`/api/v1/translations/${jobId}/submit`);
+  // A revisão automática de "Pronta" pode gerar outra revisão; a pessoa confere essa versão antes da conclusão.
+  if (submitted.status === 200) await inspectReady(client, jobId);
+  return submitted;
+}
+
+/** Ação humana explícita nas fixtures de conclusão; nunca altera permissões, checklist ou conteúdo do documento. */
+export async function inspectReady(client: TestClient, jobId: string | undefined): Promise<TestResponse> {
+  const detail = await client.get(`/api/v1/translations/${jobId}`);
+  if (detail.status !== 200 || !detail.body.draft || !['in_review', 'awaiting_approval'].includes(detail.body.translation.status))
+    return detail;
+  const revision = detail.body.draft.revision as number;
+  if (detail.body.translation.reviewLifecycle?.lastInspectionRevision === revision) return detail;
+  return client.post(`/api/v1/translations/${jobId}/inspections`, {
+    decision: 'approved',
+    baseRevision: revision,
+    scope: 'all',
+    comment: 'Conferência sintética do documento original e da prévia Word nesta revisão.',
+  });
 }
 
 /**

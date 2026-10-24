@@ -1,6 +1,6 @@
 # Tradutor Documental
 
-Plataforma web planejada para traduzir documentos com controle de acesso por equipe, arquivos privados e processamento recuperável. O repositório contém a fundação técnica local; as funcionalidades do produto ainda serão implementadas por fases.
+Plataforma web para traduzir documentos com controle de acesso por equipe, arquivos privados, revisão humana e processamento recuperável. O ambiente local reúne API, interface, banco, armazenamento, tradutor e conversor de documentos.
 
 ## Comece aqui
 
@@ -14,6 +14,7 @@ Plataforma web planejada para traduzir documentos com controle de acesso por equ
 - [Segurança e privacidade](docs/security.md)
 - [Operação local](docs/operations.md)
 - [Estratégia de testes](docs/testing.md)
+- [Upgrade operacional: painéis, protocolos, revisão e downloads](docs/decisions/025-operational-document-flow.md)
 - [Como contribuir](CONTRIBUTING.md)
 
 ## Início rápido
@@ -29,4 +30,4 @@ No Windows, use `corepack pnpm ...` sem `corepack enable` se não tiver permiss�
 
 ## Situação atual
 
-Fase 1 implementada: cadastro pendente com aprovação, login com sessões revogáveis, hierarquia Diretor/Líder/Operador por equipe e trilha de auditoria. Fase 2: lotes com upload validado e armazenamento privado. Fase 3: tradução juramentada assistida (PDF → rascunho → revisão → aprovação → DOCX numerado), traduzida automaticamente pelo LibreTranslate local (gratuito) ou pelo DeepL Free na estrutura do original, revisada na prévia e concluída pelo Líder ou Diretor, com notificações, etiquetas e área de downloads. Ainda faltam OCR local e operação de piloto. Veja [o roadmap](docs/roadmap.md) antes de assumir que uma funcionalidade está pronta.
+O sistema oferece cadastro pendente com aprovação, sessões revogáveis, hierarquia Diretor/Líder/Operador, remessas com protocolo ou justificativa, tradução gratuita local, OCR no Docker, revisão comparativa e conclusão pela liderança. Há painéis opcionais, busca no escopo de acesso, auditoria de erros, tempos operacionais e exportação Word/PDF em ZIP. A IA permanece opcional. Consulte [o ADR-025](docs/decisions/025-operational-document-flow.md) para regras, limites e evidências do upgrade de 24/10/2026, e [o roadmap](docs/roadmap.md) para os demais itens de evolução e operação de piloto.

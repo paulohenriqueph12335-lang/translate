@@ -38,11 +38,25 @@ Todos os perfis encontram **Configurações** no rodapé do menu:
 
 ## Tradução juramentada
 
-1. Como Supervisor, abra **Tradutores juramentados**, cadastre cada tradutor (nome, matrícula, idiomas) e envie a **máscara em Word** dele no armazenamento de máscaras, com os marcadores `{{texto}}`, `{{numero}}`, `{{data}}` etc. no lugar certo; cada envio vira uma edição numerada, e dá para voltar a uma edição anterior (o PDF do tradutor pode ser guardado como referência). Sem tradutor com máscara, nenhuma tradução pode ser concluída. Na conclusão, escolhe-se o tradutor e digita-se o número, o livro e a folha.
+1. Para tradução juramentada **com máscara**, como Supervisor, abra **Tradutores juramentados**, cadastre cada tradutor (nome, matrícula, idiomas) e envie a **máscara em Word** dele no armazenamento de máscaras, com os marcadores `{{texto}}`, `{{numero}}`, `{{data}}` etc. no lugar certo. Cada envio vira uma edição numerada e permite voltar à anterior. Essa opção exige tradutor e máscara configurados; a numeração segue as regras do tradutor e a conferência da liderança. O envio também oferece o fluxo sem máscara, conforme a modalidade escolhida.
 2. A tradução automática gratuita já vem ligada: o serviço `translator` (LibreTranslate) sobe com o Compose e baixa os modelos PT, EN, FR, IT e ES na primeira vez (`docker compose logs -f translator`). Em uma instalação que já tinha só PT/EN, baixe os novos uma vez com `docker compose exec translator /app/venv/bin/python /app/scripts/install_models.py --load_only_lang_codes en,pt,fr,it,es` e reinicie o `translator`. Para usar o DeepL Free no lugar dele, crie uma conta em deepl.com/pro-api, coloque `DEEPL_API_KEY=` no `.env`, recrie o worker e escolha o DeepL em **Configurações**.
-3. Em **Envios**, crie o lote com o par de idiomas e, se quiser, etiquetas (ex.: "histórico escolar"). Cada documento armazenado é processado na hora, inclusive nos lotes do Diretor ainda sem equipe. A equipe recebe a notificação "Pronto para revisar"; se o tipo de documento ainda não tem uma tradução concluída, Líder e Diretor recebem "Tipo de documento novo".
-4. Em **Traduções**, o Operador confere a prévia (o documento como vai sair), corrige o texto no lugar e clica **Pronta**. O Líder ou o Diretor clica **Concluir** (numera e libera o download) ou **Refazer** (com o motivo, opcionalmente reprocessando). As concluídas ficam em **Downloads**, junto com os originais.
+3. Em **Enviar documentos**, crie a remessa com protocolo ou justificativa de ausência, par de idiomas e, se quiser, etiquetas. Remessas com 20 arquivos ou mais exigem escolha de inspeção integral ou por amostra. Cada documento armazenado entra na fila, inclusive nos lotes do Diretor ainda sem equipe. A equipe recebe "Pronto para revisar"; tipos ainda sem tradução concluída geram o aviso "Tipo de documento novo" para a liderança.
+4. Em **Traduções**, o Operador compara original e Word, registra a conferência da revisão, corrige o necessário e marca como pronta. O Líder ou Diretor conclui ou devolve com motivo e fases falhas. Três reprovações consecutivas exigem novo formato estrutural. As concluídas ficam em **Entregas e ZIP**, junto das opções de Word/PDF e exportação em lote. Consulte as regras detalhadas abaixo.
 5. O aviso no topo de **Envios** e **Traduções** diz se o worker parou, se a tradução automática está fora do ar ou se falta configurar o tradutor público. A chave `ANTHROPIC_API_KEY` não é mais usada (ADR-010) e pode ser apagada do `.env`.
+
+## Painéis, protocolos e fluxo de revisão (2026-10-24)
+
+As regras completas estão no [ADR-025](decisions/025-operational-document-flow.md).
+
+1. No **Início**, mantenha os indicadores essenciais e use **Escolher painéis** para mostrar, ocultar ou ordenar os gráficos. **Ampliar** abre uma janela com o mesmo gráfico. A seleção fica na conta neste navegador. Diretor e Líder podem pesquisar protocolos, arquivos, pessoas, fases e erros no Início e abrir os resultados nas áreas correspondentes.
+2. Ao enviar uma remessa, informe o **protocolo** ou explique sua ausência. Para 20 arquivos ou mais, escolha inspecionar todos ou a amostra dos primeiros até 10 documentos elegíveis. O protocolo aparece antes do nome de saída e a decisão de inspeção fica registrada.
+3. Na tradução, confira os tempos e compare **Original e Word**. Uma reprovação exige indicar as fases com falha e explicar a correção. Depois de três reprovações consecutivas, registre um novo formato com mudança real de diagramação antes de continuar. Corrigir o idioma registra os pares anteriores/novos e refaz o fluxo; documentos prontos pedem confirmação e motivo.
+4. Em **Auditoria**, filtre gravidade e causa. Os totais abrangem todas as páginas. **Pendências operacionais agora** mostra bloqueios, falhas, processamento parado há 30 minutos e documentos válidos prontos há 24 horas sem download. Use **Atualizar auditoria** para consultar novamente.
+5. Em **Concluídas**, selecione Word ou PDF para exportar uma remessa/seleção em ZIP. Limites: 100 traduções, 50 MiB por arquivo e 128 MiB no conteúdo total. As pastas separam protocolo, par e formato. Se houver falha de conversão ou leitura, a exportação inteira falha; reduza a seleção ou restaure o serviço indicado. Após preparar todos os arquivos, o servidor verifica novamente acessos e estados e registra os downloads e o agrupamento em uma única transação; uma recusa desfaz todo esse registro.
+
+O tempo até o primeiro download representa a entrega registrada pelo servidor. Consultar uma prévia não encerra essa espera; o sistema não acompanha o salvamento no dispositivo do usuário. A estimativa de produção informa se veio de histórico comparável ou da referência inicial por páginas.
+
+Em **Tipos de documento**, o ensaio de um formato novo também registra aprovações/reprovações por revisão. Escolha as fases com falha e o motivo; após três reprovações, registre outro formato e selecione uma diagramação diferente. Gere o Word de novo antes de comparar e decidir. Se a diagramação produzida continuar igual, substitua o preset pendente no formulário e gere novamente; a inspeção continua bloqueada até haver mudança real. Reenviar o mesmo resultado não elimina a decisão anterior. Apenas digests, layout sem conteúdo e decisões são guardados, conforme o [ADR-028](decisions/028-pattern-trial-reviews.md).
 
 ## Saúde e diagnóstico
 
@@ -61,6 +75,8 @@ O worker e a API têm o Tesseract (por, eng, fra, ita, spa) e o Poppler: imagens
 ## Conversão para PDF
 
 O serviço `converter` (Gotenberg com LibreOffice) converte o Word da prévia e da tradução final em PDF para ver na tela e baixar (ADR-017). Só a API acessa (`CONVERTER_URL`), sem porta publicada. Fora do ar, o PDF responde indisponível e o Word continua liberado.
+
+A interface apresenta os PDFs com PDF.js e worker locais, inclusive em navegadores sem plugin PDF. Use as setas para mudar a página, o seletor para ajustar à largura ou ampliar para 150%/200%, e **Texto desta página** para consultar o conteúdo textual extraído. Cada lado da comparação tem seus próprios controles. Se a renderização falhar, a tela informa o erro e oferece nova tentativa. O visualizador não substitui o conversor nem altera o arquivo traduzido.
 
 ## Capacidade
 

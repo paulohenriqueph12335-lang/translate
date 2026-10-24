@@ -256,7 +256,9 @@ function Requests({ onOpenTranslation, onChange }: { onOpenTranslation: (id: str
                   <button
                     className="small primary"
                     onClick={() =>
-                      act('Pedido autorizado.', () => api('POST', `/numbering-requests/${request.id}/decide`, { approve: true }))
+                      window.confirm(
+                        'Tem certeza de que deseja alterar a numeração deste documento concluído? A nova versão e a decisão ficarão registradas na auditoria.',
+                      ) && act('Pedido autorizado.', () => api('POST', `/numbering-requests/${request.id}/decide`, { approve: true }))
                     }
                   >
                     Autorizar
