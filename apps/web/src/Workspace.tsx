@@ -57,69 +57,71 @@ export function Workspace({
   }
 
   return (
-    <Section title="Meu workspace" subtitle="Seus documentos, o que espera por você e o que a equipe pode assumir.">
-      <div className="stat-row">
-        <button className="card stat-tile action-tile" onClick={onUpload}>
-          <span className="muted small-text">Começar</span>
-          <strong>Nova tradução</strong>
-          <span className="muted small-text">PDF, DOCX, PPTX ou imagem</span>
-        </button>
-        <div className="card stat-tile">
-          <span className="muted small-text">Para revisar</span>
-          <strong>{totals.data?.totals.inReview ?? '—'}</strong>
-          <span className="muted small-text">
-            {totals.data ? totals.data.totals.inProgress - totals.data.totals.inReview : '—'} em outras etapas
-          </span>
+    <div className="analytics-view workspace-view">
+      <Section title="Meu workspace" subtitle="Seus documentos, o que espera por você e o que a equipe pode assumir.">
+        <div className="stat-row">
+          <button className="card stat-tile action-tile" onClick={onUpload}>
+            <span className="muted small-text">Começar</span>
+            <strong>Nova tradução</strong>
+            <span className="muted small-text">PDF, DOCX, PPTX ou imagem</span>
+          </button>
+          <div className="card stat-tile">
+            <span className="muted small-text">Para revisar</span>
+            <strong>{totals.data?.totals.inReview ?? '—'}</strong>
+            <span className="muted small-text">
+              {totals.data ? totals.data.totals.inProgress - totals.data.totals.inReview : '—'} em outras etapas
+            </span>
+          </div>
+          <div className="card stat-tile">
+            <span className="muted small-text">Minha numeração {quota.data?.year}</span>
+            {quota.data && <Meter used={quota.data.mine.used} quota={quota.data.mine.quota} />}
+          </div>
+          <button className="card stat-tile action-tile" onClick={onNotifications}>
+            <span className="muted small-text">Notificações novas</span>
+            <strong>{unread.data?.unread ?? '—'}</strong>
+            <span className="muted small-text">ver todas</span>
+          </button>
         </div>
-        <div className="card stat-tile">
-          <span className="muted small-text">Minha numeração {quota.data?.year}</span>
-          {quota.data && <Meter used={quota.data.mine.used} quota={quota.data.mine.quota} />}
-        </div>
-        <button className="card stat-tile action-tile" onClick={onNotifications}>
-          <span className="muted small-text">Notificações novas</span>
-          <strong>{unread.data?.unread ?? '—'}</strong>
-          <span className="muted small-text">ver todas</span>
-        </button>
-      </div>
-      <Feedback
-        error={mine.error ?? open.error ?? totals.error ?? quota.error ?? news.error ?? unread.error ?? feedback.error ?? null}
-        ok={feedback.ok ?? null}
-      />
-      <details className="secondary-options workspace-preferences">
-        <summary>Preferência de uso da IA</summary>
-        <AiChoice />
-      </details>
-
-      <h3 className="top-gap">Comigo</h3>
-      <WorkList items={mine.items} onOpen={onOpenTranslation} empty="Nada com você agora. Envie documentos ou assuma um da equipe." />
-      <PagedFooter hasMore={mine.hasMore} loading={mine.loading} onMore={mine.more} empty={false} emptyText="" />
-
-      {open.items.length > 0 && (
-        <>
-          <h3 className="top-gap">Disponíveis para assumir</h3>
-          <WorkList items={open.items} onOpen={onOpenTranslation} onClaim={claim} empty="" />
-          <PagedFooter hasMore={open.hasMore} loading={open.loading} onMore={open.more} empty={false} emptyText="" />
-        </>
-      )}
-
-      {(news.data?.items.length ?? 0) > 0 && (
-        <details className="secondary-options workspace-news">
-          <summary>Prévia das últimas notificações</summary>
-          <ul className="list compact">
-            {news.data!.items.map((item) => (
-              <li key={item.id} className="clickable" onClick={() => item.translationId && onOpenTranslation(item.translationId)}>
-                <div>
-                  <strong>
-                    <span className="badge soft">{notificationKindLabel[item.kind] ?? item.kind}</span> {item.title}
-                  </strong>
-                  <span className="muted small-text">{dateTime(item.createdAt)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+        <Feedback
+          error={mine.error ?? open.error ?? totals.error ?? quota.error ?? news.error ?? unread.error ?? feedback.error ?? null}
+          ok={feedback.ok ?? null}
+        />
+        <details className="secondary-options workspace-preferences">
+          <summary>Preferência de uso da IA</summary>
+          <AiChoice />
         </details>
-      )}
-    </Section>
+
+        <h3 className="top-gap">Comigo</h3>
+        <WorkList items={mine.items} onOpen={onOpenTranslation} empty="Nada com você agora. Envie documentos ou assuma um da equipe." />
+        <PagedFooter hasMore={mine.hasMore} loading={mine.loading} onMore={mine.more} empty={false} emptyText="" />
+
+        {open.items.length > 0 && (
+          <>
+            <h3 className="top-gap">Disponíveis para assumir</h3>
+            <WorkList items={open.items} onOpen={onOpenTranslation} onClaim={claim} empty="" />
+            <PagedFooter hasMore={open.hasMore} loading={open.loading} onMore={open.more} empty={false} emptyText="" />
+          </>
+        )}
+
+        {(news.data?.items.length ?? 0) > 0 && (
+          <details className="secondary-options workspace-news">
+            <summary>Prévia das últimas notificações</summary>
+            <ul className="list compact">
+              {news.data!.items.map((item) => (
+                <li key={item.id} className="clickable" onClick={() => item.translationId && onOpenTranslation(item.translationId)}>
+                  <div>
+                    <strong>
+                      <span className="badge soft">{notificationKindLabel[item.kind] ?? item.kind}</span> {item.title}
+                    </strong>
+                    <span className="muted small-text">{dateTime(item.createdAt)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </Section>
+    </div>
   );
 }
 
@@ -190,75 +192,77 @@ export function History({ onOpenTranslation }: { onOpenTranslation: (id: string)
   const filtered = !!(q || pair || period.from || period.to);
 
   return (
-    <Section title="Histórico" subtitle="Documentos que você finalizou, com idioma, número da Tradução Pública e prévia.">
-      <div className="filters">
-        <SearchInput value={search} onChange={setSearch} placeholder="Arquivo, tipo ou nº (0001/2026)" />
-        <LanguagePairPicker label="Idiomas" value={pair} onChange={setPair} any="Todos os idiomas" />
-        <DateRange label="Concluídas" from={period.from} to={period.to} onChange={(from, to) => setPeriod({ from, to })} />
-        {filtered && (
-          <button
-            className="link"
-            onClick={() => {
-              setSearch('');
-              setPair('');
-              setPeriod({ from: '', to: '' });
-            }}
-          >
-            Limpar filtros
-          </button>
-        )}
-      </div>
-      <Feedback error={list.error} />
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Nº / protocolo</th>
-              <th>Documento</th>
-              <th>Idiomas</th>
-              <th>Concluída</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {list.items.map((item) => (
-              <tr key={item.id}>
-                <td className="nowrap">
-                  {item.number?.split(' – ')[0]}
-                  <span className="muted small-text block-line">{item.number?.split(' – ').slice(1).join(' · ')}</span>
-                  {item.annulled && <span className="badge danger">Anulado</span>}
-                </td>
-                <td className="name-cell">
-                  {item.document.name}
-                  <span className="muted small-text block-line">{item.documentType ?? '—'}</span>
-                </td>
-                <td>{pairLabel(item.sourceLanguage, item.targetLanguage)}</td>
-                <td className="nowrap">
-                  {item.approvedAt ? dateTime(item.approvedAt) : '—'}
-                  <span className="muted small-text block-line">{item.approvedBy}</span>
-                </td>
-                <td className="actions">
-                  <button className="small" onClick={() => onOpenTranslation(item.id)}>
-                    Ver prévia
-                  </button>
-                  {item.permissions.download && (
-                    <a className="button small primary" href={`/api/v1/translations/${item.id}/final`}>
-                      Baixar
-                    </a>
-                  )}
-                </td>
+    <div className="analytics-view history-view">
+      <Section title="Histórico" subtitle="Documentos que você finalizou, com idioma, número da Tradução Pública e prévia.">
+        <div className="filters">
+          <SearchInput value={search} onChange={setSearch} placeholder="Arquivo, tipo ou nº (0001/2026)" />
+          <LanguagePairPicker label="Idiomas" value={pair} onChange={setPair} any="Todos os idiomas" />
+          <DateRange label="Concluídas" from={period.from} to={period.to} onChange={(from, to) => setPeriod({ from, to })} />
+          {filtered && (
+            <button
+              className="link"
+              onClick={() => {
+                setSearch('');
+                setPair('');
+                setPeriod({ from: '', to: '' });
+              }}
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+        <Feedback error={list.error} />
+        <div className="table-wrap document-report history-report">
+          <table>
+            <thead>
+              <tr>
+                <th>Nº / protocolo</th>
+                <th>Documento</th>
+                <th>Idiomas</th>
+                <th>Concluída</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <PagedFooter
-        hasMore={list.hasMore}
-        loading={list.loading}
-        onMore={list.more}
-        empty={list.items.length === 0}
-        emptyText={filtered ? 'Nada corresponde aos filtros.' : 'Você ainda não finalizou nenhuma tradução.'}
-      />
-    </Section>
+            </thead>
+            <tbody>
+              {list.items.map((item) => (
+                <tr key={item.id}>
+                  <td className="nowrap" data-label="Nº / protocolo">
+                    {item.number?.split(' – ')[0]}
+                    <span className="muted small-text block-line">{item.number?.split(' – ').slice(1).join(' · ')}</span>
+                    {item.annulled && <span className="badge danger">Anulado</span>}
+                  </td>
+                  <td className="name-cell" data-label="Documento">
+                    {item.document.name}
+                    <span className="muted small-text block-line">{item.documentType ?? '—'}</span>
+                  </td>
+                  <td data-label="Idiomas">{pairLabel(item.sourceLanguage, item.targetLanguage)}</td>
+                  <td className="nowrap" data-label="Concluída">
+                    {item.approvedAt ? dateTime(item.approvedAt) : '—'}
+                    <span className="muted small-text block-line">{item.approvedBy}</span>
+                  </td>
+                  <td className="actions" data-label="Ações">
+                    <button className="small" onClick={() => onOpenTranslation(item.id)}>
+                      Ver prévia
+                    </button>
+                    {item.permissions.download && (
+                      <a className="button small primary" href={`/api/v1/translations/${item.id}/final`}>
+                        Baixar
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <PagedFooter
+          hasMore={list.hasMore}
+          loading={list.loading}
+          onMore={list.more}
+          empty={list.items.length === 0}
+          emptyText={filtered ? 'Nada corresponde aos filtros.' : 'Você ainda não finalizou nenhuma tradução.'}
+        />
+      </Section>
+    </div>
   );
 }

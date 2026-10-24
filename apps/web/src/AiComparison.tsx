@@ -39,7 +39,7 @@ export function AiChoice() {
         : 'Você recebe o Auxílio da IA (glossário, diagramação e dúvidas) nas suas traduções.';
 
   return (
-    <div className="card ai-choice">
+    <div className="card ai-choice administration-context">
       <span className="who">
         <strong>Auxílio da IA</strong>
         <span className="muted small-text">{note}</span>

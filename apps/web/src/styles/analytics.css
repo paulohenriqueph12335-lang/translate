@@ -1,0 +1,979 @@
+@reference 'tailwindcss';
+@reference './tokens.css';
+
+@layer components {
+  .analytics-view,
+  .analytics-workspace,
+  .analytics-card {
+    @apply min-w-0 text-ink;
+  }
+  .analytics-view :is(h3, h4),
+  .analytics-card h3 {
+    @apply font-display;
+    letter-spacing: -0.015em;
+  }
+  .analytics-view .section > .filters {
+    @apply rounded-panel border border-line bg-surface p-3;
+  }
+  .analytics-view .dash-filters {
+    @apply gap-2.5;
+  }
+  .dash-filters > .period-filter {
+    flex: 1 1 100%;
+  }
+  .period-filter {
+    @apply flex min-w-0 flex-wrap items-center gap-3;
+  }
+  .period-filter .segmented {
+    flex-shrink: 0;
+  }
+  .period-custom {
+    @apply inline-flex min-w-0 flex-wrap items-center gap-2;
+  }
+  .period-custom input {
+    width: 9rem;
+    padding: 0.375rem 0.5rem;
+  }
+  .compare-toggle {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .secondary-actions {
+    @apply relative ml-auto;
+    font-size: 0.75rem;
+  }
+  .secondary-actions > summary {
+    color: var(--muted);
+  }
+  .secondary-actions[open] .actions {
+    @apply mt-2;
+  }
+  .analytics-view .report-search {
+    @apply mb-4;
+  }
+  .analytics-view .report-search .search {
+    flex-basis: 100%;
+  }
+  .report-search-results {
+    @apply mb-4 p-4;
+  }
+  .report-search-results > h3 {
+    @apply mb-1 mt-0;
+    font-size: 1.25rem;
+  }
+  .period-line {
+    @apply mb-2 mt-1;
+    font-size: 0.6875rem;
+  }
+  .team-panel-view .dash-body > h3 {
+    @apply mb-1 mt-4;
+    font-size: 1.375rem;
+  }
+  .dash-body {
+    transition: opacity var(--duration-normal);
+  }
+  .dash-body.stale {
+    opacity: 0.55;
+    pointer-events: none;
+  }
+  .analytics-view .stat-row {
+    @apply mb-4 mt-3 gap-3;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .performance-view .stat-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .kpi-tile,
+  .analytics-view .stat-tile {
+    @apply grid min-w-0 content-start gap-2 rounded-panel border border-line bg-surface p-4;
+  }
+  .kpi-tile:first-child {
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--rule));
+  }
+  .kpi-label,
+  .analytics-view .stat-tile > .muted:first-child {
+    @apply font-medium text-muted;
+    font-size: 0.6875rem;
+    line-height: 1.4;
+  }
+  .kpi-value,
+  .analytics-view .stat-tile > strong {
+    @apply font-sans text-ink;
+    font-size: clamp(1.75rem, 2.6vw, 2.375rem);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.045em;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .kpi-tile:first-child .kpi-value {
+    color: var(--accent);
+  }
+  .analytics-view .stat-tile > .small-text,
+  .kpi-tile > .small-text {
+    font-size: 0.6875rem;
+    line-height: 1.5;
+  }
+  .delta {
+    @apply inline-flex flex-wrap items-center gap-1 text-muted;
+    font-size: 0.6875rem;
+  }
+  .delta svg {
+    width: 0.5rem;
+    height: 0.5rem;
+    fill: currentColor;
+  }
+  .delta.good :is(strong, svg),
+  .delta-cell.good {
+    color: var(--ok);
+  }
+  .delta.bad :is(strong, svg),
+  .delta-cell.bad {
+    color: var(--danger);
+  }
+  .delta-cell {
+    font-variant-numeric: tabular-nums;
+  }
+  .performance-body > p {
+    max-width: 120ch;
+    font-size: 0.6875rem;
+  }
+
+  .analytics-workspace {
+    @apply mt-4;
+  }
+  .analytics-workspace .dashboard-picker {
+    @apply mb-3 mt-0 rounded-panel border border-line bg-surface px-3.5 py-3;
+  }
+  .dashboard-picker > summary {
+    font-size: 0.75rem;
+  }
+  .dashboard-picker > p {
+    @apply mb-3 mt-2;
+    max-width: 105ch;
+  }
+  .dashboard-picker-options {
+    @apply my-3 grid gap-2;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    font-size: 0.75rem;
+  }
+  .chart-grid {
+    @apply grid min-w-0 gap-4;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-widget {
+    @apply relative grid min-w-0 content-start gap-2;
+  }
+  .dashboard-widget.wide,
+  .chart-card.wide {
+    grid-column: 1 / -1;
+  }
+  .dashboard-widget-controls {
+    @apply flex flex-wrap items-center justify-end gap-1;
+  }
+  .dashboard-widget-controls button.small {
+    min-height: 1.75rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.6875rem;
+  }
+  .dashboard-widget-controls button:not(:first-child):not(:last-child) {
+    min-width: 1.75rem;
+  }
+  .analytics-card {
+    @apply m-0 min-w-0 rounded-panel border border-line bg-surface p-4;
+  }
+  .analytics-card figcaption {
+    @apply mb-4 border-b border-line pb-3;
+  }
+  .analytics-card figcaption h3 {
+    @apply m-0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .analytics-card figcaption p {
+    @apply mb-0 mt-1;
+    max-width: 110ch;
+    font-size: 0.6875rem;
+  }
+  .analytics-card .chart {
+    @apply relative min-w-0;
+  }
+  .analytics-card .empty {
+    @apply my-0 border-0 bg-transparent;
+  }
+  .chart-tip {
+    @apply absolute z-10 grid gap-1 rounded-control border border-line px-3 py-2;
+    background: var(--floating-bg);
+    color: var(--floating-ink);
+    box-shadow: var(--shadow-chart-tooltip);
+    font-size: 0.6875rem;
+    pointer-events: none;
+    max-width: min(28rem, 90vw);
+    white-space: normal;
+  }
+  .chart-table {
+    @apply mt-4 border-t border-line pt-3;
+    font-size: 0.6875rem;
+  }
+  .chart-table > summary {
+    color: var(--muted);
+  }
+  .chart-table > .table-wrap {
+    @apply mb-0 mt-3;
+  }
+  .legend {
+    @apply mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-muted;
+    font-size: 0.6875rem;
+  }
+  .legend > span {
+    @apply inline-flex items-center gap-1.5;
+  }
+  .legend i,
+  .donut-legend i {
+    @apply inline-block shrink-0 rounded-sm;
+    width: 0.5rem;
+    height: 0.5rem;
+  }
+  .legend svg {
+    width: 1.25rem;
+    height: 0.25rem;
+  }
+  .ranked {
+    @apply grid gap-1;
+  }
+  .ranked-row {
+    @apply grid items-center gap-3 py-2;
+    grid-template-columns: minmax(7rem, 30%) minmax(0, 1fr) auto;
+    font-size: 0.75rem;
+  }
+  .ranked .ranked-row {
+    grid-template-columns: minmax(7rem, 30%) minmax(0, 1fr);
+  }
+  .ranked-label {
+    @apply min-w-0;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+  }
+  .ranked-track {
+    @apply flex min-w-0 items-center gap-3;
+  }
+  .bar-h {
+    @apply block rounded-sm;
+    min-width: 2px;
+    height: 1rem;
+  }
+  .bar-value {
+    @apply text-ink;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .stacked .ranked-row {
+    @apply py-3;
+  }
+  .stack-track {
+    @apply flex min-w-0 gap-0.5 overflow-hidden rounded-sm;
+    height: 1.5rem;
+  }
+  .stack-seg {
+    @apply flex min-w-0 items-center justify-center;
+    color: var(--on-accent);
+    font-size: 0.625rem;
+    font-weight: 600;
+  }
+  .donut {
+    @apply flex flex-wrap items-center justify-center gap-6;
+  }
+  .donut > svg {
+    width: 12rem;
+    height: 12rem;
+  }
+  .donut-total {
+    font-family: var(--sans);
+    font-size: 1.375rem;
+    font-weight: 600;
+    fill: var(--ink);
+  }
+  .donut-caption {
+    font-size: 0.6875rem;
+    fill: var(--muted);
+  }
+  .donut-legend {
+    @apply m-0 grid list-none gap-3 p-0;
+    font-size: 0.75rem;
+  }
+  .donut-legend li {
+    @apply grid items-center gap-2;
+    grid-template-columns: 0.5rem minmax(0, 1fr) auto auto;
+  }
+  .donut-legend strong {
+    font-variant-numeric: tabular-nums;
+  }
+  .columns {
+    @apply pb-6;
+  }
+  .columns-plot {
+    @apply flex items-end gap-2 border-b border-line pt-6;
+    height: 18rem;
+  }
+  .column-slot {
+    @apply relative flex h-full min-w-0 flex-1 flex-col items-center justify-end;
+  }
+  .bar-v {
+    @apply rounded-t-sm;
+    min-height: 2px;
+    width: min(2rem, 72%);
+  }
+  .column-value {
+    @apply mb-1 text-ink;
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .column-label {
+    @apply absolute text-muted;
+    bottom: -1.4rem;
+    font-size: 0.625rem;
+    white-space: nowrap;
+  }
+  .column-pair {
+    @apply flex h-full w-full items-end justify-center gap-1;
+  }
+  .paired .bar-v {
+    width: min(1.25rem, 40%);
+  }
+  .bar-v.empty-bar {
+    min-height: 0;
+  }
+  .paired .chart-table {
+    margin-top: 2.5rem;
+  }
+  .trend-svg {
+    @apply block w-full;
+    height: auto;
+    overflow: visible;
+    touch-action: pan-y;
+    cursor: crosshair;
+  }
+  .trend-svg .grid {
+    stroke: var(--rule);
+    stroke-width: 1;
+  }
+  .trend-svg .axis {
+    fill: var(--muted);
+    font-family: var(--sans);
+    font-size: 11px;
+  }
+  .trend-svg .direct-label {
+    fill: var(--ink);
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .trend-svg .crosshair {
+    stroke: var(--muted);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+  .trend-svg .trend-dot {
+    stroke: var(--sheet);
+    stroke-width: 2;
+  }
+  .trend-svg .trend-line {
+    transition: d var(--duration-normal);
+  }
+  .trend-svg:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+  .trend-tip {
+    top: 2.75rem;
+  }
+  .tip-head {
+    color: var(--floating-muted);
+  }
+  .tip-row {
+    @apply inline-flex items-center gap-2;
+  }
+  .tip-row svg {
+    width: 0.875rem;
+    height: 0.25rem;
+  }
+  .tip-row line[stroke='var(--chart-blue)'] {
+    stroke: var(--chart-blue);
+  }
+  .tip-row line[stroke='var(--chart-sepia)'] {
+    stroke: var(--chart-sepia);
+  }
+
+  .funnel {
+    @apply grid gap-2;
+  }
+  .funnel-row {
+    @apply grid items-center gap-4 rounded-control px-2 py-3;
+    grid-template-columns: minmax(11rem, 25%) minmax(0, 1fr) minmax(6rem, auto);
+  }
+  .funnel-row.on,
+  .funnel-row:focus-visible {
+    background: var(--raised);
+  }
+  .funnel-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .funnel-label,
+  .funnel-value {
+    @apply grid gap-1;
+  }
+  .funnel-label > strong {
+    font-size: 0.8125rem;
+  }
+  .funnel-label > span,
+  .funnel-value > span {
+    font-size: 0.6875rem;
+  }
+  .funnel-value {
+    @apply text-right;
+  }
+  .funnel-value > strong {
+    font-size: 1.375rem;
+    line-height: 1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .funnel-track {
+    @apply block overflow-hidden rounded-sm bg-canvas;
+    height: 1.5rem;
+  }
+  .funnel-bar {
+    @apply block h-full rounded-sm;
+    transition: width var(--duration-normal);
+  }
+  .funnel-drop {
+    @apply flex flex-wrap items-baseline gap-2 border-l border-line py-1 pl-3 text-muted;
+    margin-left: calc(25% + 1rem);
+    font-size: 0.6875rem;
+  }
+  .funnel-drop.leak {
+    color: var(--chart-leak-ink);
+    border-left-color: var(--chart-sepia);
+  }
+  .funnel-drop.leak strong {
+    font-family: var(--sans);
+    font-size: 0.625rem;
+    font-weight: 600;
+  }
+  .funnel-note {
+    @apply mb-0 mt-3 border-t border-line pt-3 text-muted;
+    font-size: 0.75rem;
+  }
+  .heat-head {
+    @apply mb-4 flex flex-wrap items-center justify-between gap-3;
+  }
+  .heat-legend {
+    @apply inline-flex flex-wrap items-center gap-1 text-muted;
+    font-size: 0.625rem;
+  }
+  .heat-legend i {
+    @apply rounded-sm;
+    width: 1.125rem;
+    height: 0.625rem;
+  }
+  .heat-legend > span {
+    @apply px-1;
+  }
+  .heat-scroll {
+    @apply max-w-full overflow-x-auto;
+  }
+  .heat-grid {
+    @apply w-full;
+    border-collapse: separate;
+    border-spacing: 0.25rem;
+    font-size: 0.75rem;
+  }
+  .heat-grid th {
+    @apply border-0 bg-transparent px-2 py-2;
+    font-size: 0.6875rem;
+  }
+  .heat-grid tbody th {
+    @apply font-medium text-ink;
+    min-width: 10rem;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .heat-grid td {
+    @apply rounded-control border-0 bg-canvas px-2 text-center font-medium;
+    min-width: 3rem;
+    height: 2.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .heat-grid td[style]:not(.dark) {
+    color: var(--chart-heat-ink);
+  }
+  .heat-grid td.dark {
+    color: var(--chart-heat-on-dark);
+  }
+  .heat-grid td[data-heat-step='3'] {
+    color: var(--chart-heat-mid-ink);
+  }
+  .heat-grid td:hover,
+  .heat-grid td:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .live-now {
+    @apply mb-4 mt-0 rounded-panel border border-line bg-surface p-4;
+  }
+  .live-head {
+    @apply flex flex-wrap items-center gap-2.5 border-b border-line pb-3;
+  }
+  .live-head h3 {
+    @apply m-0 font-display;
+    font-size: 1.25rem;
+  }
+  .live-head > .small-text {
+    font-size: 0.6875rem;
+  }
+  .live-head > button {
+    @apply ml-auto;
+  }
+  .live-dot {
+    @apply inline-block shrink-0 rounded-full;
+    width: 0.375rem;
+    height: 0.375rem;
+    background: var(--ok);
+    animation: none;
+    box-shadow: none;
+  }
+  .live-dot.paused {
+    background: var(--gray-500);
+  }
+  .live-body {
+    @apply mt-3 grid items-start gap-5;
+    grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 1.5fr) minmax(0, 1.5fr);
+  }
+  .live-total {
+    @apply grid gap-1;
+  }
+  .live-total > strong {
+    @apply font-sans;
+    font-size: 2.25rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .spark {
+    @apply mt-2;
+    width: 9rem;
+    height: 2.5rem;
+    overflow: visible;
+  }
+  .live-stages {
+    @apply m-0 grid list-none gap-2 p-0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .live-stages > li {
+    @apply grid gap-1 rounded-control border border-line bg-raised px-3 py-2 text-muted;
+    font-size: 0.6875rem;
+  }
+  .live-stages strong {
+    @apply text-ink;
+    font-size: 1.25rem;
+    line-height: 1.1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-stages .alarm {
+    border-color: var(--danger-line);
+    background: var(--danger-bg);
+  }
+  .live-stages .alarm strong {
+    color: var(--danger);
+  }
+  .live-events {
+    @apply m-0 grid list-none gap-2 p-0;
+    font-size: 0.6875rem;
+  }
+  .live-event {
+    @apply grid gap-3 border-b border-line pb-2;
+    grid-template-columns: auto minmax(0, 1fr);
+    animation: none;
+  }
+  .live-event:last-child {
+    border-bottom: 0;
+  }
+  .live-event time {
+    color: var(--muted);
+    font-size: 0.625rem;
+  }
+  .sort-head {
+    @apply inline-flex items-center justify-start gap-1 border-0 bg-transparent p-0;
+    min-height: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+  }
+  .sort-head span {
+    color: var(--gray-500);
+  }
+  .sort-head.on,
+  .sort-head.on span {
+    color: var(--accent);
+  }
+  .cell-bar {
+    @apply inline-flex items-center gap-2;
+    font-variant-numeric: tabular-nums;
+  }
+  .cell-bar i {
+    @apply block rounded-sm;
+    height: 0.375rem;
+    background: var(--chart-blue);
+  }
+  .meter {
+    @apply inline-flex min-w-0 items-center gap-2;
+    font-variant-numeric: tabular-nums;
+  }
+  .meter-track {
+    @apply block flex-1 overflow-hidden rounded-control bg-canvas;
+    height: 0.375rem;
+    min-width: 5rem;
+  }
+  .meter-fill {
+    @apply block h-full bg-accent;
+  }
+  .meter.warn .meter-fill {
+    background: var(--warn-mid);
+  }
+  .meter.full .meter-fill {
+    background: var(--danger);
+  }
+  .meter.full .small-text {
+    color: var(--danger);
+  }
+
+  .document-report {
+    @apply mb-0 max-w-full overflow-visible rounded-none border-0 bg-transparent;
+  }
+  .document-report table,
+  .document-report tbody {
+    @apply block w-full;
+  }
+  .document-report thead {
+    @apply sr-only;
+  }
+  .document-report tbody {
+    @apply grid gap-2.5;
+  }
+  .document-report tbody tr {
+    @apply grid min-w-0 items-start gap-x-4 gap-y-3 rounded-panel border border-line bg-surface p-3.5;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .document-report tbody tr:hover {
+    background: var(--raised);
+  }
+  .document-report tbody td {
+    @apply block min-w-0 max-w-none border-0 p-0 text-ink;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 0.75rem;
+  }
+  .document-report td::before {
+    @apply mb-1 block font-medium text-muted;
+    content: attr(data-label);
+    font-size: 0.625rem;
+    line-height: 1.2;
+  }
+  .document-report td:first-child {
+    grid-column: span 2;
+    font-weight: 600;
+  }
+  .document-report td .block-line {
+    @apply mt-1;
+  }
+  .document-report td.actions {
+    @apply flex flex-wrap gap-1.5;
+    white-space: normal;
+  }
+  .document-report td.actions::before {
+    flex-basis: 100%;
+  }
+  .team-document-report tbody tr {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .team-document-report td:first-child {
+    grid-column: 1 / 4;
+  }
+  .history-report tbody tr {
+    grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr) minmax(7rem, 1fr) minmax(9rem, 1fr) auto;
+  }
+  .history-report td:first-child {
+    grid-column: auto;
+  }
+  .search-document-report tbody tr {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .workspace-view .action-tile {
+    @apply items-start text-left;
+    font-weight: 400;
+  }
+  .workspace-view .action-tile:first-child {
+    @apply border-accent bg-accent-soft;
+  }
+  .workspace-view .action-tile strong {
+    font-size: 1.375rem;
+    letter-spacing: -0.025em;
+    color: var(--accent);
+  }
+  .workspace-view .work-list {
+    @apply grid gap-2.5;
+  }
+  .work-list > li {
+    @apply items-start gap-4 p-3.5;
+  }
+  .work-list > li > div {
+    flex: 1 1 26rem;
+  }
+  .work-list strong {
+    @apply flex flex-wrap items-center gap-1.5;
+    font-size: 0.8125rem;
+  }
+  .work-list .muted {
+    @apply mt-1;
+    line-height: 1.5;
+  }
+  .workspace-view h3.top-gap {
+    @apply mb-3 mt-5;
+    font-size: 1.375rem;
+  }
+  .workspace-preferences,
+  .workspace-news {
+    @apply my-4;
+  }
+  .workspace-news .list {
+    @apply mt-3;
+  }
+  .ai-choice {
+    @apply mb-0 flex flex-wrap items-center gap-4 p-3;
+  }
+  .ai-choice .who {
+    @apply grid gap-1;
+    flex: 1 1 20rem;
+  }
+  .ai-filters {
+    @apply mb-4 flex min-w-0 flex-wrap items-end gap-2.5 rounded-control border border-line bg-raised p-3;
+  }
+  .ai-compare-tiles {
+    @apply my-4 grid gap-3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .ai-compare-tiles .stat-tile {
+    @apply bg-raised;
+  }
+  .ai-compare-tiles .stat-tile strong {
+    font-size: 1.875rem;
+  }
+  .ai-compare-tiles i {
+    @apply mr-1.5 inline-block rounded-sm;
+    width: 0.5rem;
+    height: 0.5rem;
+  }
+  .dashboard-expanded-placeholder {
+    @apply m-0 rounded-panel border border-line bg-surface px-4 py-8 text-center text-muted;
+  }
+  .dashboard-print-only {
+    display: none;
+  }
+
+  @media (min-width: 1600px) {
+    .analytics-card {
+      padding: 1.25rem;
+    }
+    .columns-plot {
+      height: 21rem;
+    }
+  }
+  @media (max-width: 1180px) {
+    .analytics-view .stat-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .chart-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .live-body {
+      grid-template-columns: minmax(7rem, 0.65fr) minmax(0, 2fr);
+    }
+    .live-events {
+      grid-column: 1 / -1;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .team-document-report tbody tr {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .team-document-report td:first-child {
+      grid-column: 1 / -1;
+    }
+    .history-report tbody tr {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .history-report td:nth-child(2) {
+      grid-column: span 2;
+    }
+  }
+  @media (max-width: 650px) {
+    .analytics-view .stat-row {
+      @apply gap-2;
+    }
+    .kpi-tile,
+    .analytics-view .stat-tile {
+      @apply gap-1.5 p-3;
+    }
+    .kpi-value,
+    .analytics-view .stat-tile > strong {
+      font-size: clamp(1.125rem, 6vw, 1.75rem);
+    }
+    .workspace-view .action-tile strong {
+      font-size: 1.125rem;
+    }
+    .dash-filters > .period-filter {
+      @apply grid w-full gap-2.5;
+    }
+    .period-filter > .segmented {
+      width: 100%;
+    }
+    .period-filter .segmented button {
+      flex: 1;
+      padding-inline: 0.375rem;
+    }
+    .period-custom {
+      @apply grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    }
+    .period-custom input {
+      @apply w-full min-w-0;
+    }
+    .secondary-actions {
+      @apply ml-0;
+    }
+    .analytics-card {
+      @apply p-3;
+    }
+    .analytics-card figcaption {
+      @apply mb-3 pb-3;
+    }
+    .analytics-card figcaption h3 {
+      font-size: 1.125rem;
+    }
+    .trend-svg .axis {
+      font-size: 19px;
+    }
+    .trend-svg .direct-label {
+      font-size: 20px;
+    }
+    .trend-tip {
+      top: 3rem;
+    }
+    .columns-plot {
+      height: 15rem;
+      gap: 0.25rem;
+    }
+    .column-label {
+      font-size: 0.5625rem;
+    }
+    .ranked-row,
+    .ranked .ranked-row {
+      grid-template-columns: minmax(5rem, 35%) minmax(0, 1fr);
+      gap: 0.5rem;
+      font-size: 0.6875rem;
+    }
+    .stacked .ranked-row {
+      grid-template-columns: minmax(5rem, 35%) minmax(0, 1fr) auto;
+    }
+    .funnel-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.75rem;
+    }
+    .funnel-track {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+    .funnel-drop {
+      margin-left: 0.5rem;
+    }
+    .heat-grid tbody th {
+      min-width: 7rem;
+    }
+    .live-now {
+      @apply p-3;
+    }
+    .live-head > .small-text {
+      order: 3;
+      flex-basis: 100%;
+    }
+    .live-body {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1rem;
+    }
+    .live-total {
+      @apply grid items-center gap-x-3;
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    .live-total .spark {
+      grid-column: 2;
+      grid-row: 1 / 3;
+      margin: 0;
+      justify-self: end;
+    }
+    .live-events {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .document-report tbody tr,
+    .team-document-report tbody tr,
+    .history-report tbody tr {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.875rem;
+      padding: 0.875rem;
+    }
+    .document-report td:first-child {
+      grid-column: 1 / -1;
+    }
+    .history-report td:nth-child(2) {
+      grid-column: 1 / -1;
+    }
+    .document-report td .small-text {
+      font-size: 0.6875rem;
+    }
+    .ai-compare-tiles {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ai-filters > .segmented {
+      width: 100%;
+    }
+    .ai-filters > .segmented button {
+      flex: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dash-body,
+    .funnel-bar,
+    .trend-svg .trend-line {
+      transition: none;
+    }
+  }
+  @media print {
+    .dashboard-print-only {
+      display: block;
+    }
+    .analytics-card,
+    .document-report tbody tr {
+      break-inside: avoid;
+    }
+    .analytics-card .chart-table summary {
+      display: none;
+    }
+    .analytics-view .stat-row {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+}

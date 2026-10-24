@@ -1,28 +1,106 @@
 {
+  "direction": "corporativa, elegante, discreta e compacta",
+  "sourceOfTruth": "apps/web/src/styles/tokens.css",
   "colors": {
-    "ink": "#121212",
-    "ink-2": "#2d2c2a",
-    "paper": "#f3f1ec",
-    "sheet": "#fbfaf7",
-    "gray-50": "#f0eee9",
-    "gray-100": "#e8e5df",
-    "rule": "#dcd8d0",
-    "gray-300": "#c4bfb6",
-    "gray-500": "#8a857c",
-    "muted": "#5f5b55",
-    "on-ink": "#f3f1ec",
-    "on-ink-muted": "#a6a198",
-    "ok": "#2f6a45",
-    "warn": "#7a5712",
-    "danger": "#9b3027"
+    "light": {
+      "canvas": "#f4f6f4",
+      "surface": "#ffffff",
+      "raised": "#fafcfb",
+      "ink": "#222e27",
+      "muted": "#59685f",
+      "line": "#dce4de",
+      "accent": "#28634d",
+      "onAccent": "#ffffff",
+      "menu": "#18251e",
+      "success": "#276044",
+      "warning": "#815611",
+      "danger": "#a23f37"
+    },
+    "dark": {
+      "canvas": "#141d17",
+      "surface": "#1c2820",
+      "raised": "#233128",
+      "ink": "#e8efe9",
+      "muted": "#a6b8ac",
+      "line": "#34483a",
+      "accent": "#91cbaa",
+      "onAccent": "#132e20",
+      "menu": "#101b14",
+      "success": "#a1d6b2",
+      "warning": "#e7c784",
+      "danger": "#f0b2a8"
+    },
+    "legacyAliases": ["--ink", "--paper", "--sheet", "--rule"],
+    "semanticUtilities": ["bg-canvas", "bg-surface", "text-ink", "text-muted", "text-accent", "border-line"]
   },
   "typography": {
-    "sans": "Schibsted Grotesk",
-    "mono": "Geist Mono",
-    "body": "15px",
-    "title": "30px/700",
-    "auth-title": "40px/700"
+    "display": "Source Serif 4 Variable",
+    "sans": "Inter Variable",
+    "monoFallback": "Cascadia Code, Consolas, ui-monospace, monospace",
+    "body": "13px",
+    "bodyLineHeight": 1.55,
+    "headingWeight": 600,
+    "numbers": "tabular where comparing quantities"
   },
-  "radius": { "default": "4px", "small": "2px" },
-  "motion": { "state": "160ms ease-out" }
+  "radius": { "control": "6px", "panel": "8px", "dialog": "10px" },
+  "borders": "1px semantic line",
+  "shadow": "minimal; subtle surface separation",
+  "layout": {
+    "density": "compact",
+    "navigation": "grouped work and administration areas",
+    "documents": "individual compact cards with aligned metadata and clear actions",
+    "dashboard": "large charts and prominent indices",
+    "icons": "few, functional, text predominant"
+  },
+  "documentPreview": {
+    "paper": "white in both themes",
+    "typography": "actual document fonts and measures",
+    "preserveDynamicGeometry": [
+      "table widths and merged cells",
+      "alignment",
+      "PDF canvas resolution",
+      "page and zoom",
+      "progress",
+      "chart coordinates and intensity",
+      "anchored popup position"
+    ]
+  },
+  "implementation": {
+    "tailwind": "4.3.3",
+    "integration": "@tailwindcss/vite",
+    "entry": "apps/web/src/style.css",
+    "modules": [
+      "styles/tokens.css",
+      "styles/foundation.css",
+      "styles/domain.css",
+      "styles/components.css",
+      "LanguagePairPicker.css",
+      "styles/account.css",
+      "styles/documents.css",
+      "styles/administration.css",
+      "styles/analytics.css"
+    ],
+    "layers": ["base", "components", "utilities"]
+  },
+  "motion": { "fast": "140ms", "normal": "180ms", "reducedMotion": "respected" },
+  "constraints": {
+    "scope": "visual only",
+    "preserve": [
+      "endpoints",
+      "permissions",
+      "requests",
+      "callbacks",
+      "validation",
+      "approval flow",
+      "confirmations",
+      "accessibility",
+      "generated documents"
+    ]
+  },
+  "evidence": {
+    "codeAudit": "docs/design/visual-audit.md",
+    "browserValidationRecord": "docs/design/visual-validation.md",
+    "browserValidationStatus": "pending evidence",
+    "acceptanceStatus": "not declared"
+  }
 }

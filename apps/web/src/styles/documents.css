@@ -1,0 +1,754 @@
+@reference 'tailwindcss';
+@reference './tokens.css';
+
+@layer components {
+  .doc-domain {
+    @apply min-w-0 text-ink;
+    overflow-wrap: anywhere;
+  }
+
+  .doc-intake,
+  .doc-queue,
+  .doc-downloads,
+  .doc-patterns,
+  .doc-review {
+    @apply grid gap-3;
+  }
+
+  .doc-domain :is(h3, h4) {
+    @apply font-display text-ink;
+    letter-spacing: -0.015em;
+  }
+
+  .doc-domain h3 {
+    @apply text-xl leading-tight;
+  }
+
+  .doc-domain h4 {
+    @apply text-lg leading-tight;
+  }
+
+  .doc-domain > :is(.toolbar, .top-gap, .card, .flow-track, .document-quick-facts),
+  .doc-review > :is(.alert, .review-top) {
+    @apply m-0;
+  }
+
+  .doc-primary-toolbar {
+    @apply flex flex-wrap items-center justify-end gap-2;
+  }
+
+  .doc-form,
+  .doc-module,
+  .doc-word-panel {
+    @apply min-w-0 rounded-panel border border-line bg-surface p-4 shadow-none;
+  }
+
+  .doc-form {
+    @apply grid gap-3;
+  }
+
+  .doc-form > :is(h3, p),
+  .doc-module > :is(h3, h4, p) {
+    @apply m-0;
+  }
+
+  .doc-module > * + * {
+    @apply mt-3;
+  }
+
+  .doc-borderless-fields {
+    @apply m-0 min-w-0 border-0 p-0;
+  }
+
+  .doc-form .translation-step-fields,
+  .doc-module .classification-fields {
+    @apply gap-3;
+  }
+
+  .doc-form-footer {
+    @apply mt-1 flex flex-wrap items-center gap-2 border-t border-line pt-3;
+  }
+
+  .doc-form .dropzone {
+    @apply flex min-h-32 flex-col items-center justify-center gap-2 rounded-panel border border-dashed border-line bg-canvas p-5 text-center;
+    box-shadow: none;
+  }
+
+  .doc-form .dropzone.over {
+    @apply border-accent;
+    background: color-mix(in srgb, var(--accent) 7%, var(--sheet));
+  }
+
+  .doc-form .dropzone > strong {
+    @apply text-sm font-semibold;
+  }
+
+  .doc-form .dropzone > span {
+    @apply text-xs leading-relaxed;
+  }
+
+  .doc-protocol-fields {
+    @apply my-0 min-w-0 rounded-panel border border-line bg-canvas p-3;
+  }
+
+  .doc-protocol-fields legend {
+    @apply px-1 text-sm font-semibold;
+  }
+
+  .doc-protocol-fields label {
+    @apply my-2;
+  }
+
+  .doc-category-field {
+    @apply grid min-w-0 gap-1.5;
+  }
+
+  .doc-category-field small {
+    @apply text-xs leading-relaxed;
+  }
+
+  .doc-setup-steps {
+    @apply my-1 grid grid-cols-4 gap-1 rounded-panel border border-line bg-canvas p-1;
+  }
+
+  .doc-setup-steps button {
+    @apply flex min-w-0 flex-row items-center gap-2 rounded-control border-transparent bg-transparent px-2 py-2 text-left text-xs text-muted shadow-none;
+    line-height: 1.4;
+  }
+
+  .doc-setup-steps button > span {
+    @apply flex size-5 shrink-0 items-center justify-center rounded-control border border-line text-xs font-semibold;
+    font-family: inherit;
+  }
+
+  .doc-setup-steps button[aria-current='step'] {
+    @apply border-line bg-surface text-accent;
+  }
+
+  .doc-setup-steps button[aria-current='step'] > span {
+    @apply border-accent bg-accent text-on-operation;
+  }
+
+  .doc-step-status {
+    @apply m-0 text-xs;
+  }
+
+  .doc-form .translation-send-summary {
+    @apply grid gap-3;
+  }
+
+  .doc-form .translation-send-summary dl {
+    @apply m-0 grid grid-cols-2 gap-x-5 gap-y-0 rounded-panel border border-line bg-canvas px-3;
+  }
+
+  .doc-form .translation-send-summary dl > div {
+    @apply min-w-0 border-0 border-b border-line bg-transparent px-0 py-2;
+  }
+
+  .doc-form .translation-send-summary dt {
+    @apply text-xs text-muted;
+  }
+
+  .doc-form .translation-send-summary dd {
+    @apply mt-1 text-sm font-medium;
+  }
+
+  .doc-form .translation-send-summary :is(h4, p) {
+    @apply m-0;
+  }
+
+  .doc-filter-bar {
+    @apply m-0 flex min-w-0 flex-wrap items-end gap-2 rounded-panel border border-line bg-surface p-3;
+  }
+
+  .doc-filter-bar > * {
+    @apply min-w-0 max-w-full;
+  }
+
+  .doc-filter-bar > .search {
+    flex: 1 1 18rem;
+  }
+
+  .doc-filter-bar > select {
+    flex: 1 1 10rem;
+    width: auto;
+  }
+
+  .doc-filter-bar :is(input, select) {
+    @apply text-xs;
+  }
+
+  .doc-filter-bar .check {
+    @apply text-xs;
+  }
+
+  .doc-trial-fields {
+    @apply bg-canvas;
+  }
+
+  .doc-trial-fields > button:first-child {
+    flex: 1 1 15rem;
+    overflow-wrap: anywhere;
+  }
+
+  .doc-trial-fields > .doc-category-field {
+    flex: 1 1 18rem;
+  }
+
+  .doc-workflow-nav {
+    @apply m-0 grid grid-cols-3 gap-1 rounded-panel border border-line bg-canvas p-1;
+  }
+
+  .doc-workflow-nav button {
+    @apply min-w-0 gap-1 rounded-control border-transparent bg-transparent px-3 py-2.5 text-left text-ink shadow-none;
+  }
+
+  .doc-workflow-nav button.active {
+    @apply border-line bg-surface text-accent;
+  }
+
+  .doc-workflow-nav button strong {
+    @apply flex flex-wrap items-center gap-1.5 text-xs font-semibold;
+  }
+
+  .doc-workflow-nav button > span {
+    @apply text-xs text-muted;
+    opacity: 1;
+  }
+
+  .doc-cards {
+    @apply m-0 grid list-none gap-2 p-0;
+  }
+
+  .doc-cards > li {
+    @apply flex min-w-0 flex-wrap items-start gap-3 rounded-panel border border-line bg-surface p-3 shadow-none;
+    transition:
+      border-color 150ms ease,
+      background-color 150ms ease;
+  }
+
+  .doc-cards.selectable > li:hover,
+  .doc-cards > li.selected {
+    @apply border-accent;
+    background: color-mix(in srgb, var(--accent) 4%, var(--sheet));
+  }
+
+  .doc-card-content,
+  .doc-file-cards > li > div,
+  .doc-batch-cards > li > div {
+    @apply min-w-0;
+    flex: 1 1 12rem;
+  }
+
+  .doc-card-content > :is(span, strong),
+  .doc-file-cards > li > div > :is(strong, span),
+  .doc-batch-cards > li > div > :is(strong, span) {
+    @apply block;
+  }
+
+  .doc-card-content > .muted,
+  .doc-file-cards > li > div > .muted,
+  .doc-batch-cards > li > div > .muted {
+    @apply mt-1 text-xs leading-relaxed;
+  }
+
+  .doc-card-heading {
+    @apply flex min-w-0 flex-wrap items-start justify-between gap-2;
+  }
+
+  .doc-document-name,
+  .doc-card-heading > .link,
+  .doc-original-cards .doc-card-content > strong {
+    @apply text-sm font-semibold leading-relaxed text-ink;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  .doc-card-statuses {
+    @apply flex flex-wrap items-center gap-1;
+  }
+
+  .doc-translation-cards {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 27rem), 1fr));
+  }
+
+  .doc-translation-cards > li .doc-card-content {
+    @apply w-full;
+    flex-basis: 100%;
+  }
+
+  .doc-translation-cards > li > button.small:last-child {
+    @apply ml-auto;
+  }
+
+  .doc-download-cards .doc-download-card {
+    @apply grid items-start;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .doc-card-select {
+    @apply m-0 flex min-h-8 items-center;
+  }
+
+  .doc-card-metadata {
+    @apply mb-0 mt-3 grid grid-cols-3 gap-3 border-t border-line pt-2;
+  }
+
+  .doc-card-metadata > div {
+    @apply min-w-0;
+  }
+
+  .doc-card-metadata dt {
+    @apply text-xs text-muted;
+  }
+
+  .doc-card-metadata dd {
+    @apply m-0 mt-1 text-xs font-medium;
+  }
+
+  .doc-card-actions {
+    @apply m-0 flex flex-wrap items-center gap-2;
+  }
+
+  .doc-original-cards .linked {
+    @apply mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-2 text-xs;
+  }
+
+  .doc-original-cards .linked-item {
+    @apply flex flex-wrap items-center gap-1.5;
+  }
+
+  .doc-history {
+    @apply gap-3;
+  }
+
+  .doc-intake .documents-workspace {
+    @apply m-0 items-start gap-4;
+    grid-template-columns: minmax(15rem, 0.75fr) minmax(0, 1.5fr);
+  }
+
+  .doc-intake .batch-detail {
+    @apply grid gap-3 rounded-panel border border-line bg-surface p-4 shadow-none;
+  }
+
+  .doc-intake .batch-detail > :is(h3, p, .archive-controls, .top-gap) {
+    @apply m-0;
+  }
+
+  .doc-intake .batch-detail > h3 {
+    @apply text-xl;
+  }
+
+  .doc-intake .batch-documents-table {
+    @apply rounded-control border border-line;
+  }
+
+  .doc-intake .batch-documents-table :is(th, td) {
+    @apply p-2 text-xs;
+  }
+
+  .doc-intake .batch-documents-table td.actions {
+    @apply min-w-44;
+  }
+
+  .doc-intake .progress-wrap {
+    @apply mt-2 gap-1;
+  }
+
+  .doc-intake .progress {
+    height: 3px;
+  }
+
+  .doc-review .review-top {
+    @apply flex min-w-0 flex-wrap items-start gap-3 border-b border-line pb-3;
+  }
+
+  .doc-review .review-title {
+    @apply min-w-0;
+    flex: 1 1 20rem;
+  }
+
+  .doc-review .review-title h2 {
+    @apply m-0 font-display text-2xl leading-tight;
+  }
+
+  .doc-review .review-title p {
+    @apply my-1 text-xs leading-relaxed;
+  }
+
+  .doc-flow-track {
+    @apply m-0 grid list-none grid-cols-6 gap-1 p-0;
+  }
+
+  .doc-flow-track > li {
+    @apply min-w-0 gap-1 rounded-control border border-line bg-surface px-2 py-2 text-muted shadow-none;
+  }
+
+  .doc-flow-track strong {
+    @apply text-xs font-semibold;
+  }
+
+  .doc-flow-track .small-text {
+    @apply text-xs leading-snug;
+  }
+
+  .doc-flow-track > li.done {
+    @apply border-line bg-surface text-ink;
+  }
+
+  .doc-flow-track > li.current {
+    @apply border-accent text-accent shadow-none;
+    background: color-mix(in srgb, var(--accent) 6%, var(--sheet));
+  }
+
+  .doc-quick-facts {
+    @apply m-0 flex flex-wrap gap-x-5 gap-y-1 border-b border-line pb-3 text-xs text-muted;
+  }
+
+  .doc-timing {
+    @apply my-3 grid grid-cols-4 gap-2;
+  }
+
+  .doc-timing > div {
+    @apply gap-1 rounded-control border-line bg-canvas p-3;
+  }
+
+  .doc-timing strong {
+    @apply text-lg font-semibold tabular-nums;
+    font-family: inherit;
+  }
+
+  .doc-timing :is(span, small) {
+    @apply text-xs leading-relaxed;
+  }
+
+  .doc-review .document-options > .doc-module {
+    @apply rounded-none border-0 border-t border-line bg-transparent px-0 pb-0 pt-3;
+  }
+
+  .doc-module > summary {
+    @apply text-sm font-semibold leading-relaxed;
+  }
+
+  .doc-inspection-gate {
+    @apply border-accent;
+  }
+
+  .doc-inspection-gate .check {
+    @apply my-2 text-sm;
+  }
+
+  .doc-inspection-gate .inspection-stages {
+    @apply gap-x-4 gap-y-1 py-1;
+  }
+
+  .doc-inspection-history .inspection-history {
+    @apply my-2 pl-5;
+  }
+
+  .doc-inspection-history .inspection-history > li {
+    @apply py-2 text-sm;
+  }
+
+  .doc-mode-options {
+    @apply grid gap-2;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  }
+
+  .doc-mode-options .mode-option {
+    @apply min-w-0 content-start gap-1 rounded-control border border-line bg-surface p-3 text-left text-ink shadow-none;
+  }
+
+  .doc-mode-options .mode-option strong {
+    @apply text-sm font-semibold;
+  }
+
+  .doc-mode-options .mode-option > span {
+    @apply text-xs leading-relaxed;
+  }
+
+  .doc-mode-options .mode-option.on {
+    @apply border-accent shadow-none;
+    background: color-mix(in srgb, var(--accent) 6%, var(--sheet));
+  }
+
+  .doc-stages .stage-track {
+    @apply gap-1;
+  }
+
+  .doc-stages .stage-track > li {
+    @apply rounded-control border-line bg-canvas px-3 py-2 text-xs;
+  }
+
+  .doc-stages .checklist {
+    @apply border-t border-line pt-2;
+  }
+
+  .doc-stages .checklist summary {
+    @apply text-sm;
+  }
+
+  .doc-rules > .card {
+    @apply rounded-panel border border-line bg-surface p-4 shadow-none;
+  }
+
+  .doc-word-panel {
+    @apply grid gap-3 p-3;
+  }
+
+  .doc-panel-header {
+    @apply m-0 flex min-w-0 flex-wrap items-start justify-between gap-3;
+  }
+
+  .doc-panel-header > div:first-child {
+    @apply min-w-0;
+    flex: 1 1 18rem;
+  }
+
+  .doc-panel-header h3 {
+    @apply m-0;
+  }
+
+  .doc-panel-header .actions {
+    @apply m-0 gap-2;
+  }
+
+  .doc-comparison {
+    @apply grid grid-cols-2 gap-3;
+  }
+
+  .doc-comparison-pane {
+    @apply min-w-0 overflow-hidden rounded-panel border border-line bg-canvas shadow-none;
+  }
+
+  .doc-comparison-pane > .doc-comparison-header {
+    @apply m-0 flex min-h-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-surface p-3;
+  }
+
+  .doc-comparison-header h4 {
+    @apply m-0 min-w-0 text-base leading-snug;
+    flex: 1 1 10rem;
+  }
+
+  .doc-comparison-pane .comparison-fallback {
+    @apply min-h-48 p-4 text-sm;
+  }
+
+  .doc-pdf-preview {
+    @apply flex min-w-0 flex-col;
+  }
+
+  .doc-pdf-toolbar {
+    @apply flex flex-wrap items-center gap-1.5 border-b border-line bg-surface px-2 py-1.5 text-xs;
+  }
+
+  .doc-pdf-toolbar button {
+    @apply min-h-7 px-2 py-1;
+  }
+
+  .doc-pdf-toolbar select {
+    @apply ml-auto min-w-0 max-w-full text-xs;
+  }
+
+  .doc-pdf-pages {
+    @apply overflow-auto bg-canvas p-3;
+    height: clamp(28rem, 66vh, 52rem);
+    scrollbar-gutter: stable;
+  }
+
+  .doc-pdf-pages canvas {
+    background: var(--preview-page-bg);
+    box-shadow: var(--shadow-preview-canvas);
+  }
+
+  .doc-pdf-text {
+    @apply border-t border-line bg-surface p-3 text-xs;
+  }
+
+  .doc-paper {
+    box-shadow: var(--shadow-document-paper);
+  }
+
+  .doc-trial-comparison {
+    @apply mt-4 grid gap-3;
+  }
+
+  .doc-patterns .pattern-result {
+    @apply my-3 rounded-panel p-3;
+  }
+
+  .doc-pattern-history {
+    @apply rounded-panel border border-line bg-surface;
+  }
+
+  .doc-pattern-history :is(th, td) {
+    @apply p-3 text-xs;
+  }
+
+  .doc-save-download {
+    @apply inline-flex min-w-0 flex-col items-start gap-1.5;
+  }
+
+  .doc-save-download .alert {
+    @apply m-0 text-xs;
+  }
+
+  .doc-final-delivery {
+    @apply grid gap-2 bg-canvas p-3;
+  }
+
+  .doc-final-delivery > * + * {
+    @apply mt-0;
+  }
+
+  .doc-final-delivery h3 {
+    @apply text-lg;
+  }
+
+  .doc-delivery-refresh {
+    @apply justify-self-start;
+  }
+
+  .doc-delivery-actions {
+    @apply m-0 flex flex-wrap items-start gap-2;
+  }
+
+  .doc-delivery-options {
+    @apply border-t border-line pt-2;
+  }
+
+  .doc-delivery-options > summary {
+    @apply text-xs font-semibold;
+  }
+
+  .doc-delivery-options > * + * {
+    @apply mt-3;
+  }
+
+  .doc-delivery-options h4 {
+    @apply text-base;
+  }
+
+  .doc-archive-controls {
+    @apply my-2 grid min-w-0 gap-2;
+  }
+
+  .doc-archive-controls .actions {
+    @apply m-0 flex flex-wrap gap-2;
+  }
+
+  .doc-archive-controls small {
+    @apply text-xs leading-relaxed;
+  }
+
+  .doc-delivery-dialog {
+    @apply rounded-panel border border-line bg-surface p-4 text-ink shadow-sm;
+    width: min(44rem, calc(100vw - 2rem));
+  }
+
+  .doc-dialog-close {
+    @apply mb-3 ml-auto block;
+  }
+
+  .doc-delivery-dialog > .doc-save-download {
+    @apply mt-3;
+  }
+
+  @media (min-width: 1280px) {
+    .doc-workflow-nav {
+      @apply grid-cols-6;
+    }
+  }
+
+  @media (max-width: 1000px) {
+    .doc-intake .documents-workspace {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .doc-timing {
+      @apply grid-cols-2;
+    }
+
+    .doc-flow-track {
+      @apply grid-cols-3;
+    }
+  }
+
+  @media (max-width: 700px) {
+    .doc-comparison {
+      @apply grid-cols-1;
+    }
+
+    .doc-setup-steps {
+      @apply grid-cols-2;
+    }
+
+    .doc-workflow-nav {
+      @apply grid-cols-2;
+    }
+
+    .doc-download-cards .doc-download-card {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .doc-download-card .doc-card-actions {
+      @apply col-start-2;
+    }
+
+    .doc-original-cards > li > .doc-save-download {
+      @apply w-full;
+    }
+
+    .doc-card-metadata {
+      @apply grid-cols-1 gap-2;
+    }
+
+    .doc-card-metadata > div {
+      @apply grid grid-cols-2 gap-2;
+    }
+
+    .doc-card-metadata dd {
+      @apply m-0;
+    }
+
+    .doc-form,
+    .doc-module,
+    .doc-word-panel,
+    .doc-intake .batch-detail {
+      @apply p-3;
+    }
+
+    .doc-filter-bar > :is(select, .search, .language-pair-picker) {
+      flex-basis: 100%;
+    }
+
+    .doc-form .translation-send-summary dl {
+      @apply grid-cols-1;
+    }
+
+    .doc-pdf-pages {
+      height: 28rem;
+    }
+  }
+
+  @media (max-width: 400px) {
+    .doc-flow-track,
+    .doc-timing {
+      @apply grid-cols-2;
+    }
+
+    .doc-setup-steps button {
+      @apply px-1.5 text-xs;
+    }
+
+    .doc-filter-bar .date-range {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .doc-cards > li {
+      transition: none;
+    }
+  }
+}

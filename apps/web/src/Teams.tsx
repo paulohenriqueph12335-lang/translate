@@ -67,49 +67,51 @@ export function Teams({ isDirector, selfId }: { isDirector: boolean; selfId: str
       ];
 
   return (
-    <Section title="Equipes" subtitle={isDirector ? 'Você administra todas as equipes.' : 'Equipes das quais você participa.'}>
-      {isDirector && (
-        <form className="toolbar" onSubmit={create}>
-          <input
-            placeholder="Nome da nova equipe"
-            required
-            minLength={2}
-            maxLength={80}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button className="primary">Criar equipe</button>
-        </form>
-      )}
-      <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
-      {data && data.items.length === 0 && (
-        <p className="empty">{isDirector ? 'Nenhuma equipe criada ainda.' : 'Você ainda não participa de equipes.'}</p>
-      )}
-      {data && data.items.length > 0 && (
-        <div className="split">
-          <div className="stack">
-            <div className="filters">
-              <SearchInput value={search} onChange={setSearch} placeholder="Buscar equipe" />
-              <Segmented label="Filtrar equipes" value={roleFilter} options={roleOptions} onChange={setRoleFilter} />
+    <div className="administration-view teams-view">
+      <Section title="Equipes" subtitle={isDirector ? 'Você administra todas as equipes.' : 'Equipes das quais você participa.'}>
+        {isDirector && (
+          <form className="toolbar team-create" onSubmit={create}>
+            <input
+              placeholder="Nome da nova equipe"
+              required
+              minLength={2}
+              maxLength={80}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <button className="primary">Criar equipe</button>
+          </form>
+        )}
+        <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
+        {data && data.items.length === 0 && (
+          <p className="empty">{isDirector ? 'Nenhuma equipe criada ainda.' : 'Você ainda não participa de equipes.'}</p>
+        )}
+        {data && data.items.length > 0 && (
+          <div className="split teams-layout">
+            <div className="stack team-directory">
+              <div className="filters">
+                <SearchInput value={search} onChange={setSearch} placeholder="Buscar equipe" />
+                <Segmented label="Filtrar equipes" value={roleFilter} options={roleOptions} onChange={setRoleFilter} />
+              </div>
+              <ul className="list selectable team-list">
+                {teams.map((item) => (
+                  <li key={item.id} className={item.id === selected ? 'selected' : ''} onClick={() => setSelected(item.id)}>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <span className="muted">
+                        {item.memberCount} membro(s){item.myRole ? ` · você é ${roleLabel[item.myRole]}` : ''}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {teams.length === 0 && <p className="empty">Nenhuma equipe corresponde aos filtros.</p>}
             </div>
-            <ul className="list selectable">
-              {teams.map((item) => (
-                <li key={item.id} className={item.id === selected ? 'selected' : ''} onClick={() => setSelected(item.id)}>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <span className="muted">
-                      {item.memberCount} membro(s){item.myRole ? ` · você é ${roleLabel[item.myRole]}` : ''}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {teams.length === 0 && <p className="empty">Nenhuma equipe corresponde aos filtros.</p>}
+            {team && <TeamDetail key={team.id} team={team} isDirector={isDirector} selfId={selfId} onChange={reload} />}
           </div>
-          {team && <TeamDetail key={team.id} team={team} isDirector={isDirector} selfId={selfId} onChange={reload} />}
-        </div>
-      )}
-    </Section>
+        )}
+      </Section>
+    </div>
   );
 }
 
@@ -124,7 +126,7 @@ function TeamDetail({ team, isDirector, selfId, onChange }: { team: Team; isDire
 
   if (!canManage) {
     return (
-      <div className="card detail">
+      <div className="card detail team-detail">
         <h3>{team.name}</h3>
         <p className="muted">Você participa como Usuário. A gestão de membros cabe ao Supervisor da equipe.</p>
       </div>
@@ -132,7 +134,7 @@ function TeamDetail({ team, isDirector, selfId, onChange }: { team: Team; isDire
   }
 
   return (
-    <div className="card detail">
+    <div className="card detail team-detail">
       <h3>{team.name}</h3>
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'members'} className={tab === 'members' ? 'on' : ''} onClick={() => setTab('members')}>
@@ -231,7 +233,7 @@ function Members({
         )}
       </div>
       <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
-      <ul className="list compact">
+      <ul className="list compact team-members">
         {members.map((member) => {
           const removable = isDirector || (member.role === 'operator' && member.userId !== selfId);
           return (
@@ -395,7 +397,7 @@ function AddPeople({ team, isDirector, onChange }: { team: Team; isDirector: boo
       <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
       {feedback.error && feedback.ok && <Feedback ok={feedback.ok} />}
 
-      <ul className="list compact">
+      <ul className="list compact team-candidates">
         {items.map((item) => (
           <li key={item.userId} className={selected.has(item.userId) ? 'picked' : ''}>
             <label className="check grow">

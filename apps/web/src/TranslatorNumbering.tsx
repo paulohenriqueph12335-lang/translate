@@ -222,7 +222,7 @@ export function TranslatorNumberingAdmin({ translatorId, onBack }: { translatorI
   );
   if (!data) return error ? <Feedback error={error} /> : <p className="muted">Carregando…</p>;
   return (
-    <div className="stack">
+    <div className="stack numbering-admin administration-view">
       <button className="ghost small" onClick={onBack}>
         ← Todos os tradutores
       </button>
@@ -291,7 +291,7 @@ function RuleEditor({
   }
 
   return (
-    <div className="card stack">
+    <div className="card stack numbering-rule">
       <h4>Regra de numeração</h4>
       {Object.keys(presets).length > 0 && (
         <div className="filters">
@@ -433,7 +433,7 @@ function Stock({ rule, version, onChange }: { rule: Rule; version: number; onCha
   }
 
   return (
-    <div className="card stack">
+    <div className="card stack numbering-stock">
       <h4>Números (planilhas)</h4>
       <StockImport rule={rule} onImported={(text) => (setFeedback({ ok: text }), setLocal((current) => current + 1), onChange())} />
       <div className="filters">
@@ -714,7 +714,7 @@ function Books({ translatorId }: { translatorId: string }) {
   }
 
   return (
-    <div className="card stack">
+    <div className="card stack numbering-books">
       <h4>Livros (limite de {data?.sheetLimit ?? '—'} folhas)</h4>
       {current ? (
         <p>

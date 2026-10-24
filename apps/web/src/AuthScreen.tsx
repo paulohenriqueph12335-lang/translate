@@ -6,7 +6,7 @@ import { Wordmark } from './ui';
 export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   const [visible, setVisible] = useState(false);
   return (
-    <span className="password-field">
+    <span className="password-field account-password-field">
       <input {...props} type={visible ? 'text' : 'password'} />
       <button
         type="button"
@@ -58,14 +58,18 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
   }
 
   return (
-    <main className="auth">
-      <Wordmark />
-      <h1 className="auth-title">{mode === 'login' ? 'Entrar' : 'Solicitar acesso'}</h1>
-      <p className="muted">
-        {mode === 'login' ? 'Use o e-mail e a senha da sua conta aprovada.' : 'Seu cadastro ficará pendente até a aprovação de um Diretor.'}
-      </p>
+    <main className="auth account-auth">
+      <header className="account-auth-heading">
+        <Wordmark />
+        <h1 className="auth-title">{mode === 'login' ? 'Entrar' : 'Solicitar acesso'}</h1>
+        <p className="muted">
+          {mode === 'login'
+            ? 'Use o e-mail e a senha da sua conta aprovada.'
+            : 'Seu cadastro ficará pendente até a aprovação de um Diretor.'}
+        </p>
+      </header>
 
-      <form className="card form" onSubmit={submit}>
+      <form className="card form account-auth-form" onSubmit={submit}>
         <label>
           E-mail
           <input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -103,7 +107,7 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
         </button>
       </form>
 
-      <p className="switch">
+      <p className="switch account-auth-switch">
         {mode === 'login' ? (
           <>
             Não tem conta?{' '}
@@ -169,12 +173,14 @@ export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
   }
 
   return (
-    <main className="auth">
-      <Wordmark />
-      <h1 className="auth-title">Configuração inicial</h1>
-      <p className="muted">O sistema ainda não tem Diretor. Crie a conta que vai administrar tudo.</p>
+    <main className="auth account-auth account-auth-setup">
+      <header className="account-auth-heading">
+        <Wordmark />
+        <h1 className="auth-title">Configuração inicial</h1>
+        <p className="muted">O sistema ainda não tem Diretor. Crie a conta que vai administrar tudo.</p>
+      </header>
 
-      <form className="card form" onSubmit={submit}>
+      <form className="card form account-auth-form" onSubmit={submit}>
         <label>
           Código de configuração
           <input

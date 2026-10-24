@@ -59,56 +59,59 @@ export function Patterns() {
   const history = useLoad(() => api<{ items: DocumentPattern[] }>('GET', '/document-patterns'), []);
   return (
     <Section title="Padrões de documento" subtitle="Teste um documento novo e veja o que o sistema já sabe fazer.">
-      <PatternTester />
-      <h3 className="top-gap">Tipos que já passaram pelo sistema</h3>
-      <Feedback error={history.error} />
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Tipo de documento</th>
-              <th>Resultado</th>
-              <th>Traduções</th>
-              <th>Idiomas</th>
-              <th>Último</th>
-            </tr>
-          </thead>
-          <tbody>
-            {history.data?.items.map((item) => (
-              <tr key={item.title}>
-                <td className="name-cell">
-                  <strong>{item.title}</strong>
-                  {item.documentType && item.documentType !== item.title && (
-                    <span className="muted small-text block-line">{item.documentType}</span>
-                  )}
-                  <span className="muted small-text block-line">
-                    {item.formats.map((format) => format.toUpperCase()).join(', ')} · {item.modes.map((mode) => modeLabel[mode]).join(', ')}
-                  </span>
-                </td>
-                <td>
-                  <VerdictBadge verdict={item.verdict} label={item.verdictLabel} />
-                  <ul className="reasons">
-                    {item.reasons.map((reason) => (
-                      <li key={reason}>{reason}</li>
-                    ))}
-                  </ul>
-                </td>
-                <td className="nowrap">
-                  {item.approved} concluída(s) de {item.total}
-                  {item.failed > 0 && <span className="muted small-text block-line">{item.failed} falha(s)</span>}
-                  {item.active > 0 && <span className="muted small-text block-line">{item.active} em andamento</span>}
-                  <span className="muted small-text block-line">
-                    {item.averageCorrections} correção(ões) automáticas em média · {item.averageErrors} problema(s) restante(s)
-                  </span>
-                </td>
-                <td>{item.pairs.map(pairText).join(', ')}</td>
-                <td className="nowrap">{dateTime(item.lastAt)}</td>
+      <div className="doc-domain doc-patterns">
+        <PatternTester />
+        <h3 className="top-gap">Tipos que já passaram pelo sistema</h3>
+        <Feedback error={history.error} />
+        <div className="table-wrap doc-pattern-history">
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo de documento</th>
+                <th>Resultado</th>
+                <th>Traduções</th>
+                <th>Idiomas</th>
+                <th>Último</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {history.data?.items.map((item) => (
+                <tr key={item.title}>
+                  <td className="name-cell">
+                    <strong>{item.title}</strong>
+                    {item.documentType && item.documentType !== item.title && (
+                      <span className="muted small-text block-line">{item.documentType}</span>
+                    )}
+                    <span className="muted small-text block-line">
+                      {item.formats.map((format) => format.toUpperCase()).join(', ')} ·{' '}
+                      {item.modes.map((mode) => modeLabel[mode]).join(', ')}
+                    </span>
+                  </td>
+                  <td>
+                    <VerdictBadge verdict={item.verdict} label={item.verdictLabel} />
+                    <ul className="reasons">
+                      {item.reasons.map((reason) => (
+                        <li key={reason}>{reason}</li>
+                      ))}
+                    </ul>
+                  </td>
+                  <td className="nowrap">
+                    {item.approved} concluída(s) de {item.total}
+                    {item.failed > 0 && <span className="muted small-text block-line">{item.failed} falha(s)</span>}
+                    {item.active > 0 && <span className="muted small-text block-line">{item.active} em andamento</span>}
+                    <span className="muted small-text block-line">
+                      {item.averageCorrections} correção(ões) automáticas em média · {item.averageErrors} problema(s) restante(s)
+                    </span>
+                  </td>
+                  <td>{item.pairs.map(pairText).join(', ')}</td>
+                  <td className="nowrap">{dateTime(item.lastAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {history.data && history.data.items.length === 0 && <p className="empty">Nenhum documento processado ainda.</p>}
       </div>
-      {history.data && history.data.items.length === 0 && <p className="empty">Nenhum documento processado ainda.</p>}
     </Section>
   );
 }
@@ -192,17 +195,16 @@ function PatternTester() {
 
   const errors = result?.issues.filter((issue) => issue.severity === 'error') ?? [];
   return (
-    <div className="card pattern-test">
+    <div className="card pattern-test doc-module">
       <h3>Testar um documento novo</h3>
       <p className="muted small-text">
         O arquivo e seu texto não são guardados. O sistema registra a identificação por digest, a diagramação sem conteúdo e as decisões de
         revisão do ensaio; nenhuma tradução de produção é criada.
       </p>
       <fieldset
-        className="filters"
+        className="filters doc-filter-bar doc-borderless-fields doc-trial-fields"
         aria-label="Parâmetros do ensaio"
         disabled={locked}
-        style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
       >
         <button type="button" onClick={() => input.current?.click()}>
           {file ? file.name : 'Escolher arquivo'}
@@ -291,7 +293,7 @@ function PatternTester() {
       )}
       {result && (
         <div className={`pattern-result ${result.verdict}`}>
-          <div className="word-head">
+          <div className="word-head doc-panel-header">
             <div>
               <VerdictBadge verdict={result.verdict} label={result.verdictLabel} />{' '}
               <strong>{result.documentType || result.sourceTitle || file?.name}</strong>
@@ -503,11 +505,11 @@ function PatternComparison({
     return () => created.forEach((value) => URL.revokeObjectURL(value));
   }, [file, result]);
   return (
-    <section className="pattern-comparison">
+    <section className="pattern-comparison doc-trial-comparison">
       <h4>Compare antes de aceitar a formatação</h4>
-      <div className="document-comparison">
-        <section className="comparison-pane">
-          <div className="word-head">
+      <div className="document-comparison doc-comparison">
+        <section className="comparison-pane doc-comparison-pane">
+          <div className="word-head doc-comparison-header">
             <h4>Original: {file.name}</h4>
           </div>
           {urls.original ? (
@@ -522,8 +524,8 @@ function PatternComparison({
             </p>
           )}
         </section>
-        <section className="comparison-pane">
-          <div className="word-head">
+        <section className="comparison-pane doc-comparison-pane">
+          <div className="word-head doc-comparison-header">
             <h4>Word da formatação proposta</h4>
             {urls.docx && (
               <a className="button small" href={urls.docx} download={`TESTE - ${file.name.replace(/\.[^.]+$/, '')}.docx`}>
@@ -545,7 +547,7 @@ function PatternComparison({
         A revisão do ensaio fica registrada sem guardar o arquivo ou seu texto. A aprovação deste teste não conclui traduções de produção.
       </p>
       {trial && (
-        <section className="inspection-gate">
+        <section className="inspection-gate doc-module doc-inspection-gate">
           <h4>Revisão persistida do ensaio</h4>
           <p>
             Revisão {trial.revision} · formato {trial.formatGeneration} · {trial.consecutiveRejections} de 3 reprovações consecutivas

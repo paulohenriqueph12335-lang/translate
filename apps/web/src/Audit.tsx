@@ -143,250 +143,252 @@ export function Audit({
   );
 
   return (
-    <Section
-      title="Auditoria"
-      subtitle={
-        isDirector
-          ? 'Registro somente inserção de tudo o que acontece no sistema.'
-          : 'Registro somente inserção do que acontece nas equipes que você supervisiona.'
-      }
-    >
-      <div className="filters">
-        <button
-          type="button"
-          className="small"
-          onClick={() => {
-            list.reload();
-            summary.reload();
-            incidents.reload();
-            facets.reload();
-          }}
-        >
-          Atualizar auditoria
-        </button>
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, arquivo, pessoa, ação ou erro" />
-        <select aria-label="Gravidade" value={severity} onChange={(e) => setSeverity(e.target.value)}>
-          <option value="">Todas as gravidades</option>
-          {(Object.keys(severityLabel) as Severity[]).map((value) => (
-            <option key={value} value={value}>
-              {severityLabel[value]}
-            </option>
-          ))}
-        </select>
-        <label className="check">
-          <input type="checkbox" checked={errorsOnly} onChange={(e) => setErrorsOnly(e.target.checked)} />
-          Somente erros e emergências
-        </label>
-        <select aria-label="Causa do erro" value={failureCode} onChange={(e) => setFailureCode(e.target.value)}>
-          <option value="">Todas as causas</option>
-          {facets.data?.failureCodes?.map((value) => (
-            <option key={value} value={value}>
-              {failureLabel[value] ?? value}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Grupo de ações"
-          value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
-            setAction('');
-          }}
-        >
-          <option value="">Todos os grupos</option>
-          {categories.map((value) => (
-            <option key={value} value={value}>
-              {auditCategoryLabel[value] ?? value}
-            </option>
-          ))}
-        </select>
-        <select aria-label="Ação" value={action} onChange={(e) => setAction(e.target.value)}>
-          <option value="">Todas as ações</option>
-          {actions.map((value) => (
-            <option key={value} value={value}>
-              {auditActionLabel[value] ?? value}
-            </option>
-          ))}
-        </select>
-        <select aria-label="Quem" value={actor} onChange={(e) => setActor(e.target.value)}>
-          <option value="">Qualquer pessoa</option>
-          <option value="__system">Sistema (processamento)</option>
-          {users.data?.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.name}
-            </option>
-          ))}
-        </select>
-        <select aria-label="Equipe" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-          <option value="">Todas as equipes</option>
-          {teams.data?.items
-            .filter((team) => isDirector || team.myRole === 'leader')
-            .map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-        </select>
-        <select aria-label="Alvo" value={targetType} onChange={(e) => setTargetType(e.target.value)}>
-          <option value="">Qualquer alvo</option>
-          {facets.data?.targetTypes.map((value) => (
-            <option key={value} value={value}>
-              {TARGET_LABEL[value] ?? value}
-            </option>
-          ))}
-        </select>
-        <DateRange label="Período" from={period.from} to={period.to} onChange={(from, to) => setPeriod({ from, to })} />
-        {filtered && (
+    <div className="administration-view audit-view">
+      <Section
+        title="Auditoria"
+        subtitle={
+          isDirector
+            ? 'Registro somente inserção de tudo o que acontece no sistema.'
+            : 'Registro somente inserção do que acontece nas equipes que você supervisiona.'
+        }
+      >
+        <div className="filters audit-filters">
           <button
-            className="link"
+            type="button"
+            className="small"
             onClick={() => {
-              setSearch('');
-              setCategory('');
-              setAction('');
-              setActor('');
-              setTeamId('');
-              setTargetType('');
-              setPeriod({ from: '', to: '' });
-              setSeverity('');
-              setErrorsOnly(false);
-              setFailureCode('');
+              list.reload();
+              summary.reload();
+              incidents.reload();
+              facets.reload();
             }}
           >
-            Limpar filtros
+            Atualizar auditoria
           </button>
-        )}
-      </div>
-      <Feedback error={list.error ?? summary.error ?? incidents.error ?? facets.error} />
-      {summary.data && (
-        <div className="stat-row audit-summary" aria-label="Totais de todos os registros filtrados">
-          <div className="card stat-tile">
-            <span>Eventos nos filtros</span>
-            <strong>{summary.data.total}</strong>
-            <small>Todas as páginas</small>
-          </div>
-          <div className="card stat-tile">
-            <span>Erros</span>
-            <strong>{summary.data.errors}</strong>
-            <small>Inclui emergências</small>
-          </div>
-          <div className="card stat-tile">
-            <span>Emergências</span>
-            <strong>{summary.data.critical}</strong>
-            <small>Registros críticos</small>
-          </div>
-          <div className="card stat-tile">
-            <span>Atenções</span>
-            <strong>{summary.data.warnings}</strong>
-            <small>Revisões e exceções</small>
-          </div>
-        </div>
-      )}
-      {summary.data && summary.data.byFailureCode.length > 0 && (
-        <details className="top-gap">
-          <summary>Quantidade por causa do erro</summary>
-          <ul className="list compact">
-            {summary.data.byFailureCode.map((row) => (
-              <li key={row.code}>
-                <button className="link" onClick={() => setFailureCode(row.code)}>
-                  {failureLabel[row.code] ?? row.code}
-                </button>
-                <strong>{row.count}</strong>
-              </li>
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, arquivo, pessoa, ação ou erro" />
+          <select aria-label="Gravidade" value={severity} onChange={(e) => setSeverity(e.target.value)}>
+            <option value="">Todas as gravidades</option>
+            {(Object.keys(severityLabel) as Severity[]).map((value) => (
+              <option key={value} value={value}>
+                {severityLabel[value]}
+              </option>
             ))}
-          </ul>
-        </details>
-      )}
-      {incidents.data && (
-        <details className="audit-incidents top-gap" open={incidents.data.critical > 0}>
-          <summary>
-            Pendências operacionais agora: {incidents.data.total} · {incidents.data.critical} emergente(s)
-          </summary>
-          <p className="muted small-text">
-            Retrabalho: pelo menos {incidents.data.criteria.consecutiveFailures} devoluções. Fila/processamento:{' '}
-            {incidents.data.criteria.stalledMinutes} minutos sem atualização. Concluído: {incidents.data.criteria.undownloadedHours} horas
-            sem download. Esta visão usa a equipe selecionada e o estado atual, independente dos filtros históricos.
-          </p>
-          <ul className="list">
-            {incidents.data.items.map((item) => (
-              <li className={`audit-incident ${item.severity}`} key={item.id}>
-                <div>
-                  <span className={`badge severity-badge ${item.severity}`}>{severityLabel[item.severity]}</span>{' '}
-                  {onOpenTranslation ? (
-                    <button className="link" onClick={() => onOpenTranslation(item.translationId)}>
-                      {item.protocol ? `${item.protocol} — ` : ''}
-                      {item.name}
-                    </button>
-                  ) : (
-                    <strong>
-                      {item.protocol ? `${item.protocol} — ` : ''}
-                      {item.name}
-                    </strong>
-                  )}
-                  <p>{item.cause}</p>
-                  <small className="muted">
-                    {item.code} · {item.team?.name ?? 'Sem equipe'} · desde {dateTime(item.since)} · {duration(item.ageMinutes)}
-                  </small>
-                </div>
-              </li>
+          </select>
+          <label className="check">
+            <input type="checkbox" checked={errorsOnly} onChange={(e) => setErrorsOnly(e.target.checked)} />
+            Somente erros e emergências
+          </label>
+          <select aria-label="Causa do erro" value={failureCode} onChange={(e) => setFailureCode(e.target.value)}>
+            <option value="">Todas as causas</option>
+            {facets.data?.failureCodes?.map((value) => (
+              <option key={value} value={value}>
+                {failureLabel[value] ?? value}
+              </option>
             ))}
-          </ul>
-          {incidents.data.total > incidents.data.items.length && (
-            <p className="muted small-text">
-              Mostrando as {incidents.data.items.length} pendências prioritárias de {incidents.data.total}.
-            </p>
+          </select>
+          <select
+            aria-label="Grupo de ações"
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setAction('');
+            }}
+          >
+            <option value="">Todos os grupos</option>
+            {categories.map((value) => (
+              <option key={value} value={value}>
+                {auditCategoryLabel[value] ?? value}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Ação" value={action} onChange={(e) => setAction(e.target.value)}>
+            <option value="">Todas as ações</option>
+            {actions.map((value) => (
+              <option key={value} value={value}>
+                {auditActionLabel[value] ?? value}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Quem" value={actor} onChange={(e) => setActor(e.target.value)}>
+            <option value="">Qualquer pessoa</option>
+            <option value="__system">Sistema (processamento)</option>
+            {users.data?.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Equipe" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+            <option value="">Todas as equipes</option>
+            {teams.data?.items
+              .filter((team) => isDirector || team.myRole === 'leader')
+              .map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+          </select>
+          <select aria-label="Alvo" value={targetType} onChange={(e) => setTargetType(e.target.value)}>
+            <option value="">Qualquer alvo</option>
+            {facets.data?.targetTypes.map((value) => (
+              <option key={value} value={value}>
+                {TARGET_LABEL[value] ?? value}
+              </option>
+            ))}
+          </select>
+          <DateRange label="Período" from={period.from} to={period.to} onChange={(from, to) => setPeriod({ from, to })} />
+          {filtered && (
+            <button
+              className="link"
+              onClick={() => {
+                setSearch('');
+                setCategory('');
+                setAction('');
+                setActor('');
+                setTeamId('');
+                setTargetType('');
+                setPeriod({ from: '', to: '' });
+                setSeverity('');
+                setErrorsOnly(false);
+                setFailureCode('');
+              }}
+            >
+              Limpar filtros
+            </button>
           )}
-          {!incidents.data.total && <p className="empty">Nenhuma pendência pelos critérios acima.</p>}
-        </details>
-      )}
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Quando</th>
-              <th>Quem</th>
-              <th>Ação</th>
-              <th>Gravidade / erro</th>
-              <th>Equipe</th>
-              <th>Detalhes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.items.map((event) => (
-              <tr key={event.id}>
-                <td className="nowrap">{dateTime(event.occurredAt)}</td>
-                <td>{event.actor?.displayName ?? <span className="muted">Sistema</span>}</td>
-                <td>
-                  <button className="link" title={event.action} onClick={() => setAction(event.action)}>
-                    {auditActionLabel[event.action] ?? event.action}
+        </div>
+        <Feedback error={list.error ?? summary.error ?? incidents.error ?? facets.error} />
+        {summary.data && (
+          <div className="stat-row audit-summary" aria-label="Totais de todos os registros filtrados">
+            <div className="card stat-tile">
+              <span>Eventos nos filtros</span>
+              <strong>{summary.data.total}</strong>
+              <small>Todas as páginas</small>
+            </div>
+            <div className="card stat-tile">
+              <span>Erros</span>
+              <strong>{summary.data.errors}</strong>
+              <small>Inclui emergências</small>
+            </div>
+            <div className="card stat-tile">
+              <span>Emergências</span>
+              <strong>{summary.data.critical}</strong>
+              <small>Registros críticos</small>
+            </div>
+            <div className="card stat-tile">
+              <span>Atenções</span>
+              <strong>{summary.data.warnings}</strong>
+              <small>Revisões e exceções</small>
+            </div>
+          </div>
+        )}
+        {summary.data && summary.data.byFailureCode.length > 0 && (
+          <details className="top-gap">
+            <summary>Quantidade por causa do erro</summary>
+            <ul className="list compact">
+              {summary.data.byFailureCode.map((row) => (
+                <li key={row.code}>
+                  <button className="link" onClick={() => setFailureCode(row.code)}>
+                    {failureLabel[row.code] ?? row.code}
                   </button>
-                  {event.targetType && (
-                    <span className="muted small-text block-line">
-                      {TARGET_LABEL[event.targetType] ?? event.targetType} {event.targetId?.slice(0, 8)}
-                    </span>
-                  )}
-                </td>
-                <td>
-                  <span className={`badge severity-badge ${event.severity}`}>{severityLabel[event.severity] ?? 'Informação'}</span>
-                  {event.failureCode && (
-                    <button className="link block-line small-text" onClick={() => setFailureCode(event.failureCode!)}>
-                      {event.failureCode}
-                    </button>
-                  )}
-                </td>
-                <td>{event.team?.name ?? '—'}</td>
-                <td className="muted small-text details-cell">{details(event.metadata) || '—'}</td>
+                  <strong>{row.count}</strong>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {incidents.data && (
+          <details className="audit-incidents top-gap" open={incidents.data.critical > 0}>
+            <summary>
+              Pendências operacionais agora: {incidents.data.total} · {incidents.data.critical} emergente(s)
+            </summary>
+            <p className="muted small-text">
+              Retrabalho: pelo menos {incidents.data.criteria.consecutiveFailures} devoluções. Fila/processamento:{' '}
+              {incidents.data.criteria.stalledMinutes} minutos sem atualização. Concluído: {incidents.data.criteria.undownloadedHours} horas
+              sem download. Esta visão usa a equipe selecionada e o estado atual, independente dos filtros históricos.
+            </p>
+            <ul className="list">
+              {incidents.data.items.map((item) => (
+                <li className={`audit-incident ${item.severity}`} key={item.id}>
+                  <div>
+                    <span className={`badge severity-badge ${item.severity}`}>{severityLabel[item.severity]}</span>{' '}
+                    {onOpenTranslation ? (
+                      <button className="link" onClick={() => onOpenTranslation(item.translationId)}>
+                        {item.protocol ? `${item.protocol} — ` : ''}
+                        {item.name}
+                      </button>
+                    ) : (
+                      <strong>
+                        {item.protocol ? `${item.protocol} — ` : ''}
+                        {item.name}
+                      </strong>
+                    )}
+                    <p>{item.cause}</p>
+                    <small className="muted">
+                      {item.code} · {item.team?.name ?? 'Sem equipe'} · desde {dateTime(item.since)} · {duration(item.ageMinutes)}
+                    </small>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {incidents.data.total > incidents.data.items.length && (
+              <p className="muted small-text">
+                Mostrando as {incidents.data.items.length} pendências prioritárias de {incidents.data.total}.
+              </p>
+            )}
+            {!incidents.data.total && <p className="empty">Nenhuma pendência pelos critérios acima.</p>}
+          </details>
+        )}
+        <div className="table-wrap audit-records">
+          <table>
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Quem</th>
+                <th>Ação</th>
+                <th>Gravidade / erro</th>
+                <th>Equipe</th>
+                <th>Detalhes</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <PagedFooter
-        hasMore={list.hasMore}
-        loading={list.loading}
-        onMore={list.more}
-        empty={list.items.length === 0}
-        emptyText={filtered ? 'Nenhum evento corresponde aos filtros.' : 'Nenhum evento registrado.'}
-      />
-    </Section>
+            </thead>
+            <tbody>
+              {list.items.map((event) => (
+                <tr key={event.id}>
+                  <td className="nowrap">{dateTime(event.occurredAt)}</td>
+                  <td>{event.actor?.displayName ?? <span className="muted">Sistema</span>}</td>
+                  <td>
+                    <button className="link" title={event.action} onClick={() => setAction(event.action)}>
+                      {auditActionLabel[event.action] ?? event.action}
+                    </button>
+                    {event.targetType && (
+                      <span className="muted small-text block-line">
+                        {TARGET_LABEL[event.targetType] ?? event.targetType} {event.targetId?.slice(0, 8)}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`badge severity-badge ${event.severity}`}>{severityLabel[event.severity] ?? 'Informação'}</span>
+                    {event.failureCode && (
+                      <button className="link block-line small-text" onClick={() => setFailureCode(event.failureCode!)}>
+                        {event.failureCode}
+                      </button>
+                    )}
+                  </td>
+                  <td>{event.team?.name ?? '—'}</td>
+                  <td className="muted small-text details-cell">{details(event.metadata) || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <PagedFooter
+          hasMore={list.hasMore}
+          loading={list.loading}
+          onMore={list.more}
+          empty={list.items.length === 0}
+          emptyText={filtered ? 'Nenhum evento corresponde aos filtros.' : 'Nenhum evento registrado.'}
+        />
+      </Section>
+    </div>
   );
 }

@@ -42,20 +42,22 @@ export function Downloads({ me, onOpenTranslation }: { me: Me; onOpenTranslation
 
   return (
     <Section title="Downloads" subtitle="Traduções concluídas e documentos enviados, sempre ligados entre si.">
-      <Segmented
-        label="O que baixar"
-        value={view}
-        options={[
-          ['translations', 'Traduções concluídas'],
-          ['originals', 'Documentos enviados'],
-        ]}
-        onChange={setView}
-      />
-      {view === 'translations' ? (
-        <ConcludedTranslations teams={showTeams ? (teams.data?.items ?? []) : []} facets={facets.data} onOpen={onOpenTranslation} />
-      ) : (
-        <Originals teams={showTeams ? (teams.data?.items ?? []) : []} tags={facets.data?.tags ?? []} onOpen={onOpenTranslation} />
-      )}
+      <div className="doc-domain doc-downloads">
+        <Segmented
+          label="O que baixar"
+          value={view}
+          options={[
+            ['translations', 'Traduções concluídas'],
+            ['originals', 'Documentos enviados'],
+          ]}
+          onChange={setView}
+        />
+        {view === 'translations' ? (
+          <ConcludedTranslations teams={showTeams ? (teams.data?.items ?? []) : []} facets={facets.data} onOpen={onOpenTranslation} />
+        ) : (
+          <Originals teams={showTeams ? (teams.data?.items ?? []) : []} tags={facets.data?.tags ?? []} onOpen={onOpenTranslation} />
+        )}
+      </div>
     </Section>
   );
 }
@@ -112,7 +114,7 @@ function ConcludedTranslations({
 
   return (
     <>
-      <div className="filters top-gap">
+      <div className="filters top-gap doc-filter-bar">
         <SearchInput value={search} onChange={setSearch} placeholder="Protocolo, arquivo, lote, tipo ou nº (0001/2026)" />
         <TeamSelect teams={teams} value={teamId} onChange={setTeamId} />
         <select aria-label="Tipo de documento" value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
@@ -159,7 +161,7 @@ function ConcludedTranslations({
         )}
       </div>
       <Feedback error={list.error} />
-      <div className="card top-gap">
+      <div className="card top-gap doc-module doc-archive-selection">
         <div className="actions">
           <label className="check">
             <input
@@ -188,70 +190,66 @@ function ConcludedTranslations({
         <ArchiveDownloadButtons translationIds={[...selected]} disabled={selected.size > 100} />
         {selected.size > 100 && <p className="warn-text">Selecione no máximo 100 documentos por ZIP.</p>}
       </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>
-                <span className="sr-only">Selecionar</span>
-              </th>
-              <th>Nº</th>
-              <th>Documento</th>
-              <th>Tipo</th>
-              <th>Equipe</th>
-              <th>Concluída</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {list.items.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  <input
-                    aria-label={`Selecionar ${item.document.name}`}
-                    type="checkbox"
-                    checked={selected.has(item.id)}
-                    onChange={(event) =>
-                      setSelected((current) => {
-                        const next = new Set(current);
-                        if (event.target.checked) next.add(item.id);
-                        else next.delete(item.id);
-                        return next;
-                      })
-                    }
-                  />
-                </td>
-                <td className="nowrap">{item.number?.split(' – ')[0]}</td>
-                <td className="name-cell">
-                  <button className="link" onClick={() => onOpen(item.id)} title="Abrir a tradução">
-                    {item.document.name}
-                  </button>
-                  <TagList tags={item.document.tags} onPick={setTag} />
-                  <span className="muted small-text">
-                    {pairLabel(item.sourceLanguage, item.targetLanguage)} ·{' '}
-                    {item.batch.protocol ? `protocolo ${item.batch.protocol} · ` : ''}lote {item.batch.name ?? 'sem nome'} · enviado por{' '}
-                    {item.uploadedBy}
-                  </span>
-                </td>
-                <td>{item.documentType ?? '—'}</td>
-                <td>{item.team?.name ?? '—'}</td>
-                <td className="nowrap">
-                  {item.approvedAt ? dateTime(item.approvedAt) : '—'}
-                  <span className="muted small-text block-line">{item.approvedBy}</span>
-                </td>
-                <td className="actions">
-                  <DeliveryMenu
-                    translationId={item.id}
-                    version={item.updatedAt}
-                    batchId={item.batch.id}
-                    original={{ id: item.document.id, name: item.document.name }}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ul className="list doc-cards doc-download-cards">
+        {list.items.map((item) => (
+          <li key={item.id} className="doc-download-card">
+            <label className="doc-card-select">
+              <span className="sr-only">Selecionar {item.document.name}</span>
+              <input
+                aria-label={`Selecionar ${item.document.name}`}
+                type="checkbox"
+                checked={selected.has(item.id)}
+                onChange={(event) =>
+                  setSelected((current) => {
+                    const next = new Set(current);
+                    if (event.target.checked) next.add(item.id);
+                    else next.delete(item.id);
+                    return next;
+                  })
+                }
+              />
+            </label>
+            <div className="doc-card-content">
+              <div className="doc-card-heading">
+                <button className="link" onClick={() => onOpen(item.id)} title="Abrir a tradução">
+                  {item.document.name}
+                </button>
+                {item.number && <span className="badge soft">Nº {item.number.split(' – ')[0]}</span>}
+              </div>
+              <TagList tags={item.document.tags} onPick={setTag} />
+              <p className="muted small-text">
+                {pairLabel(item.sourceLanguage, item.targetLanguage)} · {item.batch.protocol ? `protocolo ${item.batch.protocol} · ` : ''}
+                lote {item.batch.name ?? 'sem nome'} · enviado por {item.uploadedBy}
+              </p>
+              <dl className="doc-card-metadata">
+                <div>
+                  <dt>Tipo</dt>
+                  <dd>{item.documentType ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Equipe</dt>
+                  <dd>{item.team?.name ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Concluída</dt>
+                  <dd>
+                    {item.approvedAt ? dateTime(item.approvedAt) : '—'}
+                    <span className="muted small-text block-line">{item.approvedBy}</span>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <div className="actions doc-card-actions">
+              <DeliveryMenu
+                translationId={item.id}
+                version={item.updatedAt}
+                batchId={item.batch.id}
+                original={{ id: item.document.id, name: item.document.name }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
       <PagedFooter
         hasMore={list.hasMore}
         loading={list.loading}
@@ -292,7 +290,7 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
 
   return (
     <>
-      <div className="filters top-gap">
+      <div className="filters top-gap doc-filter-bar">
         <SearchInput value={search} onChange={setSearch} placeholder="Protocolo, arquivo, lote, pessoa, tipo ou nº" />
         <TeamSelect teams={teams} value={teamId} onChange={setTeamId} />
         <select aria-label="Etiqueta" value={tag} onChange={(e) => setTag(e.target.value)}>
@@ -342,10 +340,10 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
         )}
       </div>
       <Feedback error={list.error} />
-      <ul className="list">
+      <ul className="list doc-cards doc-original-cards">
         {list.items.map((doc) => (
           <li key={doc.id}>
-            <div>
+            <div className="doc-card-content">
               <strong>{doc.name}</strong>
               <span className="muted">
                 {doc.format?.toUpperCase()} · {formatBytes(doc.size)} · {doc.team?.name ?? 'Sem equipe'} · lote{' '}

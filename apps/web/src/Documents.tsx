@@ -107,70 +107,72 @@ export function Documents({
 
   return (
     <Section title="Nova tradução" subtitle={subtitle}>
-      <Feedback error={teamsError ? `Não foi possível carregar suas equipes: ${teamsError}` : null} />
-      <Feedback error={limitsError ? `Não foi possível carregar os limites de envio: ${limitsError}` : null} />
-      {((!teamsData && !teamsError) || (!limits && !limitsError)) && <p role="status">Carregando dados de envio…</p>}
-      {(teamsError || limitsError) && (
-        <button
-          type="button"
-          className="small"
-          onClick={() => {
-            reloadTeams();
-            reloadLimits();
-          }}
-        >
-          Tentar carregar novamente
-        </button>
-      )}
-      {canCreate && !creating && (
-        <div className="toolbar">
-          <button className="primary" onClick={() => setCreating(true)}>
-            Nova tradução
+      <div className="doc-domain doc-intake">
+        <Feedback error={teamsError ? `Não foi possível carregar suas equipes: ${teamsError}` : null} />
+        <Feedback error={limitsError ? `Não foi possível carregar os limites de envio: ${limitsError}` : null} />
+        {((!teamsData && !teamsError) || (!limits && !limitsError)) && <p role="status">Carregando dados de envio…</p>}
+        {(teamsError || limitsError) && (
+          <button
+            type="button"
+            className="small"
+            onClick={() => {
+              reloadTeams();
+              reloadLimits();
+            }}
+          >
+            Tentar carregar novamente
           </button>
-        </div>
-      )}
-      {creating && prerequisitesReady && limits && (
-        <NewBatch
-          isDirector={isDirector}
-          teams={myTeams}
-          limits={limits}
-          onCancel={() => setCreating(false)}
-          onCreated={(batch, documents, files) => {
-            setCreating(false);
-            setSelected(batch.id);
-            refresh();
-            const entries = documents
-              .filter((doc) => doc.status === 'awaiting_upload')
-              .map((doc) => [doc.id, files[doc.position]!] as [string, File]);
-            void sendAll(entries);
-          }}
-        />
-      )}
-      {prerequisitesReady && !hasTeamAccess && (
-        <p className="empty">Você ainda não participa de equipes. Peça a um Supervisor ou ao Diretor para incluí-lo.</p>
-      )}
-      <div className="split wide documents-workspace">
-        <History
-          teams={teams}
-          isDirector={isDirector}
-          selected={selected}
-          onSelect={setSelected}
-          version={version}
-          initialSearch={initialSearch}
-        />
-        {selected && (
-          <BatchDetail
-            key={selected}
-            batchId={selected}
-            me={me}
-            teams={teams}
-            uploads={uploads}
-            onOpenTranslation={onOpenTranslation}
-            version={version}
-            onChange={refresh}
-            onSend={(entries) => void sendAll(entries)}
+        )}
+        {canCreate && !creating && (
+          <div className="toolbar doc-primary-toolbar">
+            <button className="primary" onClick={() => setCreating(true)}>
+              Nova tradução
+            </button>
+          </div>
+        )}
+        {creating && prerequisitesReady && limits && (
+          <NewBatch
+            isDirector={isDirector}
+            teams={myTeams}
+            limits={limits}
+            onCancel={() => setCreating(false)}
+            onCreated={(batch, documents, files) => {
+              setCreating(false);
+              setSelected(batch.id);
+              refresh();
+              const entries = documents
+                .filter((doc) => doc.status === 'awaiting_upload')
+                .map((doc) => [doc.id, files[doc.position]!] as [string, File]);
+              void sendAll(entries);
+            }}
           />
         )}
+        {prerequisitesReady && !hasTeamAccess && (
+          <p className="empty">Você ainda não participa de equipes. Peça a um Supervisor ou ao Diretor para incluí-lo.</p>
+        )}
+        <div className="split wide documents-workspace">
+          <History
+            teams={teams}
+            isDirector={isDirector}
+            selected={selected}
+            onSelect={setSelected}
+            version={version}
+            initialSearch={initialSearch}
+          />
+          {selected && (
+            <BatchDetail
+              key={selected}
+              batchId={selected}
+              me={me}
+              teams={teams}
+              uploads={uploads}
+              onOpenTranslation={onOpenTranslation}
+              version={version}
+              onChange={refresh}
+              onSend={(entries) => void sendAll(entries)}
+            />
+          )}
+        </div>
       </div>
     </Section>
   );
@@ -286,7 +288,7 @@ function NewBatch({
   }
 
   return (
-    <form className="card new-batch" onSubmit={submit}>
+    <form className="card new-batch doc-form" onSubmit={submit}>
       <h3>Nova tradução</h3>
       <p className="muted small-text">Escolha os documentos, identifique o envio e confira as opções antes de iniciar a tradução.</p>
       <TranslationSteps step={step} onChange={setStep} disabled={busy} />
@@ -304,7 +306,7 @@ function NewBatch({
               categories={categories.data?.categories ?? []}
             />
             <Feedback error={categories.error} />
-            <fieldset className="tags-field" style={{ border: 0, padding: 0, minWidth: 0 }}>
+            <fieldset className="tags-field doc-borderless-fields">
               <legend>
                 Etiquetas <small className="muted">Opcionais; ajudam a pesquisar e organizar os documentos.</small>
               </legend>
@@ -392,7 +394,7 @@ function NewBatch({
                     Limpar
                   </button>
                 </div>
-                <ul className="list compact files">
+                <ul className="list compact files doc-cards doc-file-cards">
                   {files.map((file, index) => {
                     const problem = problemOf(file);
                     return (
@@ -478,7 +480,7 @@ function NewBatch({
         )}
       </fieldset>
       <Feedback error={error} />
-      <div className="actions">
+      <div className="actions doc-form-footer">
         {step > 0 && (
           <button type="button" disabled={busy} onClick={() => setStep((current) => current - 1)}>
             Voltar
@@ -556,8 +558,8 @@ function History({
   const UNASSIGNED = '__sem_equipe';
 
   return (
-    <div className="stack">
-      <div className="filters">
+    <div className="stack doc-history">
+      <div className="filters doc-filter-bar">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, envio, pessoa ou arquivo" />
         {showTeamFilter && (
           <select aria-label="Equipe" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
@@ -599,7 +601,7 @@ function History({
         )}
       </div>
       <Feedback error={error} />
-      <ul className="list selectable">
+      <ul className="list selectable doc-cards doc-batch-cards">
         {items.map((batch) => (
           <li key={batch.id} className={batch.id === selected ? 'selected' : ''} onClick={() => onSelect(batch.id)}>
             <div>
@@ -787,7 +789,7 @@ function BatchDetail({
         </div>
       )}
 
-      <div className="filters top-gap">
+      <div className="filters top-gap doc-filter-bar">
         <Segmented
           label="Filtrar documentos"
           value={filter}

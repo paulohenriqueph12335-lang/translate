@@ -1,14 +1,14 @@
 import { useState, type MouseEvent, type ReactNode } from 'react';
 
 /**
- * Gráficos dos painéis, em SVG/HTML simples. Paleta categórica validada (dataviz): azul-caneta e sépia-carimbo, as
- * tintas de um documento juramentado; o que passa de duas séries vira cinza ("Outros"). Toda série tem legenda ou
- * rótulo direto, dica ao passar o mouse e tabela equivalente.
+ * Gráficos dos painéis, em SVG/HTML simples. Paleta categórica por tokens: verde para a série principal, oliva para
+ * a comparação e cinza nas séries adicionais ("Outros"). Toda série tem legenda ou rótulo direto, dica ao passar
+ * o mouse e tabela equivalente. Os aliases exportados preservam os contratos dos painéis.
  */
 export const INK_BLUE = 'var(--chart-blue)';
 export const SEPIA = 'var(--chart-sepia)';
 export const SERIES = [INK_BLUE, SEPIA, 'var(--chart-gray)'] as const;
-/** Desfechos: acerto em azul-caneta, refeita no vermelho de erro, justificada no ocre de alerta (validado para daltonismo). */
+/** Desfechos: acerto no verde principal, refeita no vermelho de erro, justificada no ocre de alerta. */
 export const OUTCOME_COLORS = [INK_BLUE, 'var(--chart-danger)', 'var(--chart-warn)'] as const;
 const OTHER = 'var(--chart-other)';
 
@@ -73,7 +73,7 @@ export function ChartCard({
   wide?: boolean;
 }) {
   return (
-    <figure className={`card chart-card ${wide ? 'wide' : ''}`}>
+    <figure className={`card chart-card analytics-card ${wide ? 'wide' : ''}`}>
       <figcaption>
         <h3>{title}</h3>
         {subtitle && <p className="muted small-text">{subtitle}</p>}

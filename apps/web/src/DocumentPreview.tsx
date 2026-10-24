@@ -23,7 +23,7 @@ export function DocumentPreview({
   const removeBlock = (index: number) => onChange?.({ ...draft, blocks: draft.blocks.filter((_, i) => i !== index) });
 
   return (
-    <div className={`paper ${editable ? 'editing' : ''}`}>
+    <div className={`paper doc-paper ${editable ? 'editing' : ''}`}>
       <p className="paper-mask-note">
         {frame.draftMark && <strong>{frame.draftMark}</strong>}
         <span>Timbre, abertura, encerramento, número e data entram pela máscara do tradutor escolhido na conclusão.</span>

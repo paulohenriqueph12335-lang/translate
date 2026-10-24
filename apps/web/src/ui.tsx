@@ -70,10 +70,17 @@ export function Feedback({ error, ok }: { error?: string | null; ok?: string | n
 export function Wordmark() {
   return (
     <span className="wordmark">
-      <svg viewBox="0 0 30 22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
-        <path d="M7 2H3v18h4" />
-        <path d="M23 2h4v18h-4" />
-        <path d="M10 11h3M15.5 11h4.5" />
+      <svg
+        viewBox="0 0 28 34"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M5 2h12l7 7v23H5z" />
+        <path d="M17 2v8h7M10 16h9M10 21h9M10 26h6" />
       </svg>
       <span>
         <strong>Tradutor Documental</strong>
@@ -89,7 +96,7 @@ export const EmbeddedSection = createContext(false);
 export function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   const embedded = useContext(EmbeddedSection);
   return (
-    <section className="section">
+    <section className="section min-w-0">
       {embedded ? (
         subtitle && <p className="muted section-hint">{subtitle}</p>
       ) : (

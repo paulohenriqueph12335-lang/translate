@@ -84,7 +84,7 @@ export function FrameModelPicker({ translator, onCreated }: { translator: SwornT
           </button>
         ))}
       </div>
-      <div className="field-row top-gap">
+      <div className="field-row top-gap frame-model-fields">
         <label>
           Cidade
           <input

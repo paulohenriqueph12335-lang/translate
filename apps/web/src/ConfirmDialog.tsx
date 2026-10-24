@@ -60,8 +60,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       {children}
       <dialog
         ref={dialog}
-        className="dashboard-dialog no-print"
-        style={{ width: 'min(520px, calc(100vw - 32px))' }}
+        className="dashboard-dialog no-print account-confirm"
         aria-labelledby={titleId}
         aria-describedby={messageId}
         onCancel={(event) => {
@@ -72,15 +71,17 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           if (!dialog.current?.open) finish(false);
         }}
       >
-        <h2 id={titleId}>{confirmation?.title ?? 'Confirmar alteração'}</h2>
-        <p id={messageId} style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+        <h2 id={titleId} className="account-confirm-title">
+          {confirmation?.title ?? 'Confirmar alteração'}
+        </h2>
+        <p id={messageId} className="account-confirm-message">
           {confirmation?.message}
         </p>
-        <div className="actions">
-          <button ref={cancelButton} type="button" autoFocus onClick={() => finish(false)}>
+        <div className="actions account-confirm-actions">
+          <button ref={cancelButton} type="button" className="account-confirm-cancel" autoFocus onClick={() => finish(false)}>
             Cancelar
           </button>
-          <button type="button" className="primary" onClick={() => finish(true)}>
+          <button type="button" className="primary account-confirm-accept" onClick={() => finish(true)}>
             {confirmation?.confirmLabel ?? 'Confirmar alteração'}
           </button>
         </div>

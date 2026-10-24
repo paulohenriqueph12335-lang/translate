@@ -1,109 +1,112 @@
-.language-pair-picker {
-  display: inline-flex;
-  flex-direction: column;
-  min-width: min(240px, 100%);
-  max-width: 100%;
-  vertical-align: middle;
-}
-.language-pair-field {
-  position: relative;
-  width: 100%;
-}
-.language-pair-field input {
-  width: 100%;
-  min-width: 0;
-  padding-right: 64px;
-  text-overflow: ellipsis;
-}
-.language-pair-field .pair-clear,
-.language-pair-field .pair-open {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  width: 28px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  box-shadow: none;
-  font-size: 18px;
-  border-radius: 4px;
-}
-.language-pair-field .pair-clear {
-  right: 30px;
-}
-.language-pair-field .pair-open {
-  right: 3px;
-}
-.language-pair-field button:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: -2px;
-}
-.language-pair-popup {
-  position: fixed;
-  z-index: 3000;
-  display: flex;
-  flex-direction: column;
-  background: var(--sheet);
-  color: var(--ink);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  box-shadow: 0 12px 36px #0003;
-  overflow: hidden;
-}
-.language-pair-popup ul {
-  list-style: none;
-  margin: 0;
-  padding: 4px;
-  overflow-y: auto;
-  min-height: 0;
-}
-.language-pair-popup li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: normal;
-  font-size: 13px;
-}
-.language-pair-popup li.active {
-  background: var(--gray-50);
-  outline: 1px solid var(--ink);
-  outline-offset: -1px;
-}
-.language-pair-popup small {
-  font-size: 10px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.language-pair-hint {
-  padding: 8px 10px;
-  color: var(--muted);
-  font-size: 11px;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-}
-.language-pair-hint:last-child {
-  border-top: 1px solid var(--rule);
-  border-bottom: 0;
-}
-.pair-screenreader {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-@media (max-width: 600px) {
+@reference 'tailwindcss';
+@reference './styles/tokens.css';
+
+@layer components {
   .language-pair-picker {
-    width: 100%;
-    min-width: 0;
+    @apply inline-flex min-w-0 max-w-full flex-col align-middle;
+    min-width: min(15rem, 100%);
+  }
+  .language-pair-field {
+    @apply relative w-full min-w-0;
+  }
+  .language-pair-field input {
+    @apply w-full min-w-0 rounded-control border bg-surface text-sm text-ink;
+    border-color: var(--gray-500);
+    min-height: 2.25rem;
+    padding-right: 4.5rem;
+    text-overflow: ellipsis;
+  }
+  .language-pair-field input::placeholder {
+    @apply text-muted;
+  }
+  .language-pair-field input:focus {
+    border-color: var(--accent);
+  }
+  .language-pair-field input:disabled {
+    @apply border-line bg-canvas text-muted;
+  }
+  .language-pair-field .pair-clear,
+  .language-pair-field .pair-open {
+    @apply absolute grid place-items-center rounded-control border-0 bg-transparent p-0 text-muted;
+    top: 2px;
+    bottom: 2px;
+    width: 2rem;
+    min-height: 2rem;
+    box-shadow: none;
+    font-size: 1.125rem;
+  }
+  .language-pair-field .pair-clear {
+    right: 2.125rem;
+  }
+  .language-pair-field .pair-open {
+    right: 2px;
+  }
+  .language-pair-field button::before,
+  .language-pair-field button::after {
+    content: none;
+  }
+  .language-pair-field button:hover:not(:disabled) {
+    @apply bg-canvas text-ink;
+  }
+  .language-pair-field button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .language-pair-popup {
+    @apply fixed flex min-w-0 flex-col overflow-hidden rounded-panel border border-line bg-surface font-sans text-ink;
+    z-index: 3000;
+    box-shadow: var(--shadow-language-pair);
+  }
+  .language-pair-popup ul {
+    @apply m-0 min-h-0 list-none overflow-y-auto p-1;
   }
   .language-pair-popup li {
-    min-height: 44px;
+    @apply flex min-w-0 cursor-pointer items-center justify-between gap-3 whitespace-normal rounded-control px-3 py-2 text-sm leading-snug;
+    min-height: 2.25rem;
+  }
+  .language-pair-popup li > span {
+    @apply min-w-0;
+    overflow-wrap: anywhere;
+  }
+  .language-pair-popup li.active {
+    @apply bg-accent-soft text-accent;
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
+  .language-pair-popup small {
+    @apply shrink-0 whitespace-nowrap text-xs text-muted;
+  }
+  .language-pair-hint {
+    @apply shrink-0 border-b border-line px-3 py-2 text-xs leading-relaxed text-muted;
+    overflow-wrap: anywhere;
+  }
+  .language-pair-hint:last-child {
+    @apply border-t border-b-0;
+  }
+  .pair-screenreader {
+    @apply sr-only;
+  }
+
+  @media (max-width: 600px) {
+    .language-pair-picker {
+      @apply w-full min-w-0;
+    }
+    .language-pair-popup li {
+      min-height: 2.75rem;
+    }
+  }
+  @media (pointer: coarse) {
+    .language-pair-field input {
+      min-height: 3rem;
+      padding-right: 6rem;
+    }
+    .language-pair-field .pair-clear,
+    .language-pair-field .pair-open {
+      width: 2.75rem;
+      min-height: 2.75rem;
+    }
+    .language-pair-field .pair-clear {
+      right: 2.875rem;
+    }
   }
 }

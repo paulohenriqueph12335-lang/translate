@@ -91,8 +91,8 @@ export function PdfPreview({ url, title }: { url: string; title: string }) {
     };
   }, [document, page, zoom, width]);
   return (
-    <div className="pdf-preview" role="group" aria-label={title}>
-      <div className="pdf-toolbar">
+    <div className="pdf-preview doc-pdf-preview" role="group" aria-label={title}>
+      <div className="pdf-toolbar doc-pdf-toolbar">
         <button
           className="small"
           disabled={!document || page <= 1}
@@ -116,7 +116,7 @@ export function PdfPreview({ url, title }: { url: string; title: string }) {
           <option value={2}>200%</option>
         </select>
       </div>
-      <div className="pdf-pages" ref={container} aria-busy={loading}>
+      <div className="pdf-pages doc-pdf-pages" ref={container} aria-busy={loading}>
         {loading && (
           <p className="muted small-text" role="status">
             Renderizando página…
@@ -135,7 +135,7 @@ export function PdfPreview({ url, title }: { url: string; title: string }) {
         <canvas ref={canvas} role="img" aria-label={`${title}, página ${page}`} hidden={!!error || !document} />
       </div>
       {text && (
-        <details className="pdf-text">
+        <details className="pdf-text doc-pdf-text">
           <summary>Texto desta página</summary>
           <p>{text}</p>
         </details>

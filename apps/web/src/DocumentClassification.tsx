@@ -18,7 +18,7 @@ export function DocumentCategorySelect({
 }) {
   const selected = categories.find((item) => item.value === value);
   return (
-    <label>
+    <label className="doc-category-field">
       Tipo documental e modelo
       <select
         aria-label="Tipo documental e modelo"
@@ -78,7 +78,7 @@ export function DocumentClassificationPanel({ translation: t, onSaved }: { trans
     }
   }
   return (
-    <section className="card document-classification">
+    <section className="card document-classification doc-module">
       <h3>Tipo documental e modelo</h3>
       <p>
         <strong>{classification.label}</strong> ·{' '}
@@ -96,7 +96,7 @@ export function DocumentClassificationPanel({ translation: t, onSaved }: { trans
       {t.permissions.classify && (
         <details>
           <summary>Corrigir tipo documental</summary>
-          <fieldset className="classification-fields" disabled={busy}>
+          <fieldset className="classification-fields doc-borderless-fields" disabled={busy}>
             <label>
               Tipo documental
               <select value={category} onChange={(event) => setCategory(event.target.value as DocumentCategory)}>

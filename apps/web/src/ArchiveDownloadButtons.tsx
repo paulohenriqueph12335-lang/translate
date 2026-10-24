@@ -46,7 +46,7 @@ export function ArchiveDownloadButtons({
     }
   }
   return (
-    <div className="archive-controls">
+    <div className="archive-controls doc-archive-controls">
       <div className="actions">
         <button
           className="small"

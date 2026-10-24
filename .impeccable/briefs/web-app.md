@@ -1,19 +1,35 @@
-# Interface web (apps/web)
+# Interface web — contrato visual
 
-Modo: Operate. Público e tarefa em PRODUCT.md. Escopo: identidade visual da aplicação inteira (login, configuração inicial, menu por papel, áreas com abas, tabelas, formulários, prévia). Restrição: só front; backend e banco intocados.
+Produto: Tradutor Documental, descrito em [PRODUCT.md](../../PRODUCT.md). Escopo desta reconstrução: apresentação da aplicação inteira, preservando comportamento, permissões, integrações e documentos gerados.
 
-## Direction contract
+## Direção confirmada
 
-THESIS: A interface é o papel e a tinta de uma tradução juramentada em linguagem contemporânea. Recusa o painel SaaS genérico de cartões arredondados coloridos sobre cinza com um acento azul.
+Aplicação corporativa elegante e discreta, com grafite, verde sóbrio e branco. Temas claro e escuro recebem o mesmo cuidado de hierarquia, contraste e densidade. Títulos em Source Serif 4 Variable; corpo e controles em Inter Variable, com corpo base de 13px. Texto predomina e os ícones são poucos e funcionais.
 
-OWN-WORLD: Off-white de papel (#f3f1ec) como chão, preto de tinta (#111) no menu e nas ações, escala de cinzas para estrutura e texto secundário. Sem cor de marca: cor só para estados (verde, âmbar, vermelho dessaturados). Cantos de 4px, filetes de 1px, sem sombras decorativas. Uma grotesca de trabalho (Schibsted Grotesk) para tudo; mono (Geist Mono) só para números de protocolo, livro, folha e datas.
+A interface é compacta: bordas finas, espaçamento coerente, cantos de 6px nos controles, 8px nos painéis e 10px nos diálogos, com pouca sombra. A identidade anterior baseada em papel de fundo, preto, colchetes e traços ornamentais foi substituída por esta direção.
 
-STORY: A pessoa entra e reconhece o documento que produz: números como no livro do tradutor, situações escritas como notas entre colchetes, cada área fechada pelo traço de inutilização. Encontra a tarefa sem pensar na estética.
+## Primeiro contato e trabalho diário
 
-FIRST VIEWPORT: Menu preto à esquerda com o nome "Tradutor Documental" e a marca de colchetes; áreas em off-white com título grande, o traço de inutilização fechando a linha do título, abas logo abaixo e o trabalho em tabelas/listas de filetes finos. A ação principal é o botão preto.
+O menu reúne áreas por grupos reconhecíveis. Título, contexto e ação principal ficam claros. Os dashboards dão espaço aos gráficos e destacam os índices e seus períodos. Filtros e ações secundárias se mantêm compactos e legíveis.
 
-FORM: Papel de tradução juramentada contemporâneo, escolhido pelo responsável (paleta e referência fixadas no pedido). seed: none (unavailable)
+Documentos aparecem em **blocos individuais**: identidade e protocolo em destaque, metadados alinhados e ações claramente associadas. A escolha confirmada é a opção C, com cartões individuais. A revisão de traduções dá predominância à comparação entre original e Word, mantendo inspeção obrigatória, erros, numeração e bloqueios nas condições existentes.
 
-SIGNATURE: Colchetes de nota do tradutor como marca e como etiquetas de situação; traço de inutilização fechando títulos; numeração em mono tabular.
+Formulários, tabelas, cartões, detalhes e diálogos recebem uma composição consistente. Carregamento, erro, vazio, desabilitação, seleção, reprovação e conclusão fazem parte da direção visual e devem ser considerados em cada área.
 
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+## Documento e funcionalidade
+
+Word e PDF exibem a folha branca real, inclusive no modo escuro. Fontes impressas, alinhamento, tabelas, células mescladas e proporções não recebem o estilo tipográfico da aplicação. Canvas e zoom, progresso, posições de dicas e dimensões calculadas por dados conservam sua geometria dinâmica.
+
+Nenhum novo endpoint, fluxo, regra ou validação faz parte desta reconstrução. Requisições, callbacks, permissões, confirmações e acessibilidade existentes devem ser preservados.
+
+## Sistema de implementação
+
+Tailwind CSS 4.3.3 via Vite. Uma entrada central `apps/web/src/style.css` importa Tailwind, tokens, base, módulos de domínio e `LanguagePairPicker.css`. A divisão de estilos é `tokens`, `foundation`, `domain`, `components`, `account`, `documents`, `administration` e `analytics`.
+
+Os valores de tema e aliases legados estão em `styles/tokens.css`; os componentes usam utilidades semânticas e composição de layout. [DESIGN.md](../../DESIGN.md) registra os critérios de manutenção.
+
+## Evidência e conclusão
+
+A auditoria de código está em [visual-audit.md](../../docs/design/visual-audit.md). O registro separa a leitura anterior às edições da conferência complementar e não afirma execução de todos os estados.
+
+A validação de navegador e a aceitação ainda precisam ser documentadas com evidências em `docs/design/visual-validation.md`. Esta documentação não declara a reconstrução validada ou aceita.

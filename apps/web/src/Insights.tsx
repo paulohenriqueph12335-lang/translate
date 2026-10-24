@@ -7,11 +7,11 @@ import { message } from './ui';
  * Peças dos painéis (Início): período com atalhos e comparação, números com variação, tendência semanal, funil do
  * fluxo, mapa de calor pessoa × semana e o monitor "Agora". Tudo calculado no navegador a partir dos painéis da API.
  *
- * Cor (dataviz, validado): azul-caneta = período atual / série 1, sépia-carimbo = período anterior / série 2;
- * sequencial em azul-caneta; estados com as cores de estado.
+ * Cor: verde = período atual / série 1, oliva = período anterior / série 2; rampa sequencial de verde no mapa de
+ * calor. Os tokens seguem o tema e os estados mantêm seus rótulos textuais.
  */
 /** Rampa sequencial de um tom (claro → escuro) para o mapa de calor. */
-const RAMP = ['#e9eef6', '#c6d3e8', '#93acd2', '#5a80b7', '#2f5a96', '#1d3d6b'];
+const RAMP = Array.from({ length: 6 }, (_, index) => `var(--chart-heat-${index + 1})`);
 
 // ---------- Período ----------
 
@@ -264,7 +264,7 @@ interface Series {
 export function TrendChart({ labels, series, unit = '' }: { labels: string[]; series: Series[]; unit?: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const width = 720;
-  const height = 240;
+  const height = 300;
   const pad = { top: 16, right: 40, bottom: 28, left: 36 };
   const max = Math.max(1, ...series.flatMap((s) => s.values));
   const niceMax = Math.ceil(max / Math.pow(10, Math.floor(Math.log10(max)))) * Math.pow(10, Math.floor(Math.log10(max)));
@@ -308,8 +308,8 @@ export function TrendChart({ labels, series, unit = '' }: { labels: string[]; se
         onBlur={() => setHover(null)}
         onKeyDown={key}
       >
-        {ticks.map((tick) => (
-          <g key={tick}>
+        {ticks.map((tick, index) => (
+          <g key={`${tick}-${index}`}>
             <line x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} className="grid" />
             <text x={pad.left - 8} y={y(tick) + 4} className="axis" textAnchor="end">
               {tick}
@@ -428,7 +428,7 @@ export function Funnel({ steps, previous }: { steps: FunnelStep[]; previous: Fun
                   {rate}% seguiram
                   {prev.count - step.count > 0 && ` · ${prev.count - step.count} ficaram em ${prev.label.toLowerCase()}`}
                 </span>
-                {leak && <strong>[maior perda]</strong>}
+                {leak && <strong>maior perda</strong>}
               </div>
             )}
             <div
@@ -481,7 +481,7 @@ export function Funnel({ steps, previous }: { steps: FunnelStep[]; previous: Fun
 
 type HeatMetric = 'delivered' | 'review';
 
-/** Pessoa × semana: concluídas ou tempo médio de revisão, em um tom de azul do claro ao escuro. */
+/** Pessoa × semana: concluídas ou tempo médio de revisão, com rampa sequencial de verde adaptada ao tema. */
 export function PeopleHeatmap({ docs, range }: { docs: Doc[]; range: Range }) {
   const [metric, setMetric] = useState<HeatMetric>('delivered');
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
@@ -565,6 +565,7 @@ export function PeopleHeatmap({ docs, range }: { docs: Doc[]; range: Range }) {
                       tabIndex={0}
                       aria-label={text}
                       className={s >= 3 ? 'dark' : ''}
+                      data-heat-step={s}
                       style={{ background: s < 0 ? undefined : RAMP[s] }}
                       onPointerMove={(event) => {
                         const box = (event.currentTarget.closest('.heatmap') as HTMLElement).getBoundingClientRect();

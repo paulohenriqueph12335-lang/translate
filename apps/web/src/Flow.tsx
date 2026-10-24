@@ -47,7 +47,7 @@ export function useBatchProtocol(fileCount: number) {
       inspectionMode: fileCount >= 20 ? inspection : 'all',
     },
     fields: (
-      <fieldset className="protocol-fields top-gap">
+      <fieldset className="protocol-fields top-gap doc-protocol-fields">
         <legend>Protocolo da remessa</legend>
         <p className="muted small-text">
           Identifique a remessa antes de traduzir. O protocolo aparecerá no início dos nomes de Word e PDF e poderá ser pesquisado na
@@ -237,13 +237,13 @@ export function NewTranslation({
 
   const sending = busy && progress.size > 0;
   return (
-    <div className="card new-translation">
+    <div className="card new-translation doc-domain doc-form">
       <h3>Nova tradução</h3>
       <p className="muted small-text">
         Siga as etapas para iniciar. O sistema produz a tradução e você compara o original e o Word antes da aprovação.
       </p>
       <TranslationSteps step={step} onChange={setStep} disabled={busy || locked} />
-      <fieldset disabled={busy || locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      <fieldset className="doc-borderless-fields" disabled={busy || locked}>
         {step === 0 && (
           <>
             <div
@@ -284,7 +284,7 @@ export function NewTranslation({
               />
             </div>
             {files.length > 0 && (
-              <ul className="list compact files">
+              <ul className="list compact files doc-cards doc-file-cards">
                 {files.map((file, index) => (
                   <li key={`${file.name}-${index}`}>
                     <div>
@@ -358,7 +358,7 @@ export function NewTranslation({
             {sworn && (
               <div className="tags-field mask-choice">
                 <span className="field-label">Máscara do tradutor</span>
-                <div className="mode-options" role="radiogroup" aria-label="Máscara do tradutor">
+                <div className="mode-options doc-mode-options" role="radiogroup" aria-label="Máscara do tradutor">
                   <button
                     type="button"
                     role="radio"
@@ -474,7 +474,7 @@ export function NewTranslation({
         </p>
       )}
       <Feedback error={error} />
-      <div className="actions">
+      <div className="actions doc-form-footer">
         {step > 0 && (
           <button type="button" disabled={busy || locked} onClick={() => setStep((current) => current - 1)}>
             Voltar
@@ -528,7 +528,7 @@ export function FlowTracker({ t }: { t: TranslationSummary }) {
     ['Word final', t.status === 'approved' ? 'done' : 'waiting', t.status === 'approved' ? 'Word e PDF liberados' : '—'],
   ];
   return (
-    <ol className="flow-track" aria-label="Etapas da tradução">
+    <ol className="flow-track doc-flow-track" aria-label="Etapas da tradução">
       {steps.map(([label, state, hint]) => (
         <li key={label} className={state}>
           <strong>{label}</strong>
@@ -564,8 +564,8 @@ export function WordPanel({
   const pinned = !final && revision ? `&revision=${revision}` : '';
   const pdf = `${base}?format=pdf${pinned}${final ? `#${encodeURIComponent(t.updatedAt)}` : ''}`;
   return (
-    <div className="card word-panel">
-      <div className="word-head">
+    <div className="card word-panel doc-domain doc-word-panel">
+      <div className="word-head doc-panel-header">
         <div>
           <h3>{final ? 'Tradução final' : 'Prévia em Word'}</h3>
           <span className="muted small-text">
@@ -638,7 +638,7 @@ export function DocumentComparison({
   translatedTitle?: string;
 }) {
   return (
-    <div className="document-comparison">
+    <div className="document-comparison doc-comparison">
       <ComparisonPreview
         title={`Original: ${originalName}`}
         url={`/api/v1/documents/${originalDocumentId}/preview`}
@@ -681,8 +681,8 @@ function ComparisonPreview({ title, url, downloadUrl }: { title: string; url: st
     };
   }, [url, attempt]);
   return (
-    <section className="comparison-pane">
-      <div className="word-head">
+    <section className="comparison-pane doc-comparison-pane">
+      <div className="word-head doc-comparison-header">
         <h4>{title}</h4>
         <a className="button small" href={downloadUrl}>
           Baixar para conferir

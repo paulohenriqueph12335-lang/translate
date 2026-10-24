@@ -1,0 +1,420 @@
+@reference 'tailwindcss';
+@reference './tokens.css';
+
+@layer components {
+  .account-auth {
+    @apply mx-auto min-w-0 text-ink;
+    width: min(28rem, calc(100% - 2rem));
+    margin-block: clamp(2rem, 8vh, 5rem);
+    padding: 0;
+  }
+  .account-auth-heading {
+    @apply grid gap-2;
+  }
+  .account-auth-heading .wordmark {
+    @apply mb-5;
+  }
+  .account-auth-heading .wordmark svg {
+    @apply text-accent;
+  }
+  .account-auth .auth-title {
+    @apply m-0 font-display text-3xl font-medium leading-tight text-ink;
+    letter-spacing: -0.025em;
+  }
+  .account-auth-heading > p {
+    @apply m-0 text-sm leading-relaxed text-muted;
+  }
+  .account-auth-form {
+    @apply mt-5 grid min-w-0 gap-4 rounded-panel border border-line bg-surface p-5;
+    box-shadow: var(--shadow-auth);
+  }
+  .account-auth-form::after {
+    content: none;
+  }
+  .account-auth-form > label {
+    @apply grid min-w-0 gap-1.5 text-sm font-medium;
+  }
+  .account-auth-form input {
+    @apply min-w-0 max-w-full;
+  }
+  .account-auth-form input::placeholder,
+  .account-password-form input::placeholder,
+  .account-settings-grid input::placeholder {
+    @apply text-muted;
+  }
+  .account-auth-form label > small {
+    @apply text-xs font-normal leading-relaxed text-muted;
+    overflow-wrap: anywhere;
+  }
+  .account-auth-form .check {
+    @apply grid items-start gap-x-3 gap-y-1;
+    grid-template-columns: 1.125rem minmax(0, 1fr);
+  }
+  .account-auth-form .check input {
+    @apply mt-1;
+  }
+  .account-auth-form .check small {
+    grid-column: 2;
+  }
+  .account-auth-form > .primary {
+    @apply mt-1 w-full;
+  }
+  .account-auth-switch {
+    @apply mt-4 text-center text-sm text-muted;
+  }
+  .account-auth-setup {
+    width: min(36rem, calc(100% - 2rem));
+  }
+  .account-auth-setup .account-auth-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .account-auth-setup .account-auth-form > :is(label:first-child, .check, .alert, button) {
+    grid-column: 1 / -1;
+  }
+  .account-password-field {
+    @apply flex min-w-0 items-center gap-2;
+  }
+  .account-password-field input {
+    @apply min-w-0;
+    flex: 1 1 0%;
+  }
+  .account-password-field > button {
+    @apply shrink-0 px-1 text-xs;
+    min-height: 2rem;
+  }
+
+  .account-settings-grid {
+    @apply grid items-start gap-4;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.4fr);
+  }
+  .account-settings-grid > .settings-card,
+  .account-password {
+    @apply grid min-w-0 content-start gap-4 rounded-panel border border-line bg-surface p-5;
+  }
+  .account-panel-heading {
+    @apply grid min-w-0 gap-1.5;
+  }
+  .account-panel-heading h3 {
+    @apply m-0 font-display text-xl font-medium leading-snug text-ink;
+  }
+  .account-panel-heading p,
+  .account-appearance .settings-hint {
+    @apply m-0 text-sm leading-relaxed text-muted;
+    overflow-wrap: anywhere;
+  }
+  .account-appearance-form,
+  .account-notification-form {
+    @apply grid min-w-0 max-w-none gap-4;
+  }
+  .account-appearance-form > .primary {
+    @apply w-full;
+  }
+  .account-password {
+    @apply max-w-2xl;
+  }
+  .account-password-form {
+    @apply grid min-w-0 items-start gap-4;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .account-password-form > :is(label:first-of-type, .alert, button) {
+    grid-column: 1 / -1;
+  }
+  .account-password-form > .primary {
+    @apply justify-self-start;
+  }
+  .account-password-form input,
+  .account-password-form label {
+    @apply min-w-0 max-w-full;
+  }
+  .account-loading {
+    @apply m-0 rounded-control border border-line bg-canvas px-4 py-3 text-sm text-muted;
+  }
+  .account-notification-fields {
+    @apply m-0 grid min-w-0 gap-4 border-0 p-0;
+  }
+  .account-notification-switch {
+    @apply border-b border-line pb-3 text-sm font-medium;
+  }
+  .account-notification-controls {
+    @apply grid min-w-0 gap-3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .account-notification-controls label,
+  .account-notification-controls select {
+    @apply min-w-0 max-w-full;
+  }
+  .account-notification-form .small-text,
+  .account-notification-form .settings-hint {
+    @apply m-0 text-xs leading-relaxed;
+  }
+  .account-notification-categories {
+    @apply grid gap-2;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-notification-categories > .notification-category {
+    @apply grid min-w-0 items-center gap-4 rounded-control border border-line bg-surface p-3;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .account-category-copy {
+    @apply grid min-w-0 gap-1;
+    overflow-wrap: anywhere;
+  }
+  .account-category-copy h4 {
+    @apply m-0 flex flex-wrap items-center gap-2 font-display text-base font-medium leading-snug text-ink;
+  }
+  .account-category-copy p {
+    @apply m-0 text-xs leading-relaxed;
+  }
+  .account-category-copy p.muted {
+    @apply text-muted;
+  }
+  .account-category-copy .badge {
+    @apply m-0 text-xs font-medium text-accent;
+  }
+  .account-category-channels {
+    @apply flex min-w-0 flex-col items-start gap-2.5;
+  }
+  .account-category-channels label {
+    @apply m-0 min-w-0 gap-2 text-xs font-medium;
+  }
+  .account-category-channels input {
+    @apply shrink-0;
+  }
+  .account-notification-actions {
+    @apply flex flex-wrap items-center gap-2 border-t border-line pt-4;
+  }
+  .account-notification-actions > button {
+    @apply min-w-0;
+    white-space: normal;
+  }
+
+  .account-notification-center {
+    @apply grid min-w-0 gap-3;
+  }
+  .account-notification-filters {
+    @apply m-0 flex min-w-0 flex-wrap items-center gap-2 rounded-panel border border-line bg-surface p-3;
+  }
+  .account-notification-filters > select {
+    @apply min-w-0;
+    flex: 1 1 10rem;
+  }
+  .account-notification-filters > .segmented {
+    @apply shrink-0;
+  }
+  .account-notification-list {
+    @apply m-0 grid min-w-0 list-none gap-2 p-0;
+  }
+  .account-notification-list > .account-notification-item {
+    @apply grid min-w-0 items-start gap-4 rounded-panel border border-line bg-surface p-4;
+    grid-template-columns: minmax(0, 1fr) auto;
+    opacity: 1;
+  }
+  .account-notification-list > .unread {
+    border-left: 2px solid var(--accent);
+  }
+  .account-notification-content {
+    @apply grid min-w-0 gap-1.5;
+    overflow-wrap: anywhere;
+  }
+  .account-notification-title {
+    @apply grid min-w-0 gap-1 font-display text-lg font-medium leading-snug text-ink;
+  }
+  .account-notification-kind {
+    @apply m-0 justify-self-start font-sans text-xs font-medium;
+  }
+  .account-notification-body {
+    @apply text-sm leading-relaxed;
+  }
+  .account-notification-reason,
+  .account-notification-meta {
+    @apply text-xs leading-relaxed text-muted;
+  }
+  .account-notification-meta {
+    @apply mt-1;
+    font-variant-numeric: tabular-nums;
+  }
+  .account-notification-read {
+    @apply min-w-0 self-start whitespace-normal text-xs;
+  }
+  .account-popup-note,
+  .account-popup-settings {
+    @apply m-0 flex min-w-0 flex-wrap items-center gap-3 rounded-control border border-line bg-canvas px-3 py-2.5 text-xs leading-relaxed;
+    overflow-wrap: anywhere;
+  }
+  .account-popup-granted {
+    @apply text-accent;
+  }
+  .account-popup-description,
+  .account-popup-error {
+    @apply m-0 min-w-0;
+  }
+  .account-popup-description {
+    flex: 1 1 18rem;
+  }
+  .account-popup-error {
+    flex-basis: 100%;
+  }
+
+  .account-confirm {
+    @apply m-auto rounded-panel border border-line bg-surface p-6 text-ink;
+    width: min(32.5rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    overflow: auto;
+    box-shadow: var(--shadow-confirm);
+  }
+  .account-confirm::backdrop {
+    background: var(--backdrop-confirm);
+    backdrop-filter: none;
+  }
+  .account-confirm-title {
+    @apply m-0 font-display text-2xl font-medium leading-tight;
+  }
+  .account-confirm-message {
+    @apply my-4 text-sm leading-relaxed;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+  .account-confirm-actions {
+    @apply flex flex-wrap justify-end gap-2 border-t border-line pt-4;
+  }
+  .account-confirm-actions > button {
+    @apply min-w-0 whitespace-normal;
+  }
+
+  .account-toasts {
+    @apply fixed grid gap-2;
+    right: max(1rem, env(safe-area-inset-right, 0px));
+    bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    width: min(24rem, calc(100vw - 2rem));
+    z-index: 80;
+    pointer-events: none;
+  }
+  .account-toast {
+    @apply relative flex min-w-0 items-start overflow-hidden rounded-panel border border-line bg-surface text-ink;
+    box-shadow: var(--shadow-toast);
+    pointer-events: auto;
+    animation: account-toast-in 160ms ease-out both;
+  }
+  .account-toast::after {
+    @apply absolute bottom-0 left-0 h-px w-full bg-accent;
+    content: '';
+    transform-origin: left;
+    animation: account-toast-timer var(--toast-ms, 6000ms) linear both;
+  }
+  .account-toast-body {
+    @apply grid min-w-0 flex-1 justify-items-start gap-1 border-0 bg-transparent px-4 py-3 text-left font-normal text-ink;
+    overflow-wrap: anywhere;
+  }
+  .account-toast-body::before,
+  .account-toast-body::after {
+    content: none;
+  }
+  .account-toast-kind {
+    @apply m-0 text-xs font-medium text-accent;
+  }
+  .account-toast-title {
+    @apply font-display text-lg font-medium leading-snug;
+  }
+  .account-toast-body .small-text {
+    @apply text-xs leading-relaxed text-muted;
+  }
+  .account-toast-dismiss {
+    @apply m-1 grid shrink-0 place-items-center rounded-control border-0 bg-transparent p-0 text-muted;
+    width: 2rem;
+    height: 2rem;
+  }
+  .account-toast-dismiss:hover {
+    @apply bg-canvas text-ink;
+  }
+  .update-banner.account-update-banner {
+    @apply sticky top-0 m-0 flex min-w-0 flex-wrap items-center justify-center gap-3 rounded-none border-0 border-b border-line bg-surface px-4 py-2 text-center text-sm text-ink;
+    z-index: 70;
+  }
+  .account-update-message {
+    @apply min-w-0;
+    overflow-wrap: anywhere;
+  }
+  .account-update-action {
+    @apply shrink-0;
+  }
+
+  @media (max-width: 1100px) {
+    .account-settings-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.45fr);
+    }
+    .account-notification-categories > .notification-category {
+      grid-template-columns: minmax(0, 1fr);
+      @apply gap-3;
+    }
+    .account-category-channels {
+      @apply flex-row flex-wrap gap-x-4 gap-y-2;
+    }
+  }
+  @media (max-width: 900px) {
+    .account-settings-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .account-toasts {
+      bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+  @media (max-width: 600px) {
+    .account-auth {
+      margin-block: 2rem;
+    }
+    .account-auth-form,
+    .account-settings-grid > .settings-card,
+    .account-password,
+    .account-confirm {
+      @apply p-4;
+    }
+    .account-auth-setup .account-auth-form,
+    .account-password-form,
+    .account-notification-controls,
+    .account-notification-list > .account-notification-item {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .account-confirm-actions {
+      @apply grid grid-cols-2;
+    }
+    .account-confirm-actions > button {
+      @apply w-full;
+    }
+    .account-notification-read {
+      @apply justify-self-start;
+    }
+    .account-notification-actions > button {
+      @apply w-full justify-center;
+    }
+  }
+  @media (pointer: coarse) {
+    .account-toast-dismiss,
+    .account-password-field > button {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .account-toast,
+    .account-toast::after {
+      animation: none;
+    }
+  }
+}
+
+@keyframes account-toast-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes account-toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}

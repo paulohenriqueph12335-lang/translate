@@ -24,9 +24,9 @@ export function UpdateBanner() {
   }, []);
   if (!outdated) return null;
   return (
-    <div className="alert warn-box banner update-banner" role="alert">
-      O sistema foi atualizado. Recarregue a página para usar a versão nova.{' '}
-      <button className="small primary" onClick={() => window.location.reload()}>
+    <div className="alert warn-box banner update-banner account-update-banner" role="alert">
+      <span className="account-update-message">O sistema foi atualizado. Recarregue a página para usar a versão nova. </span>
+      <button className="small primary account-update-action" onClick={() => window.location.reload()}>
         Recarregar agora
       </button>
     </div>

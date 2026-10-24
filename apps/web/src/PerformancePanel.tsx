@@ -97,215 +97,221 @@ export function PerformancePanel({
   const previous = data?.previous?.totals;
   const title = personal ? 'Meu desenvolvimento' : 'Erros × acertos';
   return (
-    <Section
-      title={title}
-      subtitle={
-        personal
-          ? 'Sua produção, suas entregas e suas revisões. Os dados incluem somente documentos sob sua responsabilidade.'
-          : 'Produtividade, retrabalho, conferências humanas e falhas técnicas da organização.'
-      }
-    >
-      <div className="filters dash-filters no-print">
-        {control}
-        {!personal && (
-          <select aria-label="Equipe da qualidade" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-            <option value="">Toda a organização</option>
-            {teams.data?.items.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
+    <div className="analytics-view performance-view">
+      <Section
+        title={title}
+        subtitle={
+          personal
+            ? 'Sua produção, suas entregas e suas revisões. Os dados incluem somente documentos sob sua responsabilidade.'
+            : 'Produtividade, retrabalho, conferências humanas e falhas técnicas da organização.'
+        }
+      >
+        <div className="filters dash-filters no-print">
+          {control}
+          {!personal && (
+            <select aria-label="Equipe da qualidade" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+              <option value="">Toda a organização</option>
+              {teams.data?.items.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <LanguagePairPicker label="Idiomas do desenvolvimento" value={pair} onChange={setPair} any="Todos os pares de idiomas" />
+          <select aria-label="Modalidade do desenvolvimento" value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option value="">Todas as modalidades</option>
+            {Object.entries(modeLabel).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
               </option>
             ))}
           </select>
-        )}
-        <LanguagePairPicker label="Idiomas do desenvolvimento" value={pair} onChange={setPair} any="Todos os pares de idiomas" />
-        <select aria-label="Modalidade do desenvolvimento" value={mode} onChange={(e) => setMode(e.target.value)}>
-          <option value="">Todas as modalidades</option>
-          {Object.entries(modeLabel).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <button
-          disabled={!current || loading}
-          onClick={() =>
-            current &&
-            downloadCsv(
-              `${personal ? 'meu-desenvolvimento' : 'qualidade'}-${current.period.from}.csv`,
-              ['Indicador', 'Quantidade'],
-              Object.entries(current.totals).map(([label, value]) => [label, value]),
-            )
-          }
-        >
-          Exportar indicadores CSV
-        </button>
-      </div>
-      <Feedback error={error ?? teams.error} />
-      {loading && <p role="status">Atualizando indicadores…</p>}
-      {t && current && (
-        <div aria-busy={loading}>
-          <div className="stat-row">
-            <StatTile
-              label="Concluídas no período"
-              value={String(t.approved)}
-              detail={previous ? `${previous.approved} no período anterior` : 'Pela data de conclusão'}
-            />
-            <StatTile
-              label="Acerto de primeira"
-              value={t.firstTimeRate === null ? 'Sem conclusões' : `${t.firstTimeRate}%`}
-              detail={`${t.firstTime} sem devolução nem exceção de ${t.approved} concluídas`}
-            />
-            <StatTile label="Concluídas com retrabalho ou exceção" value={String(t.reworked)} detail="Cada documento conta uma única vez" />
-            <StatTile
-              label="Falhas técnicas no período"
-              value={String(t.failed)}
-              detail="Documentos ainda com falha, pela última atualização"
-            />
-            <StatTile
-              label="Em andamento agora"
-              value={String(t.inProgress)}
-              detail={`${t.inReview} em conferência · ${t.blocked} exigem novo formato após três reprovações`}
-            />
-            <StatTile
-              label="Tempo médio para concluir"
-              value={duration(t.avgMinutes)}
-              detail={`${t.awaitingDownload} concluídas ainda sem download`}
+          <button
+            disabled={!current || loading}
+            onClick={() =>
+              current &&
+              downloadCsv(
+                `${personal ? 'meu-desenvolvimento' : 'qualidade'}-${current.period.from}.csv`,
+                ['Indicador', 'Quantidade'],
+                Object.entries(current.totals).map(([label, value]) => [label, value]),
+              )
+            }
+          >
+            Exportar indicadores CSV
+          </button>
+        </div>
+        <Feedback error={error ?? teams.error} />
+        {loading && <p role="status">Atualizando indicadores…</p>}
+        {t && current && (
+          <div className="performance-body" aria-busy={loading}>
+            <div className="stat-row">
+              <StatTile
+                label="Concluídas no período"
+                value={String(t.approved)}
+                detail={previous ? `${previous.approved} no período anterior` : 'Pela data de conclusão'}
+              />
+              <StatTile
+                label="Acerto de primeira"
+                value={t.firstTimeRate === null ? 'Sem conclusões' : `${t.firstTimeRate}%`}
+                detail={`${t.firstTime} sem devolução nem exceção de ${t.approved} concluídas`}
+              />
+              <StatTile
+                label="Concluídas com retrabalho ou exceção"
+                value={String(t.reworked)}
+                detail="Cada documento conta uma única vez"
+              />
+              <StatTile
+                label="Falhas técnicas no período"
+                value={String(t.failed)}
+                detail="Documentos ainda com falha, pela última atualização"
+              />
+              <StatTile
+                label="Em andamento agora"
+                value={String(t.inProgress)}
+                detail={`${t.inReview} em conferência · ${t.blocked} exigem novo formato após três reprovações`}
+              />
+              <StatTile
+                label="Tempo médio para concluir"
+                value={duration(t.avgMinutes)}
+                detail={`${t.awaitingDownload} concluídas ainda sem download`}
+              />
+            </div>
+            <p className="muted small-text">
+              Acerto de primeira é um indicador do fluxo de revisão. As conferências e as falhas técnicas são contadas separadamente. Médias
+              e totais usam todos os registros do filtro; a lista abaixo exibe até 100 documentos.
+            </p>
+            <DashboardWidgets
+              userId={me.user.id}
+              namespace={personal ? 'personal-development' : 'quality'}
+              widgets={[
+                {
+                  id: 'trend',
+                  title: 'Evolução da produção',
+                  defaultVisible: true,
+                  wide: true,
+                  content: (
+                    <ChartCard title="Evolução da produção" subtitle="Conclusões por semana, com comparação de períodos">
+                      <TrendChart
+                        labels={current.weeks.map((w) => shortDate(w.week))}
+                        series={[
+                          { name: 'Concluídas', color: INK_BLUE, values: current.weeks.map((w) => w.approved) },
+                          ...(data.previous
+                            ? [
+                                {
+                                  name: 'Período anterior',
+                                  color: SEPIA,
+                                  dashed: true,
+                                  values: current.weeks.map((_, i) => data.previous?.weeks[i]?.approved ?? 0),
+                                },
+                              ]
+                            : []),
+                        ]}
+                      />
+                    </ChartCard>
+                  ),
+                },
+                {
+                  id: 'outcomes',
+                  title: 'Acertos e retrabalho',
+                  defaultVisible: true,
+                  content: (
+                    <ChartCard title="Acertos e retrabalho" subtitle="Categorias exclusivas entre documentos concluídos">
+                      <StackedShare
+                        parts={['Acerto de primeira', 'Retrabalho ou exceção']}
+                        rows={[{ label: 'Concluídas', values: [t.firstTime, t.reworked] }]}
+                      />
+                    </ChartCard>
+                  ),
+                },
+                {
+                  id: 'reviews',
+                  title: 'Conferências e fases',
+                  defaultVisible: !personal,
+                  content: (
+                    <ChartCard
+                      title="Conferências humanas"
+                      subtitle={`${t.approvedInspections} aprovadas · ${t.rejectedInspections} reprovadas no período; um documento pode ter várias conferências`}
+                    >
+                      <RankedBars
+                        items={current.failedStages.map((item) => ({ label: stages[item.stage] ?? item.stage, value: item.count }))}
+                      />
+                    </ChartCard>
+                  ),
+                },
+                {
+                  id: 'technical',
+                  title: 'Causas de falha',
+                  defaultVisible: !personal,
+                  content: (
+                    <ChartCard title="Causas de falha técnica" subtitle="Falhas atuais atualizadas no período">
+                      <RankedBars
+                        items={current.failureCauses.map((item) => ({ label: causes[item.code] ?? item.code, value: item.count }))}
+                      />
+                    </ChartCard>
+                  ),
+                },
+                {
+                  id: 'documents',
+                  title: personal ? 'Meus documentos' : 'Documentos do período',
+                  defaultVisible: true,
+                  wide: true,
+                  content: (
+                    <ChartCard
+                      title={personal ? 'Meus documentos' : 'Documentos do período'}
+                      subtitle={
+                        current.documentsTruncated
+                          ? '100 mais recentes. Os indicadores acima incluem os demais.'
+                          : `${current.documents.length} documento(s) recebidos ou concluídos no período`
+                      }
+                    >
+                      <div className="table-wrap document-report" role="region" aria-label="Documentos do desenvolvimento" tabIndex={0}>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Documento / protocolo</th>
+                              <th>Idiomas</th>
+                              <th>Situação</th>
+                              <th>Devoluções</th>
+                              <th>Conclusão</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {current.documents.map((doc) => (
+                              <tr key={doc.id}>
+                                <td data-label="Documento / protocolo">
+                                  {doc.name}
+                                  <span className="block-line muted small-text">{doc.protocol ?? 'Sem protocolo'}</span>
+                                </td>
+                                <td data-label="Idiomas">{pairLabel(doc.sourceLanguage, doc.targetLanguage)}</td>
+                                <td data-label="Situação">
+                                  {translationStatusLabel[doc.status]}
+                                  {doc.failureCode && (
+                                    <span className="block-line small-text">{causes[doc.failureCode] ?? doc.failureCode}</span>
+                                  )}
+                                </td>
+                                <td data-label="Devoluções">{doc.redoCount}</td>
+                                <td data-label="Conclusão">{doc.approvedAt ? dateTime(doc.approvedAt) : 'Em andamento'}</td>
+                                <td data-label="Ações">
+                                  <button className="small" onClick={() => onOpenTranslation(doc.id)}>
+                                    Abrir
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {!current.documents.length && <p className="empty">Nenhum documento neste período e filtros.</p>}
+                    </ChartCard>
+                  ),
+                },
+              ]}
             />
           </div>
-          <p className="muted small-text">
-            Acerto de primeira é um indicador do fluxo de revisão. As conferências e as falhas técnicas são contadas separadamente. Médias e
-            totais usam todos os registros do filtro; a lista abaixo exibe até 100 documentos.
-          </p>
-          <DashboardWidgets
-            userId={me.user.id}
-            namespace={personal ? 'personal-development' : 'quality'}
-            widgets={[
-              {
-                id: 'trend',
-                title: 'Evolução da produção',
-                defaultVisible: true,
-                wide: true,
-                content: (
-                  <ChartCard title="Evolução da produção" subtitle="Conclusões por semana, com comparação de períodos">
-                    <TrendChart
-                      labels={current.weeks.map((w) => shortDate(w.week))}
-                      series={[
-                        { name: 'Concluídas', color: INK_BLUE, values: current.weeks.map((w) => w.approved) },
-                        ...(data.previous
-                          ? [
-                              {
-                                name: 'Período anterior',
-                                color: SEPIA,
-                                dashed: true,
-                                values: current.weeks.map((_, i) => data.previous?.weeks[i]?.approved ?? 0),
-                              },
-                            ]
-                          : []),
-                      ]}
-                    />
-                  </ChartCard>
-                ),
-              },
-              {
-                id: 'outcomes',
-                title: 'Acertos e retrabalho',
-                defaultVisible: true,
-                content: (
-                  <ChartCard title="Acertos e retrabalho" subtitle="Categorias exclusivas entre documentos concluídos">
-                    <StackedShare
-                      parts={['Acerto de primeira', 'Retrabalho ou exceção']}
-                      rows={[{ label: 'Concluídas', values: [t.firstTime, t.reworked] }]}
-                    />
-                  </ChartCard>
-                ),
-              },
-              {
-                id: 'reviews',
-                title: 'Conferências e fases',
-                defaultVisible: !personal,
-                content: (
-                  <ChartCard
-                    title="Conferências humanas"
-                    subtitle={`${t.approvedInspections} aprovadas · ${t.rejectedInspections} reprovadas no período; um documento pode ter várias conferências`}
-                  >
-                    <RankedBars
-                      items={current.failedStages.map((item) => ({ label: stages[item.stage] ?? item.stage, value: item.count }))}
-                    />
-                  </ChartCard>
-                ),
-              },
-              {
-                id: 'technical',
-                title: 'Causas de falha',
-                defaultVisible: !personal,
-                content: (
-                  <ChartCard title="Causas de falha técnica" subtitle="Falhas atuais atualizadas no período">
-                    <RankedBars
-                      items={current.failureCauses.map((item) => ({ label: causes[item.code] ?? item.code, value: item.count }))}
-                    />
-                  </ChartCard>
-                ),
-              },
-              {
-                id: 'documents',
-                title: personal ? 'Meus documentos' : 'Documentos do período',
-                defaultVisible: true,
-                wide: true,
-                content: (
-                  <ChartCard
-                    title={personal ? 'Meus documentos' : 'Documentos do período'}
-                    subtitle={
-                      current.documentsTruncated
-                        ? '100 mais recentes. Os indicadores acima incluem os demais.'
-                        : `${current.documents.length} documento(s) recebidos ou concluídos no período`
-                    }
-                  >
-                    <div className="table-wrap" role="region" aria-label="Documentos do desenvolvimento" tabIndex={0}>
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Documento / protocolo</th>
-                            <th>Idiomas</th>
-                            <th>Situação</th>
-                            <th>Devoluções</th>
-                            <th>Conclusão</th>
-                            <th />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {current.documents.map((doc) => (
-                            <tr key={doc.id}>
-                              <td>
-                                {doc.name}
-                                <span className="block-line muted small-text">{doc.protocol ?? 'Sem protocolo'}</span>
-                              </td>
-                              <td>{pairLabel(doc.sourceLanguage, doc.targetLanguage)}</td>
-                              <td>
-                                {translationStatusLabel[doc.status]}
-                                {doc.failureCode && (
-                                  <span className="block-line small-text">{causes[doc.failureCode] ?? doc.failureCode}</span>
-                                )}
-                              </td>
-                              <td>{doc.redoCount}</td>
-                              <td>{doc.approvedAt ? dateTime(doc.approvedAt) : 'Em andamento'}</td>
-                              <td>
-                                <button className="small" onClick={() => onOpenTranslation(doc.id)}>
-                                  Abrir
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {!current.documents.length && <p className="empty">Nenhum documento neste período e filtros.</p>}
-                  </ChartCard>
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
-    </Section>
+        )}
+      </Section>
+    </div>
   );
 }

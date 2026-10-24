@@ -37,7 +37,7 @@ export function DocumentTiming({ translation: t }: { translation: TranslationSum
       ? Math.max(0, (clock - Date.parse(timing.completedAt)) / 1000)
       : timing.waitingDownloadSeconds;
   return (
-    <div className="document-timing" aria-label="Tempos do documento">
+    <div className="document-timing doc-timing" aria-label="Tempos do documento">
       <div>
         <span className="muted">Estimativa de produção</span>
         <strong>{elapsedLabel(timing.estimatedSeconds)}</strong>
@@ -128,8 +128,8 @@ export function InspectionGate({
     }
   }
   return (
-    <section className="card inspection-gate" aria-labelledby="inspection-heading">
-      <div className="word-head">
+    <section className="card inspection-gate doc-domain doc-module doc-inspection-gate" aria-labelledby="inspection-heading">
+      <div className="word-head doc-panel-header">
         <h3 id="inspection-heading">Conferência antes da aprovação</h3>
         <span className={`badge ${attempts ? 'warn' : 'soft'}`}>{attempts} de 3 reprovações consecutivas</span>
       </div>
@@ -239,7 +239,7 @@ export function LanguageCorrection({ t, me, onDone }: { t: TranslationSummary; m
     }
   }
   return (
-    <details className="card workflow-adjustment">
+    <details className="card workflow-adjustment doc-module">
       <summary>Corrigir idiomas da documentação</summary>
       <p className="muted small-text">
         O documento será processado no novo par, usando o fluxo escolhido com ou sem IA. O motivo e os idiomas anteriores ficam na
@@ -341,7 +341,7 @@ export function RegisterFormat({
     }
   }
   return (
-    <details className="card format-registration" open={t.reviewLifecycle.blocked}>
+    <details className="card format-registration doc-domain doc-module" open={t.reviewLifecycle.blocked}>
       <summary>Registrar nova forma de formatação</summary>
       <p className="muted">
         Corrija a estrutura, o alinhamento, os estilos ou as tabelas no editor. Alterar somente o texto ou o nome do formato não remove o
@@ -400,7 +400,7 @@ export function RegisterFormat({
 export function InspectionHistory({ items }: { items: InspectionEvent[] }) {
   if (!items.length) return null;
   return (
-    <details className="card">
+    <details className="card doc-module doc-inspection-history">
       <summary>Histórico de conferências e reprovações ({items.length})</summary>
       <ol className="inspection-history">
         {items.map((item) => (

@@ -37,7 +37,7 @@ export function PairSelect({
 
 export function ModeSelect({ value, onChange }: { value: TranslationMode; onChange: (mode: TranslationMode) => void }) {
   return (
-    <div className="mode-options" role="radiogroup" aria-label="Modalidade da tradução">
+    <div className="mode-options doc-mode-options" role="radiogroup" aria-label="Modalidade da tradução">
       {MODES.map((mode) => (
         <button
           key={mode}
@@ -103,7 +103,7 @@ export function StagesPanel({
   }
 
   return (
-    <div className="card stages">
+    <div className="card stages doc-domain doc-module doc-stages">
       <ol className="stage-track">
         {stages.map((stage) => {
           const items = checklist.filter((item) => item.stage === stage);
@@ -231,7 +231,7 @@ export function TranslationRulesEditor() {
   );
 
   return (
-    <div className="stack">
+    <div className="stack doc-domain doc-rules">
       <p className="muted small-text">
         O padrão vem das skills de tradução da organização (ENG, FRA, ITA, ESP) e da regra de bordas. Ajustes valem para as traduções
         processadas depois.

@@ -297,6 +297,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const tab = current.tabs.find((item) => item.key === place.tab) ?? current.tabs[0]!;
   // Áreas de uma aba só mostram a tela como sempre; com várias, o título da área e as abas.
   const single = current.tabs.length === 1;
+  const navigationGroup = (key: AreaKey) => (key === 'home' ? 'Visão geral' : key === 'work' || key === 'history' ? 'Operação' : 'Gestão');
 
   return (
     <div className="shell">
@@ -307,9 +308,12 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           <span className="muted">{me.user.email}</span>
           <span className="badge">{role}</span>
         </div>
-        <nav>
-          {visible.map((area) => (
+        <nav aria-label="Navegação principal">
+          {visible.map((area, index) => (
             <div key={area.key} className="nav-item">
+              {(index === 0 || navigationGroup(visible[index - 1]!.key) !== navigationGroup(area.key)) && (
+                <span className="nav-group">{navigationGroup(area.key)}</span>
+              )}
               <button aria-label={area.label} className={current.key === area.key ? 'active' : ''} onClick={() => go(area.key)}>
                 <span className="label-full">{area.label}</span>
                 <span className="label-short">{area.short ?? area.label}</span>
@@ -319,6 +323,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           ))}
         </nav>
         <div className="sidebar-foot">
+          <span className="nav-group account-nav-label">Minha conta</span>
           {footer.map((area) => (
             <button
               key={area.key}

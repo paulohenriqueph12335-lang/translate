@@ -2,7 +2,6 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSP
 import { createPortal } from 'react-dom';
 import { LANGUAGE_PAIRS } from './api';
 import { languagePairTokens, searchLanguagePairs } from './language-pair-search';
-import './LanguagePairPicker.css';
 
 export interface LanguagePairPickerProps {
   value: string;

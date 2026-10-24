@@ -69,77 +69,81 @@ export function Notifications({
 
   return (
     <Section title="Notificações" subtitle="Documentos prontos, tipos novos, pedidos para refazer, conclusões e falhas.">
-      <PopupSettings
-        enabled={Boolean(settings.data?.notificationsEnabled && Object.values(settings.data.categories).some((item) => item.browser))}
-      />
-      <div className="filters">
-        <Segmented
-          label="Mostrar"
-          value={filter}
-          options={[
-            ['unread', 'Não lidas'],
-            ['all', 'Todas'],
-          ]}
-          onChange={setFilter}
+      <div className="account-notification-center">
+        <PopupSettings
+          enabled={Boolean(settings.data?.notificationsEnabled && Object.values(settings.data.categories).some((item) => item.browser))}
         />
-        <select aria-label="Tipo de notificação" value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="">Todos os tipos</option>
-          {Object.entries(notificationKindLabel).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
+        <div className="filters account-notification-filters">
+          <Segmented
+            label="Mostrar"
+            value={filter}
+            options={[
+              ['unread', 'Não lidas'],
+              ['all', 'Todas'],
+            ]}
+            onChange={setFilter}
+          />
+          <select aria-label="Tipo de notificação" value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="">Todos os tipos</option>
+            {Object.entries(notificationKindLabel).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Assunto da notificação" value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">Todos os assuntos</option>
+            {settings.data?.catalog.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <span className="spacer" />
+          <button className="small" onClick={() => void markRead()}>
+            Marcar todas como lidas
+          </button>
+        </div>
+        <Feedback error={error ?? list.error ?? settings.error} />
+        <ul className="list selectable notifications account-notification-list">
+          {list.items.map((item) => (
+            <li key={item.id} className={`${item.readAt ? 'read' : 'unread'} account-notification-item`} onClick={() => open(item)}>
+              <div className="account-notification-content">
+                <strong className="account-notification-title">
+                  <span className={`badge ${KIND_TONE[item.kind] ?? 'soft'} account-notification-kind`}>
+                    {notificationKindLabel[item.kind] ?? item.kind}
+                  </span>{' '}
+                  <span>{item.title}</span>
+                </strong>
+                {item.body && <span className="account-notification-body">{item.body}</span>}
+                {item.reason && <span className="small-text account-notification-reason">Por que recebi: {item.reason}</span>}
+                <span className="muted small-text account-notification-meta">
+                  {dateTime(item.createdAt)}
+                  {item.team ? ` · ${item.team.name}` : ''}
+                </span>
+              </div>
+              {!item.readAt && (
+                <button
+                  className="small ghost account-notification-read"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void markRead([item.id]);
+                  }}
+                >
+                  Marcar como lida
+                </button>
+              )}
+            </li>
           ))}
-        </select>
-        <select aria-label="Assunto da notificação" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">Todos os assuntos</option>
-          {settings.data?.catalog.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-        <span className="spacer" />
-        <button className="small" onClick={() => void markRead()}>
-          Marcar todas como lidas
-        </button>
+        </ul>
+        <PagedFooter
+          hasMore={list.hasMore}
+          loading={list.loading}
+          onMore={list.more}
+          empty={list.items.length === 0}
+          emptyText={filter === 'unread' ? 'Nenhuma notificação nova.' : 'Nenhuma notificação.'}
+        />
       </div>
-      <Feedback error={error ?? list.error ?? settings.error} />
-      <ul className="list selectable notifications">
-        {list.items.map((item) => (
-          <li key={item.id} className={item.readAt ? 'read' : 'unread'} onClick={() => open(item)}>
-            <div>
-              <strong>
-                <span className={`badge ${KIND_TONE[item.kind] ?? 'soft'}`}>{notificationKindLabel[item.kind] ?? item.kind}</span>{' '}
-                {item.title}
-              </strong>
-              {item.body && <span>{item.body}</span>}
-              {item.reason && <span className="small-text">Por que recebi: {item.reason}</span>}
-              <span className="muted small-text">
-                {dateTime(item.createdAt)}
-                {item.team ? ` · ${item.team.name}` : ''}
-              </span>
-            </div>
-            {!item.readAt && (
-              <button
-                className="small ghost"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void markRead([item.id]);
-                }}
-              >
-                Marcar como lida
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      <PagedFooter
-        hasMore={list.hasMore}
-        loading={list.loading}
-        onMore={list.more}
-        empty={list.items.length === 0}
-        emptyText={filter === 'unread' ? 'Nenhuma notificação nova.' : 'Nenhuma notificação.'}
-      />
     </Section>
   );
 }

@@ -32,123 +32,125 @@ export function Numbering({ me, onOpenTranslation }: { me: Me; onOpenTranslation
   }
 
   return (
-    <Section
-      title="Numeração"
-      subtitle={
-        supervises
-          ? 'Quantos números de Tradução Pública cada nível pode usar no ano. Sem cota, não há limite naquele nível.'
-          : 'Sua cota de números de Tradução Pública no ano e seus pedidos de alteração.'
-      }
-    >
-      {supervises && (
-        <Segmented
-          label="Numeração"
-          value={tab}
-          options={[
-            ['translators', 'Tradutores e números'],
-            ['quotas', 'Cotas e pedidos'],
-          ]}
-          onChange={(value) => {
-            setTab(value);
-            setManaging(null);
-          }}
-        />
-      )}
-      {tab === 'translators' && supervises && (
-        <div className="top-gap">
-          {managing ? (
-            <TranslatorNumberingAdmin translatorId={managing} onBack={() => setManaging(null)} />
-          ) : (
-            <TranslatorNumberingDashboard onManage={me.memberships.some((m) => m.role === 'leader') ? setManaging : undefined} />
-          )}
-        </div>
-      )}
-      {tab === 'quotas' && (
-        <>
-          <div className="filters">
-            <select aria-label="Ano" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-              {[thisYear + 1, thisYear, thisYear - 1, thisYear - 2].map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
+    <div className="administration-view numbering-view">
+      <Section
+        title="Numeração"
+        subtitle={
+          supervises
+            ? 'Quantos números de Tradução Pública cada nível pode usar no ano. Sem cota, não há limite naquele nível.'
+            : 'Sua cota de números de Tradução Pública no ano e seus pedidos de alteração.'
+        }
+      >
+        {supervises && (
+          <Segmented
+            label="Numeração"
+            value={tab}
+            options={[
+              ['translators', 'Tradutores e números'],
+              ['quotas', 'Cotas e pedidos'],
+            ]}
+            onChange={(value) => {
+              setTab(value);
+              setManaging(null);
+            }}
+          />
+        )}
+        {tab === 'translators' && supervises && (
+          <div className="top-gap">
+            {managing ? (
+              <TranslatorNumberingAdmin translatorId={managing} onBack={() => setManaging(null)} />
+            ) : (
+              <TranslatorNumberingDashboard onManage={me.memberships.some((m) => m.role === 'leader') ? setManaging : undefined} />
+            )}
           </div>
-          <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
-          {data && (
-            <>
-              <div className="card quota-mine">
-                <strong>Minha cota em {data.year}</strong>
-                <Meter used={data.mine.used} quota={data.mine.quota} />
-              </div>
+        )}
+        {tab === 'quotas' && (
+          <>
+            <div className="filters">
+              <select aria-label="Ano" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+                {[thisYear + 1, thisYear, thisYear - 1, thisYear - 2].map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
+            {data && (
+              <>
+                <div className="card quota-mine">
+                  <strong>Minha cota em {data.year}</strong>
+                  <Meter used={data.mine.used} quota={data.mine.quota} />
+                </div>
 
-              {data.organization && (
-                <>
-                  <h3 className="top-gap">Organização e equipes</h3>
-                  <ul className="list compact">
-                    <li>
-                      <div>
-                        <strong>Toda a organização</strong>
-                        <Meter used={data.organization.used} quota={data.organization.quota} />
-                      </div>
-                      <QuotaEditor
-                        value={data.organization.quota}
-                        max={1_000_000}
-                        onSave={(quota) => save({ scope: 'organization', quota }, 'Limite da organização salvo.')}
-                      />
-                    </li>
-                    {data.teams.map((team) => (
-                      <li key={team.id}>
+                {data.organization && (
+                  <>
+                    <h3 className="top-gap">Organização e equipes</h3>
+                    <ul className="list compact quota-list">
+                      <li>
                         <div>
-                          <strong>{team.name}</strong>
-                          <Meter used={team.used} quota={team.quota} />
+                          <strong>Toda a organização</strong>
+                          <Meter used={data.organization.used} quota={data.organization.quota} />
                         </div>
-                        {team.canEdit && (
-                          <QuotaEditor
-                            value={team.quota}
-                            max={1_000_000}
-                            onSave={(quota) => save({ scope: 'team', teamId: team.id, quota }, `Limite da equipe ${team.name} salvo.`)}
-                          />
-                        )}
+                        <QuotaEditor
+                          value={data.organization.quota}
+                          max={1_000_000}
+                          onSave={(quota) => save({ scope: 'organization', quota }, 'Limite da organização salvo.')}
+                        />
                       </li>
-                    ))}
-                  </ul>
-                </>
-              )}
+                      {data.teams.map((team) => (
+                        <li key={team.id}>
+                          <div>
+                            <strong>{team.name}</strong>
+                            <Meter used={team.used} quota={team.quota} />
+                          </div>
+                          {team.canEdit && (
+                            <QuotaEditor
+                              value={team.quota}
+                              max={1_000_000}
+                              onSave={(quota) => save({ scope: 'team', teamId: team.id, quota }, `Limite da equipe ${team.name} salvo.`)}
+                            />
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
 
-              {supervises && data.users.length > 0 && (
-                <>
-                  <h3 className="top-gap">Cota por pessoa</h3>
-                  <p className="muted small-text">
-                    De 1 a 1000 números no ano. Ao chegar a 80% e a 100%, o Supervisor é avisado; com 100%, novas conclusões ficam
-                    bloqueadas.
-                  </p>
-                  <ul className="list compact">
-                    {data.users.map((user) => (
-                      <li key={user.id}>
-                        <div>
-                          <strong>{user.name}</strong>
-                          <span className="muted">{user.teams.map((team) => `${team.name} (${roleLabel[team.role]})`).join(' · ')}</span>
-                          <Meter used={user.used} quota={user.quota} />
-                        </div>
-                        {user.canEdit && (
-                          <QuotaEditor
-                            value={user.quota}
-                            max={1000}
-                            onSave={(quota) => save({ scope: 'user', userId: user.id, quota }, `Cota de ${user.name} salva.`)}
-                          />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </>
-          )}
-          <Requests onOpenTranslation={onOpenTranslation} onChange={() => setVersion((current) => current + 1)} />
-        </>
-      )}
-    </Section>
+                {supervises && data.users.length > 0 && (
+                  <>
+                    <h3 className="top-gap">Cota por pessoa</h3>
+                    <p className="muted small-text">
+                      De 1 a 1000 números no ano. Ao chegar a 80% e a 100%, o Supervisor é avisado; com 100%, novas conclusões ficam
+                      bloqueadas.
+                    </p>
+                    <ul className="list compact quota-list">
+                      {data.users.map((user) => (
+                        <li key={user.id}>
+                          <div>
+                            <strong>{user.name}</strong>
+                            <span className="muted">{user.teams.map((team) => `${team.name} (${roleLabel[team.role]})`).join(' · ')}</span>
+                            <Meter used={user.used} quota={user.quota} />
+                          </div>
+                          {user.canEdit && (
+                            <QuotaEditor
+                              value={user.quota}
+                              max={1000}
+                              onSave={(quota) => save({ scope: 'user', userId: user.id, quota }, `Cota de ${user.name} salva.`)}
+                            />
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
+            )}
+            <Requests onOpenTranslation={onOpenTranslation} onChange={() => setVersion((current) => current + 1)} />
+          </>
+        )}
+      </Section>
+    </div>
   );
 }
 
@@ -228,7 +230,7 @@ function Requests({ onOpenTranslation, onChange }: { onOpenTranslation: (id: str
         onChange={setStatus}
       />
       <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
-      <ul className="list">
+      <ul className="list numbering-requests">
         {data?.items.map((request) => (
           <li key={request.id}>
             <div>

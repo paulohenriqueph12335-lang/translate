@@ -62,59 +62,61 @@ export function Translators({ canManage }: { canManage: boolean }) {
   const reload = () => setVersion((current) => current + 1);
 
   return (
-    <Section
-      title="Tradutores juramentados"
-      subtitle="Cada tradutor tem o seu armazenamento de máscaras em Word, enviadas pelo Supervisor em edições numeradas. Na conclusão, escolhe-se o tradutor."
-    >
-      {canManage && !creating && (
-        <div className="filters">
-          <button className="primary" onClick={() => setCreating(true)}>
-            Cadastrar tradutor
-          </button>
-        </div>
-      )}
-      <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
-      {creating && (
-        <TranslatorForm
-          initial={EMPTY}
-          submitLabel="Cadastrar"
-          withMask
-          onCancel={() => setCreating(false)}
-          onSubmit={async (draft, mask) => {
-            const name = draft.name.trim();
-            const { translator } = await api<{ translator: SwornTranslator }>('POST', '/sworn-translators', toBody(draft));
-            setCreating(false);
-            reload();
-            if (!mask) {
-              setFeedback({ ok: `${name} cadastrado. Agora envie a máscara em Word no cartão dele.` });
-              return;
-            }
-            // O tradutor já existe; se a máscara falhar, ela pode ser reenviada no cartão dele.
-            try {
-              const result = await sendFile('POST', `/sworn-translators/${translator.id}/masks`, mask, DOCX_TYPE, 'Máscara inicial');
-              setFeedback({ ok: `${name} cadastrado. ${uploadedMessage(result.inspection, result.edition)}` });
-            } catch (caught) {
-              setFeedback({
-                error: `${name} foi cadastrado, mas a máscara não foi enviada: ${message(caught)} Envie de novo no cartão dele.`,
-              });
-            } finally {
+    <div className="administration-view translators-view">
+      <Section
+        title="Tradutores juramentados"
+        subtitle="Cada tradutor tem o seu armazenamento de máscaras em Word, enviadas pelo Supervisor em edições numeradas. Na conclusão, escolhe-se o tradutor."
+      >
+        {canManage && !creating && (
+          <div className="filters">
+            <button className="primary" onClick={() => setCreating(true)}>
+              Cadastrar tradutor
+            </button>
+          </div>
+        )}
+        <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
+        {creating && (
+          <TranslatorForm
+            initial={EMPTY}
+            submitLabel="Cadastrar"
+            withMask
+            onCancel={() => setCreating(false)}
+            onSubmit={async (draft, mask) => {
+              const name = draft.name.trim();
+              const { translator } = await api<{ translator: SwornTranslator }>('POST', '/sworn-translators', toBody(draft));
+              setCreating(false);
               reload();
-            }
-          }}
-        />
-      )}
-      <MarkerGuide />
-      <div className="translator-list">
-        {data?.items.map((translator) => (
-          <TranslatorCard key={translator.id} translator={translator} onChange={reload} />
-        ))}
-      </div>
-      {data && data.items.length === 0 && (
-        <p className="empty">
-          Nenhum tradutor cadastrado. {canManage ? 'Cadastre o primeiro e envie a máscara dele.' : 'Peça a um Supervisor para cadastrar.'}
-        </p>
-      )}
-    </Section>
+              if (!mask) {
+                setFeedback({ ok: `${name} cadastrado. Agora envie a máscara em Word no cartão dele.` });
+                return;
+              }
+              // O tradutor já existe; se a máscara falhar, ela pode ser reenviada no cartão dele.
+              try {
+                const result = await sendFile('POST', `/sworn-translators/${translator.id}/masks`, mask, DOCX_TYPE, 'Máscara inicial');
+                setFeedback({ ok: `${name} cadastrado. ${uploadedMessage(result.inspection, result.edition)}` });
+              } catch (caught) {
+                setFeedback({
+                  error: `${name} foi cadastrado, mas a máscara não foi enviada: ${message(caught)} Envie de novo no cartão dele.`,
+                });
+              } finally {
+                reload();
+              }
+            }}
+          />
+        )}
+        <MarkerGuide />
+        <div className="translator-list">
+          {data?.items.map((translator) => (
+            <TranslatorCard key={translator.id} translator={translator} onChange={reload} />
+          ))}
+        </div>
+        {data && data.items.length === 0 && (
+          <p className="empty">
+            Nenhum tradutor cadastrado. {canManage ? 'Cadastre o primeiro e envie a máscara dele.' : 'Peça a um Supervisor para cadastrar.'}
+          </p>
+        )}
+      </Section>
+    </div>
   );
 }
 
@@ -211,10 +213,10 @@ function TranslatorCard({ translator, onChange }: { translator: SwornTranslator;
 
   return (
     <article className={`card translator-card ${translator.active ? '' : 'inactive'}`}>
-      <header>
+      <header className="translator-heading">
         <div>
-          <h3>
-            {translator.name} {!translator.active && <span className="badge soft">Inativo</span>}
+          <h3 className="translator-status">
+            <span className="translator-name">{translator.name}</span> {!translator.active && <span className="badge soft">Inativo</span>}
             {translator.active &&
               (translator.ready ? (
                 <span className="badge">Pronto para concluir</span>

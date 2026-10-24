@@ -128,212 +128,220 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
 
   return (
     <Section title="Traduções" subtitle="Coloque o documento: tradução e revisão são automáticas; você confere o Word e aprova.">
-      {canCreate && !creating && (
-        <div className="toolbar">
-          <button className="primary" onClick={() => setCreating(true)}>
-            Nova tradução
-          </button>
+      <div className="doc-domain doc-queue">
+        {canCreate && !creating && (
+          <div className="toolbar">
+            <button className="primary" onClick={() => setCreating(true)}>
+              Nova tradução
+            </button>
+          </div>
+        )}
+        {creating && (
+          <NewTranslation
+            teams={myTeams}
+            isDirector={isDirector}
+            onCancel={() => setCreating(false)}
+            onStarted={(ids) => {
+              setCreating(false);
+              if (ids.length === 1) onOpen(ids[0]!);
+              else {
+                setTab('processing');
+                list.reload();
+              }
+            }}
+          />
+        )}
+        <div className="workflow-nav doc-workflow-nav" role="tablist" aria-label="Fases da documentação">
+          {(
+            [
+              ['processing', '1. Produção', 'Recebimento, tradução e revisão automática'],
+              ['review', '2. Conferência', 'Compare original e Word; corrija as fases'],
+              ['approval', '3. Aprovação', 'Decisão da liderança e numeração'],
+              ['approved', '4. Entrega', 'Word, PDF e pacotes ZIP'],
+              ['failed', 'Pendências', 'Falhas de processamento que precisam de atenção'],
+              ['all', 'Todas', 'Localize qualquer documento ou protocolo'],
+            ] as Array<[Tab, string, string]>
+          ).map(([key, title, hint]) => (
+            <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
+              <strong>
+                {title}{' '}
+                {facets.data?.statusCounts && (
+                  <span className="badge soft">
+                    {(key === 'all'
+                      ? Object.values(facets.data.statusCounts)
+                      : TAB_STATUS[key].map((status) => facets.data!.statusCounts[status] ?? 0)
+                    ).reduce((sum, count) => sum + (count ?? 0), 0)}
+                  </span>
+                )}
+              </strong>
+              <span className="small-text">{hint}</span>
+            </button>
+          ))}
         </div>
-      )}
-      {creating && (
-        <NewTranslation
-          teams={myTeams}
-          isDirector={isDirector}
-          onCancel={() => setCreating(false)}
-          onStarted={(ids) => {
-            setCreating(false);
-            if (ids.length === 1) onOpen(ids[0]!);
-            else {
-              setTab('processing');
-              list.reload();
-            }
-          }}
-        />
-      )}
-      <div className="workflow-nav" role="tablist" aria-label="Fases da documentação">
-        {(
-          [
-            ['processing', '1. Produção', 'Recebimento, tradução e revisão automática'],
-            ['review', '2. Conferência', 'Compare original e Word; corrija as fases'],
-            ['approval', '3. Aprovação', 'Decisão da liderança e numeração'],
-            ['approved', '4. Entrega', 'Word, PDF e pacotes ZIP'],
-            ['failed', 'Pendências', 'Falhas de processamento que precisam de atenção'],
-            ['all', 'Todas', 'Localize qualquer documento ou protocolo'],
-          ] as Array<[Tab, string, string]>
-        ).map(([key, title, hint]) => (
-          <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
-            <strong>
-              {title}{' '}
-              {facets.data?.statusCounts && (
-                <span className="badge soft">
-                  {(key === 'all'
-                    ? Object.values(facets.data.statusCounts)
-                    : TAB_STATUS[key].map((status) => facets.data!.statusCounts[status] ?? 0)
-                  ).reduce((sum, count) => sum + (count ?? 0), 0)}
-                </span>
-              )}
-            </strong>
-            <span className="small-text">{hint}</span>
-          </button>
-        ))}
-      </div>
-      <div className="filters top-gap">
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, arquivo, remessa, tipo ou número" />
-        {(isDirector || (teams.data?.items.length ?? 0) > 1) && (
-          <select aria-label="Equipe" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-            <option value="">Todas as equipes</option>
-            {isDirector && <option value="__none">Sem equipe (aguardando direcionamento)</option>}
-            {teams.data?.items.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
+        <div className="filters top-gap doc-filter-bar">
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar protocolo, arquivo, remessa, tipo ou número" />
+          {(isDirector || (teams.data?.items.length ?? 0) > 1) && (
+            <select aria-label="Equipe" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+              <option value="">Todas as equipes</option>
+              {isDirector && <option value="__none">Sem equipe (aguardando direcionamento)</option>}
+              {teams.data?.items.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <select aria-label="Tipo de documento" value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
+            <option value="">Todos os tipos</option>
+            {facets.data?.documentTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
               </option>
             ))}
           </select>
-        )}
-        <select aria-label="Tipo de documento" value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
-          <option value="">Todos os tipos</option>
-          {facets.data?.documentTypes.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Categoria e modelo documental"
-          value={documentCategory}
-          onChange={(e) => setDocumentCategory(e.target.value as DocumentCategory | '')}
-        >
-          <option value="">Todas as categorias e modelos</option>
-          {facets.data?.documentCategories?.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label} ({item.count})
-            </option>
-          ))}
-        </select>
-        <select aria-label="Etiqueta" value={tag} onChange={(e) => setTag(e.target.value)}>
-          <option value="">Todas as etiquetas</option>
-          {facets.data?.tags.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-        <select aria-label="Modalidade" value={mode} onChange={(e) => setMode(e.target.value as TranslationMode | '')}>
-          <option value="">Todas as modalidades</option>
-          {MODES.map((value) => (
-            <option key={value} value={value}>
-              {modeLabel[value]}
-            </option>
-          ))}
-        </select>
-        <LanguagePairPicker label="Idiomas" value={pair} onChange={setPair} any="Todos os idiomas" />
-        <DateRange label="Recebidas" from={period.from} to={period.to} onChange={(from, to) => setPeriod({ from, to })} />
-        <label className="check">
-          <input type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)} />
-          Só tipos novos
-        </label>
-        {filtered && (
-          <button className="link" onClick={clear}>
-            Limpar filtros
-          </button>
-        )}
-      </div>
-      <Feedback error={list.error} />
-      {tab === 'approved' && list.items.length > 0 && (
-        <details className="card">
-          <summary>Baixar documentos concluídos em ZIP ({archiveSelection.size} selecionados)</summary>
-          <p>Escolha os documentos abaixo. Eles continuam disponíveis mesmo se você decidir baixar depois.</p>
+          <select
+            aria-label="Categoria e modelo documental"
+            value={documentCategory}
+            onChange={(e) => setDocumentCategory(e.target.value as DocumentCategory | '')}
+          >
+            <option value="">Todas as categorias e modelos</option>
+            {facets.data?.documentCategories?.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label} ({item.count})
+              </option>
+            ))}
+          </select>
+          <select aria-label="Etiqueta" value={tag} onChange={(e) => setTag(e.target.value)}>
+            <option value="">Todas as etiquetas</option>
+            {facets.data?.tags.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Modalidade" value={mode} onChange={(e) => setMode(e.target.value as TranslationMode | '')}>
+            <option value="">Todas as modalidades</option>
+            {MODES.map((value) => (
+              <option key={value} value={value}>
+                {modeLabel[value]}
+              </option>
+            ))}
+          </select>
+          <LanguagePairPicker label="Idiomas" value={pair} onChange={setPair} any="Todos os idiomas" />
+          <DateRange label="Recebidas" from={period.from} to={period.to} onChange={(from, to) => setPeriod({ from, to })} />
           <label className="check">
-            <input
-              type="checkbox"
-              checked={list.items.filter((item) => item.permissions.download).every((item) => archiveSelection.has(item.id))}
-              onChange={(event) =>
-                setArchiveSelection(
-                  event.target.checked ? new Set(list.items.filter((item) => item.permissions.download).map((item) => item.id)) : new Set(),
-                )
-              }
-            />
-            Selecionar concluídos carregados
+            <input type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)} />
+            Só tipos novos
           </label>
-          <ArchiveDownloadButtons translationIds={[...archiveSelection]} disabled={archiveSelection.size > 100} />
-          {archiveSelection.size > 100 && <p className="warn-text">Selecione até 100 documentos por ZIP.</p>}
-        </details>
-      )}
-      <ul className="list selectable work-list">
-        {list.items.map((item) => (
-          <li key={item.id} onClick={() => onOpen(item.id)}>
-            <div>
-              <strong>
-                {item.batch.protocol && <span className="badge soft">{item.batch.protocol}</span>} {item.document.name}{' '}
-                {item.classification && <span className="badge soft">{item.classification.label}</span>}{' '}
-                <ModeBadge mode={item.translationMode} /> <StatusBadge status={item.status} />
-                {item.patternKnown === false && <span className="badge warn">Tipo novo</span>}
-                {!item.assignee && item.status !== 'approved' && <span className="badge info">Sem responsável</span>}
-                {item.annulled && <span className="badge danger">Número anulado</span>}
-                {item.status !== 'approved' && item.errorCount > 0 && <span className="badge soft">{item.errorCount} a conferir</span>}
-              </strong>
-              <span className="muted">
-                {item.documentType ?? item.sourceTitle ?? 'Tipo ainda não identificado'} ·{' '}
-                {pairLabel(item.sourceLanguage, item.targetLanguage)} · {item.team?.name ?? 'Sem equipe'} ·{' '}
-                {item.assignee ? `com ${item.assignee.name}` : `enviado por ${item.uploadedBy}`} · {dateTime(item.createdAt)}
-                {item.number ? ` · nº ${item.number}` : ''}
-              </span>
-              {item.timing && (
-                <span className="muted small-text">
-                  Estimativa: {elapsedLabel(item.timing.estimatedSeconds)} · Sem atividade: {elapsedLabel(item.timing.idleSeconds)}
-                  {item.status === 'approved' && !item.timing.firstDownloadedAt
-                    ? ` · Pronto sem download há ${elapsedLabel(item.timing.waitingDownloadSeconds)}`
-                    : ''}
-                </span>
-              )}
-              {item.reviewLifecycle?.blocked && <span className="badge danger">3 reprovações · novo formato obrigatório</span>}
-              <TagList tags={item.document.tags} onPick={setTag} />
-            </div>
-            {tab === 'approved' && item.permissions.download && (
-              <label className="check" onClick={(event) => event.stopPropagation()}>
-                <input
-                  aria-label={`Incluir ${item.document.name} no ZIP`}
-                  type="checkbox"
-                  checked={archiveSelection.has(item.id)}
-                  onChange={(event) =>
-                    setArchiveSelection((current) => {
-                      const next = new Set(current);
-                      if (event.target.checked) next.add(item.id);
-                      else next.delete(item.id);
-                      return next;
-                    })
-                  }
-                />
-                ZIP
-              </label>
-            )}
-            {item.permissions.download && (
-              <DeliveryMenu
-                translationId={item.id}
-                version={item.updatedAt}
-                batchId={item.batch.id}
-                original={{ id: item.document.id, name: item.document.name }}
-              />
-            )}
-            <button
-              className="small"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpen(item.id);
-              }}
-            >
-              Abrir
+          {filtered && (
+            <button className="link" onClick={clear}>
+              Limpar filtros
             </button>
-          </li>
-        ))}
-      </ul>
-      <PagedFooter
-        hasMore={list.hasMore}
-        loading={list.loading}
-        onMore={list.more}
-        empty={list.items.length === 0}
-        emptyText={filtered ? 'Nenhuma tradução corresponde aos filtros.' : 'Nada por aqui no momento.'}
-      />
+          )}
+        </div>
+        <Feedback error={list.error} />
+        {tab === 'approved' && list.items.length > 0 && (
+          <details className="card doc-module doc-archive-selection">
+            <summary>Baixar documentos concluídos em ZIP ({archiveSelection.size} selecionados)</summary>
+            <p>Escolha os documentos abaixo. Eles continuam disponíveis mesmo se você decidir baixar depois.</p>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={list.items.filter((item) => item.permissions.download).every((item) => archiveSelection.has(item.id))}
+                onChange={(event) =>
+                  setArchiveSelection(
+                    event.target.checked
+                      ? new Set(list.items.filter((item) => item.permissions.download).map((item) => item.id))
+                      : new Set(),
+                  )
+                }
+              />
+              Selecionar concluídos carregados
+            </label>
+            <ArchiveDownloadButtons translationIds={[...archiveSelection]} disabled={archiveSelection.size > 100} />
+            {archiveSelection.size > 100 && <p className="warn-text">Selecione até 100 documentos por ZIP.</p>}
+          </details>
+        )}
+        <ul className="list selectable work-list doc-cards doc-translation-cards">
+          {list.items.map((item) => (
+            <li key={item.id} onClick={() => onOpen(item.id)}>
+              <div className="doc-card-content">
+                <div className="doc-card-heading">
+                  <strong className="doc-document-name">
+                    {item.batch.protocol && <span className="badge soft">{item.batch.protocol}</span>} {item.document.name}{' '}
+                  </strong>
+                  <div className="doc-card-statuses">
+                    {item.classification && <span className="badge soft">{item.classification.label}</span>}{' '}
+                    <ModeBadge mode={item.translationMode} /> <StatusBadge status={item.status} />
+                    {item.patternKnown === false && <span className="badge warn">Tipo novo</span>}
+                    {!item.assignee && item.status !== 'approved' && <span className="badge info">Sem responsável</span>}
+                    {item.annulled && <span className="badge danger">Número anulado</span>}
+                    {item.status !== 'approved' && item.errorCount > 0 && <span className="badge soft">{item.errorCount} a conferir</span>}
+                  </div>
+                </div>
+                <span className="muted">
+                  {item.documentType ?? item.sourceTitle ?? 'Tipo ainda não identificado'} ·{' '}
+                  {pairLabel(item.sourceLanguage, item.targetLanguage)} · {item.team?.name ?? 'Sem equipe'} ·{' '}
+                  {item.assignee ? `com ${item.assignee.name}` : `enviado por ${item.uploadedBy}`} · {dateTime(item.createdAt)}
+                  {item.number ? ` · nº ${item.number}` : ''}
+                </span>
+                {item.timing && (
+                  <span className="muted small-text">
+                    Estimativa: {elapsedLabel(item.timing.estimatedSeconds)} · Sem atividade: {elapsedLabel(item.timing.idleSeconds)}
+                    {item.status === 'approved' && !item.timing.firstDownloadedAt
+                      ? ` · Pronto sem download há ${elapsedLabel(item.timing.waitingDownloadSeconds)}`
+                      : ''}
+                  </span>
+                )}
+                {item.reviewLifecycle?.blocked && <span className="badge danger">3 reprovações · novo formato obrigatório</span>}
+                <TagList tags={item.document.tags} onPick={setTag} />
+              </div>
+              {tab === 'approved' && item.permissions.download && (
+                <label className="check" onClick={(event) => event.stopPropagation()}>
+                  <input
+                    aria-label={`Incluir ${item.document.name} no ZIP`}
+                    type="checkbox"
+                    checked={archiveSelection.has(item.id)}
+                    onChange={(event) =>
+                      setArchiveSelection((current) => {
+                        const next = new Set(current);
+                        if (event.target.checked) next.add(item.id);
+                        else next.delete(item.id);
+                        return next;
+                      })
+                    }
+                  />
+                  ZIP
+                </label>
+              )}
+              {item.permissions.download && (
+                <DeliveryMenu
+                  translationId={item.id}
+                  version={item.updatedAt}
+                  batchId={item.batch.id}
+                  original={{ id: item.document.id, name: item.document.name }}
+                />
+              )}
+              <button
+                className="small"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpen(item.id);
+                }}
+              >
+                Abrir
+              </button>
+            </li>
+          ))}
+        </ul>
+        <PagedFooter
+          hasMore={list.hasMore}
+          loading={list.loading}
+          onMore={list.more}
+          empty={list.items.length === 0}
+          emptyText={filtered ? 'Nenhuma tradução corresponde aos filtros.' : 'Nada por aqui no momento.'}
+        />
+      </div>
     </Section>
   );
 }
@@ -342,7 +350,7 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
 function CorrectionsPanel({ corrections, unresolved }: { corrections: Correction[]; unresolved: string[] }) {
   if (!corrections.length && !unresolved.length) return null;
   return (
-    <details className="card corrections" open={unresolved.length > 0}>
+    <details className="card corrections doc-module" open={unresolved.length > 0}>
       <summary>
         Revisão automática: {corrections.length} correção(ões) no documento
         {unresolved.length ? ` · ${unresolved.length} ponto(s) para conferir` : ''}
@@ -392,7 +400,7 @@ function DocumentQuickFacts({ translation: t }: { translation: TranslationSummar
   const idle = Math.max(0, (clock - Date.parse(t.timing.lastActivityAt)) / 1000);
   const waiting = t.timing.completedAt ? Math.max(0, (clock - Date.parse(t.timing.completedAt)) / 1000) : null;
   return (
-    <div className="document-quick-facts" aria-label="Resumo dos tempos e do tipo documental">
+    <div className="document-quick-facts doc-quick-facts" aria-label="Resumo dos tempos e do tipo documental">
       {t.classification && <span>{t.classification.label}</span>}
       <span>Estimativa: {elapsedLabel(t.timing.estimatedSeconds)}</span>
       <span>Sem atividade: {elapsedLabel(idle)}</span>
@@ -538,7 +546,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   }
 
   return (
-    <section className="section review">
+    <section className="section review doc-domain doc-review">
       <div className="review-top">
         <button className="ghost small" onClick={onBack}>
           ← Traduções
@@ -603,7 +611,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
         </div>
       )}
       <DocumentQuickFacts translation={t} />
-      <details className="card secondary-options document-options">
+      <details className="card secondary-options document-options doc-module">
         <summary>Dados e opções do documento</summary>
         <p className="muted small-text">
           Consulte os tempos completos, corrija o tipo ou os idiomas e acompanhe o histórico de conferências.
@@ -693,7 +701,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
         </details>
       )}
 
-      <details className="card manual-tools" open={editing}>
+      <details className="card manual-tools doc-module" open={editing}>
         <summary>Ajustes manuais (opcional): texto, checklist, revisão e conclusão com outro tradutor</summary>
         <div className="action-bar">
           {t.permissions.claim && (
@@ -942,7 +950,7 @@ function NumberingRequestPanel({ id, onDone }: { id: string; onDone: () => void 
   }
 
   return (
-    <div className="card panel">
+    <div className="card panel doc-module">
       <h3>Alterar ou anular o número</h3>
       <p className="muted">
         O pedido vai para o Supervisor da equipe, que autoriza ou recusa; o Diretor é avisado e pode reverter. Um número anulado continua no
@@ -1025,7 +1033,7 @@ function ConcludePanel({
 
   if (sworn && translators.data && ready.length === 0) {
     return (
-      <div className="card panel">
+      <div className="card panel doc-module">
         <h3>Falta cadastrar um tradutor juramentado</h3>
         <p className="muted">
           A tradução concluída sai na máscara em Word do tradutor juramentado, com o número dele. Cadastre o tradutor e envie a máscara
@@ -1058,7 +1066,7 @@ function ConcludePanel({
   }
 
   return (
-    <div className="card panel">
+    <div className="card panel doc-module">
       <h3>Concluir tradução</h3>
       <p className="muted">
         A numeração preenchida abaixo é conferida pela regra do tradutor e emitida; o documento entra na máscara dele, o DOCX final é gerado
@@ -1134,7 +1142,7 @@ function RedoPanel({
   }
 
   return (
-    <div className="card panel">
+    <div className="card panel doc-module">
       <h3>Refazer</h3>
       <fieldset>
         <legend>Fases com falha</legend>

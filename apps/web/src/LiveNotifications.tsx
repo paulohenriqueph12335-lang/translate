@@ -156,20 +156,20 @@ export function LiveNotifications({
     return () => clearTimeout(timer);
   }, [enabled, scope, queue]);
   return (
-    <div className="toasts" role="status" aria-live="polite">
+    <div className="toasts account-toasts" role="status" aria-live="polite">
       {enabled &&
         queue.scope === scope &&
         queue.items.slice(0, 3).map((item) => (
-          <div key={item.id} className="toast" style={{ ['--toast-ms' as string]: `${TOAST_MS}ms` }}>
-            <button type="button" className="toast-body" onClick={() => follow(item)}>
-              <span className="badge soft">
+          <div key={item.id} className="toast account-toast" style={{ ['--toast-ms' as string]: `${TOAST_MS}ms` }}>
+            <button type="button" className="toast-body account-toast-body" onClick={() => follow(item)}>
+              <span className="badge soft account-toast-kind">
                 {item.kind === 'summary' ? 'Resumo inteligente' : (notificationKindLabel[item.kind] ?? 'Notificação')}
               </span>
-              <strong>{item.title}</strong>
+              <strong className="account-toast-title">{item.title}</strong>
               {item.body && <span className="small-text">{item.body}</span>}
               {item.reason && <span className="muted small-text">{item.reason}</span>}
             </button>
-            <button type="button" className="toast-close" aria-label="Fechar aviso" onClick={() => dismiss(item.id)}>
+            <button type="button" className="toast-close account-toast-dismiss" aria-label="Fechar aviso" onClick={() => dismiss(item.id)}>
               ×
             </button>
           </div>
@@ -181,39 +181,39 @@ export function PopupSettings({ enabled = true }: { enabled?: boolean }) {
   const { permission, request, error } = usePopupPermission();
   if (!enabled)
     return (
-      <p className="popup-settings muted small-text">
+      <p className="popup-settings muted small-text account-popup-note">
         Para receber no Windows / sistema, ative esse canal nos assuntos desejados e salve suas notificações.
       </p>
     );
   if (permission === 'granted')
     return (
-      <p className="popup-settings muted small-text">
+      <p className="popup-settings muted small-text account-popup-note account-popup-granted">
         Permissão concedida neste navegador. No Windows, o navegador entrega os avisos ao sistema; as configurações de notificações e de
         foco do Windows também se aplicam.
       </p>
     );
   if (permission === 'unsupported')
     return (
-      <p className="popup-settings muted small-text">
+      <p className="popup-settings muted small-text account-popup-note">
         Este navegador ou endereço não oferece notificações do sistema. Use Chrome ou Edge com HTTPS (ou localhost no ambiente local). Os
         avisos dentro da página continuam disponíveis.
       </p>
     );
   if (permission === 'denied')
     return (
-      <p className="popup-settings muted small-text">
+      <p className="popup-settings muted small-text account-popup-note account-popup-denied">
         Notificações bloqueadas neste navegador. Nas permissões deste site, escolha Notificações → Permitir e volte à aplicação.
       </p>
     );
   return (
-    <div className="popup-settings">
-      <p className="small-text">
+    <div className="popup-settings account-popup-settings">
+      <p className="small-text account-popup-description">
         Autorize este navegador a entregar os assuntos selecionados ao Windows / sistema, inclusive quando outra janela estiver na frente.
       </p>
-      <button type="button" className="small" onClick={() => void request()}>
+      <button type="button" className="small account-popup-permit" onClick={() => void request()}>
         Permitir notificações do sistema
       </button>
-      {error && <p className="error-text">{error}</p>}
+      {error && <p className="error-text account-popup-error">{error}</p>}
     </div>
   );
 }

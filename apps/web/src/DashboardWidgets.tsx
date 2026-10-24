@@ -135,7 +135,7 @@ export function DashboardWidgets({
     </div>
   );
   return (
-    <div className="dashboard-workspace">
+    <div className="dashboard-workspace analytics-workspace">
       <details className="dashboard-picker no-print">
         <summary>
           Escolher painéis{' '}

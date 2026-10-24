@@ -1,0 +1,694 @@
+@reference 'tailwindcss';
+@reference './tokens.css';
+
+@layer components {
+  .administration-view,
+  .administration-context {
+    @apply min-w-0 text-ink;
+  }
+
+  .administration-view :is(h3, h4),
+  .numbering-card header > strong,
+  .numbering-panel h3 {
+    @apply font-display text-ink;
+    letter-spacing: -0.015em;
+  }
+
+  .administration-view h3 {
+    font-size: 1.25rem;
+  }
+  .administration-view h4 {
+    font-size: 1.125rem;
+  }
+
+  .administration-view .section > .filters,
+  .team-directory > .filters,
+  .team-detail > .filters,
+  .numbering-stock > .filters {
+    @apply rounded-panel border border-line bg-surface p-3;
+  }
+
+  .administration-view .table-wrap {
+    @apply mt-3;
+  }
+  .administration-view td:first-child {
+    font-weight: 500;
+  }
+  .administration-view :is(td, th) {
+    padding-block: 0.625rem;
+  }
+  .administration-view td .block-line + .block-line {
+    margin-top: 0.2rem;
+  }
+  .administration-view .count {
+    @apply my-3 flex flex-wrap items-center justify-between gap-2 text-muted;
+    font-size: 0.75rem;
+  }
+
+  .team-create {
+    @apply mb-4 rounded-panel border border-line bg-surface p-3;
+  }
+  .team-create input {
+    flex-basis: 22rem;
+  }
+  .teams-layout {
+    @apply items-start gap-4;
+    grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 2fr);
+  }
+  .team-directory {
+    @apply gap-2;
+  }
+  .team-directory > .filters {
+    @apply mb-1 grid gap-2;
+  }
+  .team-directory .search {
+    flex-basis: auto;
+  }
+  .team-directory .segmented {
+    width: fit-content;
+  }
+  .team-list {
+    @apply gap-1.5;
+  }
+  .team-list > li {
+    min-height: 4.125rem;
+  }
+  .team-list > li.selected {
+    box-shadow: none;
+  }
+  .team-list > li strong {
+    font-size: 0.8125rem;
+  }
+  .team-detail {
+    @apply p-4;
+  }
+  .team-detail > h3 {
+    @apply mb-3;
+  }
+  .team-detail .tabs {
+    @apply mb-3;
+  }
+  .team-members > li,
+  .team-candidates > li {
+    @apply gap-3 py-3;
+  }
+  .team-members strong {
+    @apply flex flex-wrap items-center gap-1.5;
+  }
+  .team-members .actions {
+    @apply justify-end;
+  }
+  .team-candidates .who {
+    @apply grid min-w-0 gap-1;
+  }
+  .team-candidates .check {
+    align-items: flex-start;
+  }
+  .team-candidates .check > input {
+    margin-top: 0.15rem;
+  }
+  .team-detail .by-email {
+    @apply mt-4 rounded-control border border-line bg-canvas p-3;
+    font-size: 0.75rem;
+  }
+  .team-detail .by-email .toolbar {
+    @apply mb-0 mt-3;
+  }
+
+  .translator-list {
+    @apply mt-4 grid gap-4;
+  }
+  .translator-card {
+    @apply grid gap-4 p-4;
+  }
+  .translator-card.inactive {
+    opacity: 1;
+  }
+  .translator-card.inactive > .translator-heading {
+    color: var(--muted);
+  }
+  .translator-heading {
+    @apply flex min-w-0 flex-wrap items-start justify-between gap-3 border-b border-line pb-3;
+  }
+  .translator-heading > div:first-child {
+    flex: 1 1 24rem;
+    min-width: 0;
+  }
+  .translator-heading h3 {
+    @apply mb-2 mt-0;
+    font-size: 1.375rem;
+  }
+  .translator-heading p {
+    @apply mb-0 mt-2;
+    max-width: 100ch;
+  }
+  .translator-status {
+    @apply flex flex-wrap items-center gap-1.5;
+  }
+  .translator-name {
+    flex-basis: 100%;
+  }
+  .translator-status .badge {
+    @apply font-sans;
+  }
+  .translator-heading > .actions {
+    @apply shrink-0;
+  }
+  .marker-guide {
+    @apply mt-3 bg-raised px-3.5 py-3;
+  }
+  .marker-guide > summary {
+    font-size: 0.75rem;
+  }
+  .marker-guide > p {
+    max-width: 112ch;
+  }
+  .marker-table td {
+    padding: 0.375rem 0.625rem;
+  }
+  .translator-form {
+    @apply mt-3 grid max-w-none gap-3;
+  }
+  .translator-form > label:first-child {
+    max-width: 48rem;
+  }
+  .translator-form .field-row {
+    @apply grid gap-3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .translator-form label {
+    @apply min-w-0;
+  }
+  .mask-storage {
+    @apply grid gap-3;
+  }
+  .mask-storage-head {
+    @apply flex flex-wrap items-baseline gap-2;
+  }
+  .mask-storage-head > strong {
+    font-size: 0.8125rem;
+  }
+  .mask-drop {
+    @apply grid gap-2 rounded-control border border-line bg-raised p-4 text-left;
+    border-style: dashed;
+  }
+  .mask-drop.over {
+    @apply border-accent bg-accent-soft;
+  }
+  .mask-drop > strong {
+    font-size: 0.8125rem;
+  }
+  .mask-drop > span {
+    max-width: 104ch;
+  }
+  .mask-drop-actions {
+    @apply mt-1 flex flex-wrap justify-start gap-2;
+  }
+  .mask-drop-actions > input {
+    flex: 1 1 20rem;
+    min-width: 0;
+  }
+  .mask-storage .table-wrap {
+    @apply mb-0 mt-0;
+  }
+  .mask-storage .name-cell {
+    min-width: 16rem;
+  }
+  .mask-storage tr.current-row td:first-child {
+    box-shadow: inset 2px 0 var(--accent);
+  }
+  .marker-chips {
+    @apply mt-2 flex flex-wrap gap-1;
+  }
+  .marker-chips code {
+    @apply rounded-control bg-canvas px-1.5 py-0.5 text-muted;
+    font-size: 0.625rem;
+  }
+  .reference-pdf {
+    @apply flex flex-wrap items-center gap-2 border-t border-line pt-3;
+  }
+  .reference-pdf > button {
+    margin-left: auto;
+  }
+  .frame-models {
+    @apply rounded-panel border border-line bg-surface p-3;
+    border-style: solid;
+    font-size: 0.75rem;
+  }
+  .frame-models > p {
+    max-width: 110ch;
+  }
+  .frame-models .mode-options {
+    @apply grid gap-2;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .frame-models .mode-option {
+    @apply grid content-start gap-1.5 rounded-control border border-line bg-raised p-3 text-left;
+  }
+  .frame-models .mode-option.on {
+    @apply border-accent bg-accent-soft;
+    box-shadow: none;
+  }
+  .frame-model-fields {
+    @apply grid gap-3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .frame-model-fields > label {
+    @apply min-w-0;
+  }
+  .frame-models .frame-preview {
+    @apply mt-3;
+    height: min(65vh, 42rem);
+  }
+
+  .numbering-view .section > .segmented {
+    @apply mb-1;
+  }
+  .numbering-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  }
+  .numbering-grid.compact {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  }
+  .numbering-card {
+    @apply grid content-start gap-3 p-4;
+  }
+  .numbering-card header {
+    @apply flex flex-wrap items-center gap-1.5;
+  }
+  .numbering-card header > strong {
+    @apply mr-auto;
+    font-size: 1.125rem;
+  }
+  .numbering-card > p {
+    @apply m-0;
+  }
+  .numbering-card.low {
+    border-color: var(--warn-line);
+  }
+  .numbering-card.locked {
+    background: var(--sheet);
+    border-color: var(--danger-line);
+  }
+  .numbering-stats {
+    @apply grid gap-2 border-y border-line py-3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    font-size: 0.6875rem;
+    color: var(--muted);
+  }
+  .numbering-stats strong {
+    @apply block text-ink;
+    font-size: 1.5rem;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .numbering-card > button {
+    @apply mt-1;
+    justify-self: start;
+  }
+  .usage {
+    @apply grid gap-1.5;
+  }
+  .usage .meter {
+    @apply block min-w-0 overflow-hidden rounded-control bg-canvas;
+    height: 0.375rem;
+  }
+  .usage .meter > span {
+    @apply block h-full bg-accent;
+  }
+  .usage .meter > .warn {
+    background: var(--warn-mid);
+  }
+  .usage .meter > .danger {
+    background: var(--danger);
+  }
+  .numbering-admin {
+    @apply gap-4;
+  }
+  .numbering-admin > .ghost {
+    justify-self: start;
+  }
+  .numbering-admin > h3 {
+    @apply m-0;
+    font-size: 1.5rem;
+  }
+  .numbering-rule,
+  .numbering-stock,
+  .numbering-books {
+    @apply gap-3 p-4;
+  }
+  .numbering-rule > h4,
+  .numbering-stock > h4,
+  .numbering-books > h4 {
+    @apply mb-1;
+  }
+  .numbering-rule .field-row,
+  .numbering-books > .field-row,
+  .numbering-panel .field-row {
+    @apply grid items-end gap-3;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  }
+  .numbering-rule .field-row > label,
+  .numbering-books > .field-row > label,
+  .numbering-panel .field-row > label {
+    @apply min-w-0;
+  }
+  .numbering-rule .field-row .check {
+    align-self: center;
+  }
+  .numbering-rule label > small {
+    @apply mt-1 block;
+    font-size: 0.6875rem;
+  }
+  .numbering-rule > label {
+    max-width: 56rem;
+  }
+  .numbering-stock .import-box {
+    @apply rounded-control border border-line bg-raised p-3;
+  }
+  .numbering-stock .import-box .filters {
+    @apply mb-0;
+  }
+  .numbering-stock .import-box input[type='file'] {
+    flex: 1 1 20rem;
+  }
+  .numbering-stock > .filters {
+    @apply mb-0;
+  }
+  .numbering-stock > .table-wrap {
+    @apply mt-0;
+  }
+  .numbering-panel {
+    @apply grid min-w-0 gap-3;
+  }
+  .numbering-panel > :is(h3, p) {
+    @apply m-0;
+  }
+  .numbering-panel > label {
+    max-width: 36rem;
+  }
+  .numbering-panel .field-row fieldset.date-range {
+    display: flex;
+  }
+  .quota-mine {
+    @apply mb-4 mt-3 flex flex-wrap items-center justify-between gap-3 p-4;
+  }
+  .quota-list > li {
+    @apply gap-4 py-3;
+  }
+  .quota-list > li > div:first-child {
+    flex-basis: 18rem;
+  }
+  .quota-list .meter {
+    margin-top: 0.25rem;
+    max-width: 30rem;
+  }
+  .quota-editor {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .quota-editor input {
+    width: 8rem;
+  }
+  .numbering-requests {
+    @apply mt-3;
+  }
+  .numbering-requests > li {
+    @apply gap-4 p-4;
+  }
+  .numbering-requests > li > div:first-child {
+    gap: 0.375rem;
+  }
+  .numbering-requests .actions {
+    @apply self-start;
+  }
+
+  .glossary-entry-form {
+    @apply grid items-end gap-2;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  }
+  .glossary-entry-form > input:nth-child(3) {
+    grid-column: 1 / 3;
+  }
+  .glossary-entry-form > select {
+    grid-column: 1 / 3;
+    grid-row: 3;
+  }
+  .glossary-entry-form > button {
+    grid-column: 3;
+    grid-row: 3;
+  }
+  .glossary-view td:first-child,
+  .glossary-view td:nth-child(2) {
+    font-weight: 600;
+  }
+  .glossary-view td:nth-child(3) {
+    min-width: 10rem;
+  }
+  .machine-provider-list {
+    @apply mt-4;
+  }
+  .machine-provider-list > li {
+    @apply items-start gap-4 p-4;
+  }
+  .machine-provider-list .check {
+    @apply items-start;
+    flex: 1 1 22rem;
+  }
+  .machine-provider-list .check > input {
+    margin-top: 0.2rem;
+  }
+  .machine-provider-list .who {
+    @apply grid gap-1;
+  }
+
+  .ai-management-view .section > .card,
+  .ai-management-view .section > .administrative-group {
+    @apply mb-4;
+  }
+  .ai-overview {
+    @apply grid gap-3;
+  }
+  .ai-overview > p {
+    @apply m-0;
+    max-width: 112ch;
+  }
+  .ai-overview > .actions {
+    @apply border-t border-line pt-3;
+  }
+  .ai-overview .inline {
+    @apply flex-wrap;
+  }
+  .governance-editor {
+    @apply p-4;
+  }
+  .governance-editor textarea {
+    @apply mb-3;
+  }
+  .administrative-group {
+    @apply min-w-0 rounded-panel border border-line bg-surface p-4;
+  }
+  .administrative-group > h3 {
+    @apply mb-1 mt-0;
+  }
+  .administrative-group > p {
+    @apply mb-3 mt-1;
+  }
+  .administrative-group .table-wrap {
+    @apply mb-0;
+  }
+  .ai-skills .list {
+    @apply mb-3;
+  }
+  .ai-skills .list > li {
+    @apply rounded-control bg-raised;
+  }
+  .ai-skills .who {
+    @apply grid gap-1;
+  }
+  .ai-skills > .card {
+    @apply grid gap-3 bg-raised;
+  }
+  .ai-access td:first-child {
+    min-width: 14rem;
+  }
+  .ai-request-log td:last-child {
+    min-width: 12rem;
+  }
+  .ai-assist {
+    @apply p-4;
+  }
+  .ai-assist > summary {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .ai-assist .list {
+    @apply my-3;
+  }
+  .ai-combination-review {
+    @apply rounded-panel border border-line bg-raised p-3;
+  }
+  .ai-combination-review > h4 {
+    @apply font-display;
+    font-size: 1.125rem;
+  }
+  .ai-combination-review .word-frame {
+    @apply my-3;
+  }
+  .ai-answer {
+    @apply rounded-control border border-line bg-accent-soft p-3;
+    white-space: pre-wrap;
+  }
+
+  .audit-view .audit-filters {
+    @apply grid items-end gap-2.5;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .audit-filters > .search {
+    grid-column: span 2;
+  }
+  .audit-filters > .date-range {
+    grid-column: span 2;
+  }
+  .audit-filters > .check {
+    min-height: 2.125rem;
+    font-size: 0.75rem;
+  }
+  .audit-filters > .link {
+    justify-self: start;
+    align-self: center;
+  }
+  .audit-summary {
+    @apply my-4 grid gap-3;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .audit-summary small {
+    color: var(--muted);
+    font-size: 0.6875rem;
+  }
+  .audit-summary strong {
+    @apply font-sans;
+    font-size: 2rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .audit-incidents {
+    @apply my-4 rounded-panel border border-line bg-surface p-4;
+  }
+  .audit-incidents > summary {
+    font-size: 0.8125rem;
+  }
+  .audit-incidents .list {
+    @apply mt-3;
+  }
+  .audit-incident {
+    @apply rounded-control border border-line bg-raised p-3;
+  }
+  .audit-incident.critical,
+  .audit-incident.error {
+    border: 1px solid var(--danger-line);
+  }
+  .audit-incident p {
+    @apply mb-1 mt-1.5;
+    font-size: 0.8125rem;
+  }
+  .audit-incident small {
+    font-size: 0.6875rem;
+  }
+  .severity-badge.critical,
+  .severity-badge.error {
+    color: var(--danger);
+    border-color: var(--danger-line);
+    background: var(--danger-bg);
+  }
+  .severity-badge.warning {
+    color: var(--warn);
+    border-color: var(--warn-line);
+    background: var(--warn-bg);
+  }
+  .severity-badge.info {
+    color: var(--muted);
+    background: var(--gray-50);
+  }
+  .audit-records table {
+    min-width: 56rem;
+  }
+  .audit-records .details-cell {
+    min-width: 17rem;
+    overflow-wrap: anywhere;
+  }
+  .audit-records td:nth-child(3) {
+    min-width: 13rem;
+  }
+
+  @media (max-width: 1180px) {
+    .teams-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .team-directory > .filters {
+      @apply flex;
+    }
+    .team-list {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    }
+    .audit-view .audit-filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .frame-models .mode-options {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 650px) {
+    .team-create {
+      @apply items-stretch;
+    }
+    .team-create > button {
+      width: 100%;
+    }
+    .team-directory > .filters {
+      @apply grid;
+    }
+    .team-members .actions {
+      @apply w-full justify-start;
+    }
+    .translator-heading {
+      @apply gap-3;
+    }
+    .translator-heading > .actions {
+      @apply w-full;
+    }
+    .translator-form .field-row,
+    .frame-model-fields,
+    .frame-models .mode-options {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .mask-drop-actions > button {
+      width: 100%;
+    }
+    .reference-pdf > button {
+      margin-left: 0;
+    }
+    .glossary-entry-form {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .glossary-entry-form > :is(input:nth-child(3), select, button) {
+      grid-column: auto;
+      grid-row: auto;
+    }
+    .audit-summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+    .audit-view .audit-filters {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .audit-filters > :is(.search, .date-range) {
+      grid-column: auto;
+    }
+    .quota-editor {
+      @apply w-full;
+    }
+    .quota-editor input {
+      flex: 1;
+    }
+  }
+}

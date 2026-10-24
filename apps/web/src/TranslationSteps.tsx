@@ -11,7 +11,7 @@ export function TranslationSteps({
 }) {
   return (
     <>
-      <nav className="translation-setup-steps" aria-label="Etapas da nova tradução">
+      <nav className="translation-setup-steps doc-setup-steps" aria-label="Etapas da nova tradução">
         {STEPS.map((label, index) => (
           <button
             key={label}
@@ -25,7 +25,7 @@ export function TranslationSteps({
           </button>
         ))}
       </nav>
-      <p className="muted small-text" role="status">
+      <p className="muted small-text doc-step-status" role="status">
         Etapa {step + 1} de {STEPS.length}: {STEPS[step]}
       </p>
     </>

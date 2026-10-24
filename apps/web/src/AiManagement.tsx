@@ -45,55 +45,62 @@ export function AiManagement() {
   }
 
   return (
-    <Section
-      title="Gerenciamento AI"
-      subtitle="Auxílio do Gemini com escopo restrito: glossário, diagramação aprovada na prévia e orientação do processo."
-    >
-      <Feedback error={feedback.error ?? settings.error ?? null} ok={feedback.ok ?? null} />
-      {data && (
-        <>
-          <div className="card">
-            <p>
-              <AiStateBadge status={data} />
-            </p>
-            <p className="muted small-text">
-              A IA nunca altera o texto nem a estrutura do documento: confere o glossário, sugere combinações de diagramação (que só valem
-              depois de aprovadas na prévia) e orienta sobre o processo. Pedidos fora disso são barrados e ficam no registro abaixo. Se a IA
-              parar, ficar sem cota ou estiver desligada, o sistema segue normalmente.
-            </p>
-            {!data.configured && (
-              <p className="muted small-text">
-                Para ativar, coloque a chave do Google AI Studio em <code>GEMINI_API_KEY</code> no arquivo <code>.env</code> e reinicie a
-                API e o worker.
+    <div className="administration-view ai-management-view">
+      <Section
+        title="Gerenciamento AI"
+        subtitle="Auxílio do Gemini com escopo restrito: glossário, diagramação aprovada na prévia e orientação do processo."
+      >
+        <Feedback error={feedback.error ?? settings.error ?? null} ok={feedback.ok ?? null} />
+        {data && (
+          <>
+            <div className="card ai-overview">
+              <p>
+                <AiStateBadge status={data} />
               </p>
-            )}
-            <div className="actions">
-              {data.canToggle && (
-                <button
-                  type="button"
-                  className={data.enabled ? 'secondary' : ''}
-                  onClick={() =>
-                    void save(data.enabled ? 'IA desligada.' : 'IA ligada.', () => api('PATCH', '/ai/settings', { enabled: !data.enabled }))
-                  }
-                >
-                  {data.enabled ? 'Desligar a IA' : 'Ligar a IA'}
-                </button>
+              <p className="muted small-text">
+                A IA nunca altera o texto nem a estrutura do documento: confere o glossário, sugere combinações de diagramação (que só valem
+                depois de aprovadas na prévia) e orienta sobre o processo. Pedidos fora disso são barrados e ficam no registro abaixo. Se a
+                IA parar, ficar sem cota ou estiver desligada, o sistema segue normalmente.
+              </p>
+              {!data.configured && (
+                <p className="muted small-text">
+                  Para ativar, coloque a chave do Google AI Studio em <code>GEMINI_API_KEY</code> no arquivo <code>.env</code> e reinicie a
+                  API e o worker.
+                </p>
               )}
-              <ModelPicker current={data.model} onSave={(model) => save('Modelo salvo.', () => api('PATCH', '/ai/settings', { model }))} />
+              <div className="actions">
+                {data.canToggle && (
+                  <button
+                    type="button"
+                    className={data.enabled ? 'secondary' : ''}
+                    onClick={() =>
+                      void save(data.enabled ? 'IA desligada.' : 'IA ligada.', () =>
+                        api('PATCH', '/ai/settings', { enabled: !data.enabled }),
+                      )
+                    }
+                  >
+                    {data.enabled ? 'Desligar a IA' : 'Ligar a IA'}
+                  </button>
+                )}
+                <ModelPicker
+                  current={data.model}
+                  onSave={(model) => save('Modelo salvo.', () => api('PATCH', '/ai/settings', { model }))}
+                />
+              </div>
             </div>
-          </div>
 
-          <GovernanceEditor
-            current={data.governancePrompt}
-            fallback={data.defaultGovernancePrompt}
-            onSave={(governancePrompt) => save('Prompt de governança salvo.', () => api('PATCH', '/ai/settings', { governancePrompt }))}
-          />
-          <Skills skills={data.skills} onSave={save} />
-          <AccessList onError={(error) => setFeedback({ error })} />
-          <RequestLog />
-        </>
-      )}
-    </Section>
+            <GovernanceEditor
+              current={data.governancePrompt}
+              fallback={data.defaultGovernancePrompt}
+              onSave={(governancePrompt) => save('Prompt de governança salvo.', () => api('PATCH', '/ai/settings', { governancePrompt }))}
+            />
+            <Skills skills={data.skills} onSave={save} />
+            <AccessList onError={(error) => setFeedback({ error })} />
+            <RequestLog />
+          </>
+        )}
+      </Section>
+    </div>
   );
 }
 
@@ -123,7 +130,7 @@ function ModelPicker({ current, onSave }: { current: string; onSave: (model: str
 function GovernanceEditor({ current, fallback, onSave }: { current: string; fallback: string; onSave: (prompt: string | null) => void }) {
   const [text, setText] = useState(current);
   return (
-    <details className="top-gap">
+    <details className="card top-gap governance-editor">
       <summary>
         <strong>Prompt de governança</strong>{' '}
         {current === fallback ? <span className="badge soft">padrão</span> : <span className="badge info">editado</span>}
@@ -157,7 +164,7 @@ function GovernanceEditor({ current, fallback, onSave }: { current: string; fall
 function Skills({ skills, onSave }: { skills: AiSkillItem[]; onSave: (label: string, call: () => Promise<unknown>) => Promise<void> }) {
   const [editing, setEditing] = useState<{ id?: string; name: string; content: string; active: boolean } | null>(null);
   return (
-    <>
+    <section className="administrative-group ai-skills">
       <h3 className="top-gap">Habilidades</h3>
       <p className="muted small-text">
         Instruções adicionais que entram no prompt da IA (padrão de qualidade da diagramação, convenções da equipe).
@@ -234,14 +241,14 @@ function Skills({ skills, onSave }: { skills: AiSkillItem[]; onSave: (label: str
           Nova habilidade
         </button>
       )}
-    </>
+    </section>
   );
 }
 
 function AccessList({ onError }: { onError: (error: string) => void }) {
   const access = useLoad(() => api<{ items: AiAccessItem[] }>('GET', '/ai/access'), []);
   return (
-    <>
+    <section className="administrative-group ai-access">
       <h3 className="top-gap">Acesso por pessoa</h3>
       <p className="muted small-text">
         Todos usam por padrão. O Supervisor limita as pessoas das próprias equipes; o Diretor, qualquer pessoa.
@@ -284,7 +291,7 @@ function AccessList({ onError }: { onError: (error: string) => void }) {
           </tbody>
         </table>
       </div>
-    </>
+    </section>
   );
 }
 
@@ -295,7 +302,7 @@ function RequestLog() {
   );
   const totals = log.data?.last30Days ?? {};
   return (
-    <>
+    <section className="administrative-group ai-request-log">
       <h3 className="top-gap">Registro de chamadas</h3>
       <p className="muted small-text">
         Últimos 30 dias:{' '}
@@ -336,7 +343,7 @@ function RequestLog() {
           </tbody>
         </table>
       </div>
-    </>
+    </section>
   );
 }
 
@@ -409,7 +416,7 @@ export function AiAssist({
     );
 
   return (
-    <details className="card top-gap" open={!!combination}>
+    <details className="card top-gap ai-assist" open={!!combination}>
       <summary>
         <strong>Auxílio da IA</strong> {combination && <span className="badge info">Sugestão de diagramação para aprovar</span>}
       </summary>
@@ -553,7 +560,7 @@ function CombinationReview({
   };
   const pdf = `/api/v1/ai/layout-combinations/${combination.id}/preview?format=pdf`;
   return (
-    <div className="top-gap">
+    <div className="top-gap ai-combination-review">
       <h4>Sugestão de diagramação</h4>
       {combination.rationale && <p className="muted small-text">{combination.rationale}</p>}
       <ul className="list compact small-text">

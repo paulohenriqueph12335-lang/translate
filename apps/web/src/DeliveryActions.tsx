@@ -48,7 +48,7 @@ export function SaveDownloadButton({
     }
   }
   return (
-    <div className="save-download">
+    <div className="save-download doc-save-download">
       <button type="button" className={className} disabled={busy} onClick={() => void save()}>
         {busy ? 'Preparando…' : label}
       </button>
@@ -71,15 +71,15 @@ export function FinalDelivery({ translationId, version, batchId }: { translation
   const [preferNative, setPreferNative] = useState(true);
   const manifest = useLoad(() => api<Manifest>('GET', `/translations/${translationId}/download-manifest`), [translationId, version]);
   return (
-    <section className="card final-delivery" aria-label="Arquivos concluídos">
+    <section className="card final-delivery doc-domain doc-module doc-final-delivery" aria-label="Arquivos concluídos">
       <h3>Tradução concluída</h3>
-      <p>O arquivo permanece disponível aqui. Escolha salvar agora ou volte quando precisar.</p>
+      <p className="muted small-text">O arquivo permanece disponível aqui. Escolha salvar agora ou volte quando precisar.</p>
       <Feedback error={manifest.error} />
       {!manifest.data && !manifest.error && <p role="status">Carregando arquivos disponíveis…</p>}
-      <button className="small ghost" onClick={manifest.reload}>
+      <button className="small ghost doc-delivery-refresh" onClick={manifest.reload}>
         Atualizar arquivos disponíveis
       </button>
-      <div className="actions">
+      <div className="actions doc-delivery-actions">
         {manifest.data?.formats.map((file) => (
           <SaveDownloadButton
             key={`${file.format}-${manifest.data!.versionToken}`}
@@ -92,7 +92,7 @@ export function FinalDelivery({ translationId, version, batchId }: { translation
           />
         ))}
       </div>
-      <details>
+      <details className="doc-delivery-options">
         <summary>Baixar em ZIP e opções de salvamento</summary>
         {canChooseSaveLocation() && (
           <label className="check">
@@ -147,8 +147,7 @@ export function DeliveryMenu({
       </button>
       <dialog
         ref={dialog}
-        className="dashboard-dialog"
-        style={{ width: 'min(760px, calc(100vw - 32px))' }}
+        className="dashboard-dialog doc-delivery-dialog"
         aria-label="Salvar arquivos da tradução"
         onClick={(event) => event.stopPropagation()}
         onCancel={() => setOpen(false)}
@@ -156,7 +155,7 @@ export function DeliveryMenu({
       >
         <button
           autoFocus
-          className="small"
+          className="small doc-dialog-close"
           onClick={() => {
             dialog.current?.close();
             setOpen(false);

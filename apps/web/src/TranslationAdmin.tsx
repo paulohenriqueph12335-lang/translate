@@ -47,99 +47,101 @@ export function Glossary({ me }: { me: Me }) {
   }
 
   return (
-    <Section title="Glossário" subtitle="Traduções aprovadas de termos. O sistema as usa nos rascunhos e confere nas checagens.">
-      <div className="filters">
-        <Segmented
-          label="Idioma de destino"
-          value={target}
-          options={TARGETS.map((language) => [language, `Para ${languageLabel[language].toLowerCase()}`])}
-          onChange={setTarget}
-        />
-        {target === 'pt' && (
-          <select aria-label="Idioma do termo" value={foreignSource} onChange={(e) => setForeignSource(e.target.value as Language)}>
-            {FOREIGN.map((language) => (
-              <option key={language} value={language}>
-                Termos em {languageLabel[language].toLowerCase()}
-              </option>
-            ))}
-          </select>
+    <div className="administration-view glossary-view">
+      <Section title="Glossário" subtitle="Traduções aprovadas de termos. O sistema as usa nos rascunhos e confere nas checagens.">
+        <div className="filters">
+          <Segmented
+            label="Idioma de destino"
+            value={target}
+            options={TARGETS.map((language) => [language, `Para ${languageLabel[language].toLowerCase()}`])}
+            onChange={setTarget}
+          />
+          {target === 'pt' && (
+            <select aria-label="Idioma do termo" value={foreignSource} onChange={(e) => setForeignSource(e.target.value as Language)}>
+              {FOREIGN.map((language) => (
+                <option key={language} value={language}>
+                  Termos em {languageLabel[language].toLowerCase()}
+                </option>
+              ))}
+            </select>
+          )}
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar termo" />
+        </div>
+        {canAdd && (
+          <form className="card toolbar glossary-entry-form" onSubmit={add}>
+            <input
+              required
+              placeholder={`Termo (${source.toUpperCase()})`}
+              value={form.sourceTerm}
+              onChange={(e) => setForm({ ...form, sourceTerm: e.target.value })}
+            />
+            <input
+              required
+              placeholder={`Tradução (${target.toUpperCase()})`}
+              value={form.targetTerm}
+              onChange={(e) => setForm({ ...form, targetTerm: e.target.value })}
+            />
+            <input placeholder="Observação (opcional)" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+            <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} aria-label="Alcance">
+              {isDirector && <option value="org">Toda a organização</option>}
+              {(isDirector ? me.memberships : ledTeams).map((m) => (
+                <option key={m.teamId} value={m.teamId}>
+                  Equipe {m.teamName}
+                </option>
+              ))}
+            </select>
+            <button className="primary">Adicionar</button>
+          </form>
         )}
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar termo" />
-      </div>
-      {canAdd && (
-        <form className="card toolbar" onSubmit={add}>
-          <input
-            required
-            placeholder={`Termo (${source.toUpperCase()})`}
-            value={form.sourceTerm}
-            onChange={(e) => setForm({ ...form, sourceTerm: e.target.value })}
-          />
-          <input
-            required
-            placeholder={`Tradução (${target.toUpperCase()})`}
-            value={form.targetTerm}
-            onChange={(e) => setForm({ ...form, targetTerm: e.target.value })}
-          />
-          <input placeholder="Observação (opcional)" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
-          <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} aria-label="Alcance">
-            {isDirector && <option value="org">Toda a organização</option>}
-            {(isDirector ? me.memberships : ledTeams).map((m) => (
-              <option key={m.teamId} value={m.teamId}>
-                Equipe {m.teamName}
-              </option>
-            ))}
-          </select>
-          <button className="primary">Adicionar</button>
-        </form>
-      )}
-      <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Termo</th>
-              <th>Tradução</th>
-              <th>Alcance</th>
-              <th>Observação</th>
-              <th>Origem</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {data?.items.map((entry) => (
-              <tr key={entry.id}>
-                <td>{entry.sourceTerm}</td>
-                <td>{entry.targetTerm}</td>
-                <td className="muted">{entry.team ? `Equipe ${entry.team.name}` : 'Organização'}</td>
-                <td className="muted">{entry.note ?? '—'}</td>
-                <td className="muted small-text">{entry.origin ?? `Cadastro de ${entry.createdBy}`}</td>
-                <td className="actions">
-                  {entry.canEdit && (
-                    <button
-                      className="small danger"
-                      onClick={() =>
-                        window.confirm(`Remover "${entry.sourceTerm}" do glossário?`) &&
-                        api('DELETE', `/glossary/${entry.id}`)
-                          .then(reload)
-                          .catch((caught: unknown) => setFeedback({ error: message(caught) }))
-                      }
-                    >
-                      Remover
-                    </button>
-                  )}
-                </td>
+        <Feedback error={error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Termo</th>
+                <th>Tradução</th>
+                <th>Alcance</th>
+                <th>Observação</th>
+                <th>Origem</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {data && data.items.length === 0 && (
-        <p className="empty">
-          Nenhum termo {q ? 'corresponde à busca' : `de ${languageLabel[source].toLowerCase()} para ${languageLabel[target].toLowerCase()}`}
-          .
-        </p>
-      )}
-    </Section>
+            </thead>
+            <tbody>
+              {data?.items.map((entry) => (
+                <tr key={entry.id}>
+                  <td>{entry.sourceTerm}</td>
+                  <td>{entry.targetTerm}</td>
+                  <td className="muted">{entry.team ? `Equipe ${entry.team.name}` : 'Organização'}</td>
+                  <td className="muted">{entry.note ?? '—'}</td>
+                  <td className="muted small-text">{entry.origin ?? `Cadastro de ${entry.createdBy}`}</td>
+                  <td className="actions">
+                    {entry.canEdit && (
+                      <button
+                        className="small danger"
+                        onClick={() =>
+                          window.confirm(`Remover "${entry.sourceTerm}" do glossário?`) &&
+                          api('DELETE', `/glossary/${entry.id}`)
+                            .then(reload)
+                            .catch((caught: unknown) => setFeedback({ error: message(caught) }))
+                        }
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {data && data.items.length === 0 && (
+          <p className="empty">
+            Nenhum termo{' '}
+            {q ? 'corresponde à busca' : `de ${languageLabel[source].toLowerCase()} para ${languageLabel[target].toLowerCase()}`}.
+          </p>
+        )}
+      </Section>
+    </div>
   );
 }
 
@@ -147,13 +149,15 @@ export function Glossary({ me }: { me: Me }) {
 export function TranslationSettingsView() {
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
   return (
-    <Section title="Configurações" subtitle="Tradução automática dos documentos enviados.">
-      <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
-      <p className="muted small-text">
-        O tradutor juramentado, a máscara em Word e a numeração de cada um são cadastrados em Tradutores juramentados, pelos Supervisores.
-      </p>
-      <MachineProviderSettings onError={(error) => setFeedback({ error })} />
-    </Section>
+    <div className="administration-view machine-settings-view">
+      <Section title="Configurações" subtitle="Tradução automática dos documentos enviados.">
+        <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
+        <p className="muted small-text">
+          O tradutor juramentado, a máscara em Word e a numeração de cada um são cadastrados em Tradutores juramentados, pelos Supervisores.
+        </p>
+        <MachineProviderSettings onError={(error) => setFeedback({ error })} />
+      </Section>
+    </div>
   );
 }
 
@@ -179,7 +183,7 @@ function MachineProviderSettings({ onError }: { onError: (message: string) => vo
         Todo documento enviado é traduzido trecho a trecho, dentro do layout do original. Trechos de traduções já concluídas vêm da memória
         sem gastar cota; brasões, carimbos e assinaturas viram marcadores entre colchetes, conforme as regras de tradução.
       </p>
-      <ul className="list compact">
+      <ul className="list compact machine-provider-list">
         {(['libretranslate', 'deepl', 'none'] as const).map((provider) => {
           const online = provider === 'none' || data.machineProviders.includes(provider);
           return (

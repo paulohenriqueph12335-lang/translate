@@ -46,17 +46,19 @@ export function Settings({
         </button>
       )}
       {loading && !preferences && (
-        <p className="muted" role="status">
+        <p className="muted account-loading" role="status">
           Carregando preferências…
         </p>
       )}
       {preferences && (
-        <div className="settings-grid">
+        <div className="settings-grid account-settings-grid">
           <SmartNotificationSettings />
-          <section className="card settings-card" aria-labelledby="appearance-settings-title">
-            <h3 id="appearance-settings-title">Aparência</h3>
-            <p className="muted settings-copy">Use o modo noturno para trabalhar com uma interface escura.</p>
-            <form className="settings-form" onSubmit={(event) => void saveTheme(event)}>
+          <section className="card settings-card account-appearance" aria-labelledby="appearance-settings-title">
+            <header className="account-panel-heading">
+              <h3 id="appearance-settings-title">Aparência</h3>
+              <p className="muted settings-copy">Use o modo noturno para trabalhar com uma interface escura.</p>
+            </header>
+            <form className="settings-form account-appearance-form" onSubmit={(event) => void saveTheme(event)}>
               <label>
                 Tema da interface
                 <select
@@ -119,10 +121,12 @@ export function PasswordSettings({ email }: { email: string }) {
 
   return (
     <Section title="Alterar senha" subtitle="Atualize a senha da sua própria conta usando a senha atual.">
-      <section className="card settings-card" aria-labelledby="password-settings-title">
-        <h3 id="password-settings-title">Senha da conta</h3>
-        <p className="muted settings-copy">{email}</p>
-        <form className="settings-form" onSubmit={(event) => void changePassword(event)}>
+      <section className="card settings-card account-password" aria-labelledby="password-settings-title">
+        <header className="account-panel-heading">
+          <h3 id="password-settings-title">Senha da conta</h3>
+          <p className="muted settings-copy">{email}</p>
+        </header>
+        <form className="settings-form account-password-form" onSubmit={(event) => void changePassword(event)}>
           <input type="text" name="username" autoComplete="username" value={email} readOnly hidden />
           <label>
             Senha atual

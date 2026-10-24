@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 /**
  * Identifica cada início do servidor da interface. A página carregada guarda o seu; se o servidor responder outro,
@@ -19,7 +20,7 @@ const buildId = (): Plugin => ({
 
 // A API é servida na mesma origem via proxy, para o cookie de sessão SameSite=Strict (ADR-003).
 export default defineConfig({
-  plugins: [react(), buildId()],
+  plugins: [tailwindcss(), react(), buildId()],
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   server: {
     proxy: { '/api': { target: process.env.API_PROXY_TARGET ?? 'http://localhost:3000', changeOrigin: false } },
