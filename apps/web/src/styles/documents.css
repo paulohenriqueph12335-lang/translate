@@ -739,8 +739,32 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   }
 
+  /* Modalidade: primeira escolha do envio, antes dos arquivos. */
+  .mode-field {
+    @apply mb-5 grid min-w-0 gap-2;
+  }
+
+  .mode-field > .field-label {
+    font-size: 0.9375rem;
+    font-weight: 680;
+    color: var(--ink);
+  }
+
+  .mode-field > p {
+    @apply m-0;
+  }
+
+  .doc-filter-bar .inline,
+  .doc-form .filters .inline {
+    gap: 0.75rem;
+  }
+
+  .inline > span + .language-pair-picker {
+    margin-left: 0.625rem;
+  }
+
   .doc-mode-options .mode-option {
-    @apply min-w-0 content-start gap-1 rounded-control border-0 bg-transparent p-3 text-left text-ink;
+    @apply grid min-w-0 content-start justify-items-start justify-stretch gap-1 rounded-control border-0 bg-transparent p-3 text-left text-ink;
     white-space: normal;
     box-shadow: inset 0 0 0 1px var(--rule);
   }
@@ -948,6 +972,20 @@
 
   .doc-archive-controls {
     @apply my-2 grid min-w-0 gap-2;
+  }
+
+  .archive-heading {
+    @apply m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5;
+    font-size: 0.9375rem;
+  }
+
+  .archive-heading .muted {
+    font-size: 0.875rem;
+  }
+
+  .doc-archive-controls button svg {
+    width: 1rem;
+    height: 1rem;
   }
 
   .doc-archive-controls .actions {

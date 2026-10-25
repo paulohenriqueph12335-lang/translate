@@ -15,7 +15,7 @@ import { useConfirm } from './ConfirmDialog';
 import { Meter } from './Charts';
 import { StatusBadge } from './Translations';
 import { LanguagePairPicker } from './LanguagePairPicker';
-import { dateTime, DateRange, Feedback, message, PagedFooter, SearchInput, Section, TagList, useDebounced, useLoad, usePaged } from './ui';
+import { dateTime, DateRange, Feedback, message, PagedFooter, SearchInput, Section, useDebounced, useLoad, usePaged } from './ui';
 
 const ACTIVE = 'queued,processing,in_review,awaiting_approval';
 
@@ -150,7 +150,6 @@ function WorkList({
               {item.documentType ?? item.sourceTitle ?? 'Tipo ainda não identificado'} ·{' '}
               {pairLabel(item.sourceLanguage, item.targetLanguage)} · {item.team?.name ?? 'Sem equipe'} · {dateTime(item.createdAt)}
             </span>
-            <TagList tags={item.document.tags} />
           </div>
           {onClaim ? (
             <button

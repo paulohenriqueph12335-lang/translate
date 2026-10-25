@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Icon } from './icons';
 import { saveFile } from './save-file';
 import { Feedback } from './ui';
 
@@ -7,12 +8,16 @@ export function ArchiveDownloadButtons({
   batchId,
   disabled = false,
   preferNative = true,
+  heading = false,
 }: {
   translationIds?: string[];
   batchId?: string;
   disabled?: boolean;
   preferNative?: boolean;
+  /** Nas listas: título e instrução de marcar os documentos antes de baixar. */
+  heading?: boolean;
 }) {
+  const empty = !batchId && !translationIds?.length;
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
@@ -47,16 +52,24 @@ export function ArchiveDownloadButtons({
   }
   return (
     <div className="archive-controls doc-archive-controls">
+      {heading && (
+        <p className="archive-heading">
+          <strong>Baixar em lote (ZIP)</strong>{' '}
+          <span className="muted">
+            {empty
+              ? 'Marque os documentos na lista para liberar o ZIP em Word ou em PDF.'
+              : `${translationIds?.length ?? 0} documento(s) marcado(s): escolha o formato.`}
+          </span>
+        </p>
+      )}
       <div className="actions">
-        <button
-          className="small"
-          disabled={busy || disabled || (!batchId && !translationIds?.length)}
-          onClick={() => void download('docx')}
-        >
-          {busy ? 'Preparando ZIP…' : 'Baixar ZIP Word'}
+        <button className="small" disabled={busy || disabled || empty} onClick={() => void download('docx')}>
+          <Icon name="download" />
+          {busy && lastFormat === 'docx' ? 'Preparando ZIP…' : 'ZIP em Word'}
         </button>
-        <button className="small" disabled={busy || disabled || (!batchId && !translationIds?.length)} onClick={() => void download('pdf')}>
-          Baixar ZIP PDF
+        <button className="small" disabled={busy || disabled || empty} onClick={() => void download('pdf')}>
+          <Icon name="download" />
+          {busy && lastFormat === 'pdf' ? 'Preparando ZIP…' : 'ZIP em PDF'}
         </button>
       </div>
       <small className="muted">

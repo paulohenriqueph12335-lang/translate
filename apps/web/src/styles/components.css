@@ -1184,9 +1184,6 @@
     font-weight: 650;
     white-space: nowrap;
   }
-  td {
-    font-variant-numeric: tabular-nums;
-  }
   tbody tr:last-child > td:not(:where(.paper *)),
   tbody tr:last-child > th:not(:where(.paper *)) {
     border-bottom: 0;

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError, onRequestsInFlight, type Page } from './api';
 
 export const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -270,81 +270,6 @@ export function DateRange({
       <span className="muted">até</span>
       <input type="date" aria-label={`${label}: até`} value={to} min={from || undefined} onChange={(e) => onChange(from, e.target.value)} />
     </fieldset>
-  );
-}
-
-/** Etiquetas como fichas; com `onRemove`, cada uma pode ser retirada. */
-export function TagList({ tags, onRemove, onPick }: { tags: string[]; onRemove?: (tag: string) => void; onPick?: (tag: string) => void }) {
-  if (!tags.length) return null;
-  return (
-    <span className="tags">
-      {tags.map((tag) =>
-        onRemove ? (
-          <span key={tag} className="tag">
-            {tag}
-            <button type="button" aria-label={`Remover etiqueta ${tag}`} onClick={() => onRemove(tag)}>
-              ×
-            </button>
-          </span>
-        ) : onPick ? (
-          <button key={tag} type="button" className="tag pick" onClick={() => onPick(tag)} title="Filtrar por esta etiqueta">
-            {tag}
-          </button>
-        ) : (
-          <span key={tag} className="tag">
-            {tag}
-          </span>
-        ),
-      )}
-    </span>
-  );
-}
-
-/** Campo de etiquetas: Enter ou vírgula adiciona; sugere as etiquetas já usadas. */
-export function TagInput({
-  value,
-  onChange,
-  suggestions = [],
-  max = 10,
-}: {
-  value: string[];
-  onChange: (tags: string[]) => void;
-  suggestions?: string[];
-  max?: number;
-}) {
-  const [draft, setDraft] = useState('');
-  const listId = useId();
-  const add = (raw: string) => {
-    const tag = raw.trim().toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').slice(0, 40);
-    if (tag && !value.includes(tag) && value.length < max) onChange([...value, tag]);
-    setDraft('');
-  };
-  return (
-    <div className="tag-input">
-      <TagList tags={value} onRemove={(tag) => onChange(value.filter((item) => item !== tag))} />
-      {value.length < max && (
-        <input
-          list={listId}
-          placeholder={value.length ? 'Outra etiqueta…' : 'Ex.: histórico escolar, certidão, urgente'}
-          value={draft}
-          onChange={(e) => (e.target.value.endsWith(',') ? add(e.target.value.slice(0, -1)) : setDraft(e.target.value))}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              add(draft);
-            } else if (e.key === 'Backspace' && !draft && value.length) onChange(value.slice(0, -1));
-          }}
-          onBlur={() => draft && add(draft)}
-        />
-      )}
-      <datalist id={listId}>
-        {suggestions
-          .filter((tag) => !value.includes(tag))
-          .map((tag) => (
-            <option key={tag} value={tag} />
-          ))}
-      </datalist>
-    </div>
   );
 }
 

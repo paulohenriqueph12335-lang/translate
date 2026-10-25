@@ -21,8 +21,8 @@ import {
 } from './api';
 import { ModeSelect, PairSelect } from './Modes';
 import { ArchiveDownloadButtons, useBatchProtocol } from './Flow';
-import { DocumentTags, StatusBadge } from './Translations';
-import { dateTime, Feedback, LoadingHint, message, SearchInput, Section, Segmented, TagInput, useDebounced, useLoad } from './ui';
+import { StatusBadge } from './Translations';
+import { dateTime, Feedback, LoadingHint, message, SearchInput, Section, Segmented, useDebounced, useLoad } from './ui';
 import { useConfirm } from './ConfirmDialog';
 import { DocumentCategorySelect, useDocumentCategories } from './DocumentClassification';
 import { TranslationSteps } from './TranslationSteps';
@@ -205,8 +205,6 @@ function NewBatch({
   const [pair, setPair] = useState('pt-en');
   // Modalidade (ADR-015): define as etapas e as regras de tradução do lote.
   const [mode, setMode] = useState<TranslationMode>('sworn');
-  const [tags, setTags] = useState<string[]>([]);
-  const suggestions = useLoad(() => api<{ items: Array<{ tag: string }> }>('GET', '/tags'), []);
   const [files, setFiles] = useState<File[]>([]);
   const protocol = useBatchProtocol(files.length);
   const [dragging, setDragging] = useState(false);
@@ -275,7 +273,6 @@ function NewBatch({
           ...(isDirector ? {} : { teamId }),
           translation: { sourceLanguage: splitPair(pair)[0], targetLanguage: splitPair(pair)[1] },
           mode,
-          ...(tags.length ? { tags } : {}),
           ...(name.trim() ? { name: name.trim() } : {}),
           ...(documentCategory ? { documentCategory } : {}),
           files: files.map((file) => ({ name: file.name, size: file.size })),
@@ -310,12 +307,6 @@ function NewBatch({
               categories={categories.data?.categories ?? []}
             />
             <Feedback error={categories.error} />
-            <fieldset className="tags-field doc-borderless-fields">
-              <legend>
-                Etiquetas <small className="muted">Opcionais; ajudam a pesquisar e organizar os documentos.</small>
-              </legend>
-              <TagInput value={tags} onChange={setTags} suggestions={suggestions.data?.items.map((item) => item.tag) ?? []} />
-            </fieldset>
           </>
         )}
         {step === 2 && (
@@ -347,18 +338,18 @@ function NewBatch({
                 <PairSelect value={pair} onChange={setPair} />
               </div>
             </div>
-            <div className="tags-field">
-              <span className="field-label">Modalidade</span>
-              <ModeSelect value={mode} onChange={setMode} />
-            </div>
-            {mode === 'sworn' && (
-              <p className="muted small-text">O tradutor juramentado e a máscara são escolhidos na conclusão, e são opcionais.</p>
-            )}
           </>
         )}
 
         {step === 0 && (
           <>
+            <div className="mode-field">
+              <span className="field-label">Modalidade da tradução</span>
+              <ModeSelect value={mode} onChange={setMode} />
+              {mode === 'sworn' && (
+                <p className="muted small-text">O tradutor juramentado e a máscara são escolhidos na conclusão, e são opcionais.</p>
+              )}
+            </div>
             <div
               className={`dropzone ${dragging ? 'over' : ''}`}
               onDragOver={(event) => {
@@ -853,18 +844,6 @@ function BatchDetail({
                     {doc.name}
                     {batch.inspectionMode === 'sample' && doc.position < (batch.inspectionSampleSize ?? 10) && (
                       <span className="badge">Amostra de inspeção</span>
-                    )}
-                    {doc.status === 'stored' && (
-                      <DocumentTags
-                        documentId={doc.id}
-                        tags={doc.tags}
-                        completed={
-                          doc.translations?.some(
-                            (translation) => translation.status === 'approved' || translation.status === 'awaiting_approval',
-                          ) ?? false
-                        }
-                        onSaved={onChange}
-                      />
                     )}
                   </td>
                   <td>{formatBytes(doc.size)}</td>

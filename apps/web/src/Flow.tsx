@@ -239,6 +239,13 @@ export function NewTranslation({
       <fieldset className="doc-borderless-fields" disabled={busy || locked}>
         {step === 0 && (
           <>
+            <div className="mode-field">
+              <span className="field-label">Modalidade da tradução</span>
+              <ModeSelect value={mode} onChange={setMode} />
+              {sworn && (
+                <p className="muted small-text">O tradutor juramentado e a máscara são escolhidos na conclusão, e são opcionais.</p>
+              )}
+            </div>
             <div
               className={`dropzone ${dragging ? 'over' : ''}`}
               onDragOver={(event: DragEvent) => {
@@ -344,11 +351,6 @@ export function NewTranslation({
                 <PairSelect value={pair} onChange={setPair} />
               </div>
             </div>
-            <div className="tags-field">
-              <span className="field-label">Modalidade</span>
-              <ModeSelect value={mode} onChange={setMode} />
-            </div>
-            {sworn && <p className="muted small-text">O tradutor juramentado e a máscara são escolhidos na conclusão, e são opcionais.</p>}
           </>
         )}
         {step === 3 && (

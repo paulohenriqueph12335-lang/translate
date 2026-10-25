@@ -73,7 +73,6 @@
     @apply mb-3 mt-1;
     font-size: 0.8125rem;
     color: var(--muted);
-    font-variant-numeric: tabular-nums;
   }
   .team-panel-view .dash-body > h3 {
     @apply mb-2 mt-8;
@@ -148,7 +147,6 @@
   .delta {
     @apply inline-flex flex-wrap items-center gap-1 text-muted;
     font-size: 0.8125rem;
-    font-variant-numeric: tabular-nums;
   }
   .delta svg {
     width: 0.5625rem;
@@ -622,7 +620,6 @@
   }
   .live-head > .small-text {
     font-size: 0.8125rem;
-    font-variant-numeric: tabular-nums;
   }
   .live-head > button {
     @apply ml-auto;

@@ -1,4 +1,4 @@
-const STEPS = ['Documentos', 'Identificação e protocolo', 'Idiomas e modalidade', 'Conferência do envio'];
+const STEPS = ['Modalidade e documentos', 'Identificação e protocolo', 'Idiomas e equipe', 'Conferência do envio'];
 
 export function TranslationSteps({
   step,
