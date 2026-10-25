@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   api,
   ApiError,
@@ -519,12 +519,16 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       inspectBeforeApproval().then((inspected) => (inspected ? api<TranslationDetail>('POST', `/translations/${id}/accept`) : undefined)),
     );
     if (done) {
+      const decide = done.translation.status === 'awaiting_approval' && done.translation.permissions.approve;
       setFeedback({
         ok:
           done.translation.status === 'approved'
             ? 'Concluída: o Word final e o PDF estão liberados.'
-            : 'Aprovado: a liderança da equipe foi avisada para concluir.',
+            : decide
+              ? 'Pronta para concluir: escolha o tradutor juramentado, ou conclua sem tradutor.'
+              : 'Aprovado: a liderança da equipe foi avisada para concluir.',
       });
+      if (decide) setPanel('conclude');
       reload();
     }
   }
@@ -628,21 +632,6 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       {(t.status === 'queued' || t.status === 'processing') && (
         <p className="alert info">Traduzindo e revisando o documento… esta tela se atualiza sozinha e a prévia em Word aparece aqui.</p>
       )}
-      {t.useMask && (t.status === 'in_review' || t.status === 'awaiting_approval') && (
-        <NumberingPanel
-          key={`${id}-${t.status}-numbering`}
-          translationId={id}
-          editable={t.permissions.edit || t.permissions.approve}
-          canAuthorize={t.permissions.approve}
-          defaultTranslatorId={t.preferredTranslator?.id ?? null}
-          defaultPages={t.pageCount}
-          completed={t.status === 'awaiting_approval'}
-          onSaved={() => {
-            setReviewedComparison(false);
-            reload();
-          }}
-        />
-      )}
       {data.draft &&
         (t.status === 'in_review' || t.status === 'awaiting_approval' || (t.status === 'approved' && t.permissions.download)) && (
           <WordPanel
@@ -701,7 +690,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
         </details>
       )}
 
-      <details className="card manual-tools doc-module" open={editing}>
+      <details className="card manual-tools doc-module" open={editing || panel !== null}>
         <summary>Ajustes manuais (opcional): texto, checklist, revisão e conclusão com outro tradutor</summary>
         <div className="action-bar">
           {t.permissions.claim && (
@@ -790,6 +779,22 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             errors={errors.length}
             canManageTranslators={me.memberships.some((m) => m.role === 'leader')}
             sworn={t.useMask}
+            defaultWithTranslator={t.preferredTranslator ? true : null}
+            numbering={
+              <NumberingPanel
+                key={`${id}-${t.status}-numbering`}
+                translationId={id}
+                editable={t.permissions.approve}
+                canAuthorize={t.permissions.approve}
+                defaultTranslatorId={t.preferredTranslator?.id ?? null}
+                defaultPages={t.pageCount}
+                completed={t.status === 'awaiting_approval'}
+                onSaved={() => {
+                  setReviewedComparison(false);
+                  reload();
+                }}
+              />
+            }
             dirty={dirty}
             beforeConclude={inspectBeforeApproval}
             compared={!!sampleExempt || reviewedComparison}
@@ -1000,14 +1005,16 @@ function NumberingRequestPanel({ id, onDone }: { id: string; onDone: () => void 
 }
 
 /**
- * Conclusão (ADR-012): escolhe o tradutor juramentado (a máscara dele) e digita o número, o livro e a folha conforme as
- * regras dele. A prévia na máscara escolhida pode ser baixada antes de concluir.
+ * Conclusão (ADR-012): na juramentada, quem conclui decide agora se usa um tradutor juramentado (a máscara dele, com
+ * número, livro e folha pela regra dele) ou conclui sem tradutor (o documento no layout do original, sem número).
  */
 function ConcludePanel({
   id,
   errors,
   canManageTranslators,
   sworn,
+  defaultWithTranslator,
+  numbering,
   dirty,
   beforeConclude,
   compared,
@@ -1017,8 +1024,12 @@ function ConcludePanel({
   id: string;
   errors: number;
   canManageTranslators: boolean;
-  /** Só a juramentada precisa do tradutor juramentado e da máscara (ADR-015). */
+  /** Só a juramentada pode usar o tradutor juramentado e a máscara (ADR-015). */
   sworn: boolean;
+  /** Tradutor já indicado no envio: a conclusão abre com ele. */
+  defaultWithTranslator: boolean | null;
+  /** Numeração do tradutor, mostrada quando a conclusão é com tradutor. */
+  numbering: ReactNode;
   dirty: boolean;
   beforeConclude: () => Promise<boolean>;
   compared: boolean;
@@ -1027,36 +1038,26 @@ function ConcludePanel({
 }) {
   const translators = useLoad(() => api<{ items: SwornTranslator[] }>('GET', '/sworn-translators?active=true'), []);
   const ready = (translators.data?.items ?? []).filter((item) => item.ready);
+  const [withTranslator, setWithTranslator] = useState<boolean | null>(defaultWithTranslator);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => box.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), []);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (sworn && translators.data && ready.length === 0) {
-    return (
-      <div className="card panel doc-module">
-        <h3>Falta cadastrar um tradutor juramentado</h3>
-        <p className="muted">
-          A tradução concluída sai na máscara em Word do tradutor juramentado, com o número dele. Cadastre o tradutor e envie a máscara
-          antes da primeira conclusão.
-        </p>
-        {canManageTranslators ? (
-          <button className="primary" onClick={onGoTranslators}>
-            Cadastrar tradutor
-          </button>
-        ) : (
-          <p className="alert warn-box">Peça a um Supervisor para cadastrar o tradutor juramentado e a máscara dele.</p>
-        )}
-      </div>
-    );
-  }
+  // Sem tradutor com máscara pronta, a juramentada só pode ser concluída sem tradutor.
+  const noTranslators = !!translators.data && ready.length === 0;
+  const choice = !sworn || noTranslators ? false : withTranslator;
 
   async function conclude() {
     setBusy(true);
     setError(null);
     try {
       if (!(await beforeConclude())) return;
-      // A numeração preenchida no painel "Numeração" é conferida de novo e emitida agora (ADR-014).
-      await api('POST', `/translations/${id}/approve`, errors ? { overrideReason: reason.trim() } : {});
+      // Com tradutor, a numeração preenchida no painel é conferida de novo e emitida agora (ADR-014).
+      await api('POST', `/translations/${id}/approve`, {
+        ...(errors ? { overrideReason: reason.trim() } : {}),
+        ...(sworn && choice === false ? { withoutTranslator: true } : {}),
+      });
       onDone();
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : message(caught));
@@ -1066,11 +1067,54 @@ function ConcludePanel({
   }
 
   return (
-    <div className="card panel doc-module">
+    <div className="card panel doc-module" ref={box}>
       <h3>Concluir tradução</h3>
+      {sworn && (
+        <div className="tags-field">
+          <span className="field-label">Tradutor juramentado</span>
+          <div className="mode-options doc-mode-options" role="radiogroup" aria-label="Tradutor juramentado">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={choice === true}
+              className={`mode-option ${choice === true ? 'on' : ''}`}
+              disabled={noTranslators}
+              onClick={() => setWithTranslator(true)}
+            >
+              <strong>Com tradutor</strong>
+              <span className="muted small-text">Máscara do tradutor, com número, livro e folha pela regra dele.</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={choice === false}
+              className={`mode-option ${choice === false ? 'on' : ''}`}
+              onClick={() => setWithTranslator(false)}
+            >
+              <strong>Sem tradutor</strong>
+              <span className="muted small-text">Só o documento traduzido no layout do original, sem máscara e sem número.</span>
+            </button>
+          </div>
+          {noTranslators && (
+            <p className="muted small-text">
+              Nenhum tradutor juramentado com máscara pronta.{' '}
+              {canManageTranslators ? (
+                <button className="link" onClick={onGoTranslators}>
+                  Cadastrar tradutor
+                </button>
+              ) : (
+                'Para usar a máscara, peça a um Supervisor para cadastrar o tradutor.'
+              )}
+            </p>
+          )}
+        </div>
+      )}
+      {choice === true && numbering}
       <p className="muted">
-        A numeração preenchida abaixo é conferida pela regra do tradutor e emitida; o documento entra na máscara dele, o DOCX final é gerado
-        e o download é liberado. Quem enviou e quem revisou são avisados.
+        {choice === true
+          ? 'A numeração preenchida é conferida pela regra do tradutor e emitida; o documento entra na máscara dele, o DOCX final é gerado e o download é liberado.'
+          : 'O DOCX final é gerado no layout do original e o download é liberado.'}{' '}
+        Quem enviou e quem revisou são avisados.
       </p>
       {dirty && <p className="alert warn-box">Há alterações não salvas no texto; salve antes de concluir.</p>}
       {errors > 0 && (
@@ -1083,7 +1127,7 @@ function ConcludePanel({
       <div className="actions">
         <button
           className="primary"
-          disabled={busy || dirty || !compared || (errors > 0 && reason.trim().length < 10)}
+          disabled={busy || dirty || !compared || choice === null || (errors > 0 && reason.trim().length < 10)}
           onClick={() => void conclude()}
         >
           {busy ? 'Concluindo…' : 'Concluir e liberar download'}

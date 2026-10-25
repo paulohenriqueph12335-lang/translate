@@ -347,6 +347,9 @@ function NewBatch({
               <span className="field-label">Modalidade</span>
               <ModeSelect value={mode} onChange={setMode} />
             </div>
+            {mode === 'sworn' && (
+              <p className="muted small-text">O tradutor juramentado e a máscara são escolhidos na conclusão, e são opcionais.</p>
+            )}
           </>
         )}
 

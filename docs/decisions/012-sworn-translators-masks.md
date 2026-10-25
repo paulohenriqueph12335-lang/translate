@@ -38,6 +38,19 @@ Nome, matrícula, idiomas, observações, ativo/inativo, o **armazenamento de m�
 - Cotas (ADR-011) contam os números emitidos; pedidos de alteração usam os mesmos valores em texto e geram nova versão do DOCX na máscara do tradutor da tradução.
 - Quando as regras de cada tradutor forem programadas, o número passa a ser sugerido/validado automaticamente na conclusão, sem mudar o fluxo.
 
+### Revisão de 2026-10-25: tradutor só na conclusão, e opcional
+
+O envio da juramentada obrigava escolher máscara e tradutor logo no início, e sem tradutor cadastrado nada podia ser
+concluído. Agora:
+
+- O envio não pergunta tradutor nem máscara; a numeração também sai da revisão.
+- Na conclusão, quem conclui escolhe **Com tradutor** (máscara, número, livro e folha, como acima) ou **Sem tradutor**
+  (`POST /translations/:id/approve` com `withoutTranslator: true`): o Word sai no layout do original, sem máscara e sem
+  número, e a tradução fica com `use_mask = false`. Uma numeração rascunhada é anulada (`void`) e o número volta a ficar
+  livre; com número já emitido, a conclusão sem tradutor é recusada.
+- "Aprovar e concluir" sem tradutor decidido deixa a tradução pronta e abre a conclusão para essa escolha.
+- Sem tradutor com máscara cadastrado, só a opção "Sem tradutor" fica disponível, e o aviso que bloqueava o fluxo sai.
+
 ### O que sai
 
 `translation_settings` e `translation_counters` deixam de ser usados (ficam como histórico das traduções já concluídas, que foram numeradas com eles e mantêm o texto do número). A tela "Configurações de tradução" passa a ter só a tradução automática.
