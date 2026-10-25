@@ -484,12 +484,13 @@ function NewBatch({
             Voltar
           </button>
         )}
+        {/* Chaves diferentes: sem elas o mesmo botão vira "submit" no clique de Continuar e o envio começa sem a conferência. */}
         {step < 3 ? (
-          <button type="button" className="primary" disabled={busy || !nextReady} onClick={advance}>
+          <button key="next" type="button" className="primary" disabled={busy || !nextReady} onClick={advance}>
             Continuar
           </button>
         ) : (
-          <button type="submit" className="primary" disabled={busy || !ready}>
+          <button key="submit" type="submit" className="primary" disabled={busy || !ready}>
             {busy ? 'Iniciando…' : `Iniciar tradução de ${valid.length} arquivo(s)`}
           </button>
         )}

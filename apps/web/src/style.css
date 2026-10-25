@@ -8,5 +8,6 @@
 @import './styles/documents.css';
 @import './styles/administration.css';
 @import './styles/analytics.css';
+@import './styles/tutorial.css';
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));

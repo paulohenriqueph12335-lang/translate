@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import './pdf-polyfills';
+import { ApiError } from './api';
 import { message } from './ui';
+
+/** Erros do PDF.js são técnicos; a pessoa recebe o que fazer. */
+const pdfError = (caught: unknown) =>
+  caught instanceof ApiError
+    ? message(caught)
+    : 'o navegador não conseguiu abrir este PDF. Use "Baixar para conferir" ou atualize o navegador';
 
 /** Renders the actual PDF locally, including browsers without a built-in PDF plugin. */
 export function PdfPreview({ url, title }: { url: string; title: string }) {
@@ -42,7 +49,7 @@ export function PdfPreview({ url, title }: { url: string; title: string }) {
         if (!cancelled) setDocument(loaded);
       } catch (caught) {
         if (!cancelled) {
-          setError(message(caught));
+          setError(pdfError(caught));
           setLoading(false);
         }
       }
@@ -81,7 +88,7 @@ export function PdfPreview({ url, title }: { url: string; title: string }) {
         }
       } catch (caught) {
         if (!cancelled) {
-          setError(message(caught));
+          setError(pdfError(caught));
           setLoading(false);
         }
       }

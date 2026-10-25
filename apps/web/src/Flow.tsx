@@ -16,7 +16,7 @@ import {
   type UploadLimits,
 } from './api';
 import { ModeSelect, PairSelect } from './Modes';
-import { Feedback, message, useLoad } from './ui';
+import { Feedback, LoadingHint, message, useLoad } from './ui';
 import { captureUpload, planUploadRetries, type UploadSnapshot } from './upload-plan';
 import { PdfPreview } from './PdfPreview';
 import { DocumentCategorySelect, useDocumentCategories } from './DocumentClassification';
@@ -431,11 +431,17 @@ export function NewTranslation({
           </button>
         )}
         {step < 3 ? (
-          <button type="button" className="primary" disabled={busy || locked || !nextReady} onClick={advance}>
+          <button key="next" type="button" className="primary" disabled={busy || locked || !nextReady} onClick={advance}>
             Continuar
           </button>
         ) : (
-          <button className="primary" disabled={busy || permanentFailure || !readyToSend} onClick={() => void start()}>
+          <button
+            key="start"
+            type="button"
+            className="primary"
+            disabled={busy || permanentFailure || !readyToSend}
+            onClick={() => void start()}
+          >
             {busy ? 'Enviando…' : locked ? 'Retomar envio' : 'Iniciar tradução'}
           </button>
         )}
@@ -642,7 +648,9 @@ function ComparisonPreview({ title, url, downloadUrl }: { title: string; url: st
         objectUrl = URL.createObjectURL(blob);
         setFile({ url: objectUrl, type: blob.type });
       } catch (caught) {
-        if (!controller.signal.aborted) setError(message(caught));
+        // Os motivos acima são mensagens para a pessoa; só o que for inesperado vira a mensagem genérica.
+        if (!controller.signal.aborted)
+          setError(caught instanceof Error && !(caught instanceof TypeError) ? caught.message : message(caught));
       }
     })();
     return () => {
@@ -667,8 +675,8 @@ function ComparisonPreview({ title, url, downloadUrl }: { title: string; url: st
           </button>
         </div>
       ) : !file ? (
-        <p className="muted" role="status">
-          Preparando visualização…
+        <p className="muted comparison-fallback">
+          <LoadingHint text="Preparando visualização" />
         </p>
       ) : file.type.startsWith('image/') ? (
         <img className="comparison-image" src={file.url} alt={title} />

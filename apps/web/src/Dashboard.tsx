@@ -24,6 +24,7 @@ import { useUserPreferences } from './preferences';
 import { type DocumentsSearchTarget } from './SmartSearch';
 import { PerformancePanel } from './PerformancePanel';
 import { Icon, type IconName } from './icons';
+import { tutorialFor, TutorialSection } from './Tutorial';
 import { setThemePreference } from './theme';
 import { dateTime, EmbeddedSection, Wordmark, Feedback, LoadingLine, message, Section, useLoad } from './ui';
 
@@ -32,7 +33,7 @@ import { dateTime, EmbeddedSection, Wordmark, Feedback, LoadingLine, message, Se
  * Usuário: traduzir e o próprio histórico. Líder: início, traduções, equipe e ajustes. Diretor: o mesmo, mais a
  * administração da organização.
  */
-type AreaKey = 'home' | 'work' | 'history' | 'team' | 'settings' | 'admin' | 'notifications' | 'account';
+type AreaKey = 'home' | 'work' | 'history' | 'team' | 'settings' | 'admin' | 'notifications' | 'help' | 'account';
 
 interface Tab {
   key: string;
@@ -60,11 +61,12 @@ const areaIcon: Record<AreaKey, IconName> = {
   settings: 'sliders',
   admin: 'shield',
   notifications: 'bell',
+  help: 'book',
   account: 'gear',
 };
 
 /** Áreas de configuração usam um menu secundário à esquerda em vez de abas. */
-const sideMenuAreas = new Set<AreaKey>(['settings', 'admin', 'account']);
+const sideMenuAreas = new Set<AreaKey>(['settings', 'admin', 'help', 'account']);
 
 const initials = (name: string) =>
   name
@@ -109,6 +111,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const goToTranslators = () => (manages ? go('team', 'translators') : undefined);
   const leads = me.memberships.filter((m) => m.role === 'leader').length;
   const role = isDirector ? 'Diretor' : leads ? 'Supervisor' : me.memberships.length ? 'Usuário' : 'Sem equipe';
+  const tutorialRole = isDirector ? 'director' : supervises ? 'leader' : 'user';
 
   // Sessão revogada/expirada em qualquer chamada leva de volta ao login.
   useEffect(() => setUnauthorizedHandler(onUnauthorized), [onUnauthorized]);
@@ -320,6 +323,17 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           ),
         },
       ],
+    },
+    {
+      key: 'help',
+      label: 'Tutorial',
+      title: 'Tutorial',
+      subtitle: 'Como usar o sistema: para que serve cada tela, o passo a passo e fotos de cada uma.',
+      tabs: tutorialFor(tutorialRole).map((section) => ({
+        key: section.key,
+        label: section.title,
+        render: () => <TutorialSection section={section} role={tutorialRole} onGo={(target) => go(target.area, target.tab)} />,
+      })),
     },
     {
       key: 'account',
