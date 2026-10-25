@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, queryString, type SwornTranslator, type Team, type TeamMember } from './api';
-import { dateTime, Feedback, message, SearchInput, Segmented, useDebounced, useLoad } from './ui';
+import { dateTime, Feedback, LoadingHint, message, SearchInput, Segmented, useDebounced, useLoad } from './ui';
 import { useConfirm } from './ConfirmDialog';
 
 /** Regras de numeração por tradutor (ADR-014): painel e administração do Supervisor, preenchimento do usuário. */
@@ -121,7 +121,12 @@ export function TranslatorNumberingDashboard({
   const { data, error } = useLoad(() => api<{ items: DashboardItem[] }>('GET', '/numbering/translators'), []);
   const items = (data?.items ?? []).filter((item) => item.active);
   if (error) return <Feedback error={error} />;
-  if (!data) return <p className="muted">Carregando…</p>;
+  if (!data)
+    return (
+      <p className="muted">
+        <LoadingHint />
+      </p>
+    );
   if (!items.length) return <p className="empty">Nenhum tradutor ativo cadastrado.</p>;
   return (
     <div className={`numbering-grid ${compact ? 'compact' : ''}`}>
@@ -220,7 +225,14 @@ export function TranslatorNumberingAdmin({ translatorId, onBack }: { translatorI
       ),
     [translatorId, version],
   );
-  if (!data) return error ? <Feedback error={error} /> : <p className="muted">Carregando…</p>;
+  if (!data)
+    return error ? (
+      <Feedback error={error} />
+    ) : (
+      <p className="muted">
+        <LoadingHint />
+      </p>
+    );
   return (
     <div className="stack numbering-admin administration-view">
       <button className="ghost small" onClick={onBack}>

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { api, auditActionLabel, queryString, type AuditEvent, type OrganizationDashboard, type Page, type TeamDashboard } from './api';
 import { duration, INK_BLUE, percent, SEPIA, TableView } from './Charts';
-import { message } from './ui';
+import { LoadingHint, message } from './ui';
 
 /**
  * Peças dos painéis (Início): período com atalhos e comparação, números com variação, tendência semanal, funil do
  * fluxo, mapa de calor pessoa × semana e o monitor "Agora". Tudo calculado no navegador a partir dos painéis da API.
  *
- * Cor: verde = período atual / série 1, oliva = período anterior / série 2; rampa sequencial de verde no mapa de
+ * Cor: azul-aço = período atual / série 1, ocre = período anterior / série 2; rampa sequencial de azul-aço no mapa de
  * calor. Os tokens seguem o tema e os estados mantêm seus rótulos textuais.
  */
 /** Rampa sequencial de um tom (claro → escuro) para o mapa de calor. */
@@ -242,7 +242,7 @@ export function KpiTile({
     }
   }
   return (
-    <div className="card kpi-tile">
+    <div className="kpi-tile">
       <span className="kpi-label">{label}</span>
       <strong className="kpi-value">{value}</strong>
       {delta}
@@ -481,7 +481,7 @@ export function Funnel({ steps, previous }: { steps: FunnelStep[]; previous: Fun
 
 type HeatMetric = 'delivered' | 'review';
 
-/** Pessoa × semana: concluídas ou tempo médio de revisão, com rampa sequencial de verde adaptada ao tema. */
+/** Pessoa × semana: concluídas ou tempo médio de revisão, com rampa sequencial de azul-aço adaptada ao tema. */
 export function PeopleHeatmap({ docs, range }: { docs: Doc[]; range: Range }) {
   const [metric, setMetric] = useState<HeatMetric>('delivered');
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
@@ -645,12 +645,12 @@ export function LiveNow({ teamId, canReadAudit }: { teamId?: string | undefined;
   const inFlight = counts ? counts.slice(0, 3).reduce((a, b) => a + b, 0) : null;
   const sparkMax = Math.max(1, ...history);
   return (
-    <section className="card live-now" aria-label="Fila agora">
+    <section className="live-now" aria-label="Fila agora">
       <header className="live-head">
         <span className={`live-dot ${paused ? 'paused' : ''}`} aria-hidden="true" />
         <h3>Agora</h3>
         <span className="muted small-text">
-          {paused ? 'Atualização pausada' : updated ? `Atualizado às ${updated.toLocaleTimeString('pt-BR')} · a cada 15 s` : 'Carregando…'}
+          {paused ? 'Atualização pausada' : updated ? `Atualizado às ${updated.toLocaleTimeString('pt-BR')}, a cada 15 s` : <LoadingHint />}
         </span>
         <button type="button" className="small" onClick={() => setPaused((current) => !current)}>
           {paused ? 'Retomar' : 'Pausar'}
@@ -676,14 +676,26 @@ export function LiveNow({ teamId, canReadAudit }: { teamId?: string | undefined;
             )}
           </svg>
         </div>
-        <ul className="live-stages">
-          {STAGES.map(([status, label], index) => (
-            <li key={status} className={status === 'failed' && (counts?.[index] ?? 0) > 0 ? 'alarm' : ''}>
-              <strong>{counts ? (counts[index]! >= 100 ? '100+' : counts[index]) : '—'}</strong>
-              <span>{label}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="live-register">
+          {/* Régua proporcional da fila: cada trecho é uma etapa, do tamanho do que está nela. */}
+          <div className="live-bar" aria-hidden="true">
+            {STAGES.map(([status], index) => {
+              const total = counts ? counts.reduce((a, b) => a + b, 0) : 0;
+              const value = counts?.[index] ?? 0;
+              return (
+                <i key={status} data-stage={index} style={{ flexGrow: total ? value : 1, opacity: counts && !value ? 0.35 : undefined }} />
+              );
+            })}
+          </div>
+          <ul className="live-stages">
+            {STAGES.map(([status, label], index) => (
+              <li key={status} data-stage={index} className={status === 'failed' && (counts?.[index] ?? 0) > 0 ? 'alarm' : ''}>
+                <strong>{counts ? (counts[index]! >= 100 ? '100+' : counts[index]) : '—'}</strong>
+                <span>{label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
         {canReadAudit && (
           <ol className="live-events" aria-label="Últimos eventos">
             {events.length === 0 && <li className="muted small-text">Nenhum evento recente.</li>}

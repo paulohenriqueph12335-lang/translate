@@ -25,7 +25,7 @@
   .team-directory > .filters,
   .team-detail > .filters,
   .numbering-stock > .filters {
-    @apply rounded-panel border border-line bg-surface p-3;
+    @apply p-0;
   }
 
   .administration-view .table-wrap {
@@ -42,11 +42,11 @@
   }
   .administration-view .count {
     @apply my-3 flex flex-wrap items-center justify-between gap-2 text-muted;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
 
   .team-create {
-    @apply mb-4 rounded-panel border border-line bg-surface p-3;
+    @apply mb-6 p-0;
   }
   .team-create input {
     flex-basis: 22rem;
@@ -108,8 +108,9 @@
     margin-top: 0.15rem;
   }
   .team-detail .by-email {
-    @apply mt-4 rounded-control border border-line bg-canvas p-3;
-    font-size: 0.75rem;
+    @apply mt-5 pt-3;
+    border-top: 1px solid var(--rule);
+    font-size: 0.8125rem;
   }
   .team-detail .by-email .toolbar {
     @apply mb-0 mt-3;
@@ -155,10 +156,11 @@
     @apply shrink-0;
   }
   .marker-guide {
-    @apply mt-3 bg-raised px-3.5 py-3;
+    @apply mt-3 py-3;
+    border-top: 1px solid var(--rule);
   }
   .marker-guide > summary {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
   .marker-guide > p {
     max-width: 112ch;
@@ -189,7 +191,7 @@
     font-size: 0.8125rem;
   }
   .mask-drop {
-    @apply grid gap-2 rounded-control border border-line bg-raised p-4 text-left;
+    @apply grid gap-2 rounded-panel border border-line bg-transparent p-5 text-left;
     border-style: dashed;
   }
   .mask-drop.over {
@@ -222,7 +224,7 @@
   }
   .marker-chips code {
     @apply rounded-control bg-canvas px-1.5 py-0.5 text-muted;
-    font-size: 0.625rem;
+    font-size: 0.8125rem;
   }
   .reference-pdf {
     @apply flex flex-wrap items-center gap-2 border-t border-line pt-3;
@@ -231,9 +233,9 @@
     margin-left: auto;
   }
   .frame-models {
-    @apply rounded-panel border border-line bg-surface p-3;
-    border-style: solid;
-    font-size: 0.75rem;
+    @apply pt-3;
+    border-top: 1px solid var(--rule);
+    font-size: 0.8125rem;
   }
   .frame-models > p {
     max-width: 110ch;
@@ -243,7 +245,9 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .frame-models .mode-option {
-    @apply grid content-start gap-1.5 rounded-control border border-line bg-raised p-3 text-left;
+    @apply grid content-start gap-1.5 rounded-control border-0 bg-transparent p-3 text-left;
+    box-shadow: inset 0 0 0 1px var(--rule);
+    white-space: normal;
   }
   .frame-models .mode-option.on {
     @apply border-accent bg-accent-soft;
@@ -288,13 +292,12 @@
     border-color: var(--warn-line);
   }
   .numbering-card.locked {
-    background: var(--sheet);
     border-color: var(--danger-line);
   }
   .numbering-stats {
     @apply grid gap-2 border-y border-line py-3;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
     color: var(--muted);
   }
   .numbering-stats strong {
@@ -359,13 +362,14 @@
   }
   .numbering-rule label > small {
     @apply mt-1 block;
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
   }
   .numbering-rule > label {
     max-width: 56rem;
   }
   .numbering-stock .import-box {
-    @apply rounded-control border border-line bg-raised p-3;
+    @apply pt-3;
+    border-top: 1px solid var(--rule);
   }
   .numbering-stock .import-box .filters {
     @apply mb-0;
@@ -486,7 +490,8 @@
     @apply mb-3;
   }
   .administrative-group {
-    @apply min-w-0 rounded-panel border border-line bg-surface p-4;
+    @apply min-w-0 pt-5;
+    border-top: 1px solid var(--rule);
   }
   .administrative-group > h3 {
     @apply mb-1 mt-0;
@@ -501,13 +506,13 @@
     @apply mb-3;
   }
   .ai-skills .list > li {
-    @apply rounded-control bg-raised;
+    @apply rounded-control;
   }
   .ai-skills .who {
     @apply grid gap-1;
   }
   .ai-skills > .card {
-    @apply grid gap-3 bg-raised;
+    @apply grid gap-3;
   }
   .ai-access td:first-child {
     min-width: 14rem;
@@ -525,7 +530,8 @@
     @apply my-3;
   }
   .ai-combination-review {
-    @apply rounded-panel border border-line bg-raised p-3;
+    @apply pt-3;
+    border-top: 1px solid var(--rule);
   }
   .ai-combination-review > h4 {
     @apply font-display;
@@ -535,7 +541,7 @@
     @apply my-3;
   }
   .ai-answer {
-    @apply rounded-control border border-line bg-accent-soft p-3;
+    @apply rounded-panel bg-accent-soft p-4;
     white-space: pre-wrap;
   }
 
@@ -551,7 +557,7 @@
   }
   .audit-filters > .check {
     min-height: 2.125rem;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
   .audit-filters > .link {
     justify-self: start;
@@ -563,7 +569,7 @@
   }
   .audit-summary small {
     color: var(--muted);
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
   }
   .audit-summary strong {
     @apply font-sans;
@@ -571,7 +577,7 @@
     font-variant-numeric: tabular-nums;
   }
   .audit-incidents {
-    @apply my-4 rounded-panel border border-line bg-surface p-4;
+    @apply my-6;
   }
   .audit-incidents > summary {
     font-size: 0.8125rem;
@@ -580,7 +586,8 @@
     @apply mt-3;
   }
   .audit-incident {
-    @apply rounded-control border border-line bg-raised p-3;
+    @apply py-3;
+    border-bottom: 1px solid var(--rule);
   }
   .audit-incident.critical,
   .audit-incident.error {
@@ -591,7 +598,7 @@
     font-size: 0.8125rem;
   }
   .audit-incident small {
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
   }
   .severity-badge.critical,
   .severity-badge.error {

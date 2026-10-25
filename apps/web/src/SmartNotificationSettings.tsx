@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { PopupSettings } from './LiveNotifications';
 import { NOTIFICATION_PREFERENCES_CHANGED, useNotificationSettings, type SmartNotificationPreferences } from './notification-preferences';
-import { Feedback, message } from './ui';
+import { Feedback, LoadingHint, message } from './ui';
 
 export function SmartNotificationSettings() {
   const settings = useNotificationSettings();
@@ -55,8 +55,8 @@ export function SmartNotificationSettings() {
       </header>
       <Feedback error={settings.error ?? feedback.error ?? null} ok={feedback.ok ?? null} />
       {!draft ? (
-        <p className="account-loading" role="status">
-          Carregando suas escolhas…
+        <p className="account-loading">
+          <LoadingHint text="Carregando suas escolhas" />
         </p>
       ) : (
         <>

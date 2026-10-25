@@ -22,7 +22,7 @@ import {
 import { ModeSelect, PairSelect } from './Modes';
 import { ArchiveDownloadButtons, useBatchProtocol } from './Flow';
 import { DocumentTags, StatusBadge } from './Translations';
-import { dateTime, Feedback, message, SearchInput, Section, Segmented, TagInput, useDebounced, useLoad } from './ui';
+import { dateTime, Feedback, LoadingHint, message, SearchInput, Section, Segmented, TagInput, useDebounced, useLoad } from './ui';
 import { useConfirm } from './ConfirmDialog';
 import { DocumentCategorySelect, useDocumentCategories } from './DocumentClassification';
 import { TranslationSteps } from './TranslationSteps';
@@ -110,7 +110,11 @@ export function Documents({
       <div className="doc-domain doc-intake">
         <Feedback error={teamsError ? `Não foi possível carregar suas equipes: ${teamsError}` : null} />
         <Feedback error={limitsError ? `Não foi possível carregar os limites de envio: ${limitsError}` : null} />
-        {((!teamsData && !teamsError) || (!limits && !limitsError)) && <p role="status">Carregando dados de envio…</p>}
+        {((!teamsData && !teamsError) || (!limits && !limitsError)) && (
+          <p>
+            <LoadingHint text="Carregando dados de envio" />
+          </p>
+        )}
         {(teamsError || limitsError) && (
           <button
             type="button"
@@ -690,7 +694,17 @@ function BatchDetail({
   const [target, setTarget] = useState('');
 
   if (!data)
-    return <div className="card detail batch-detail">{error ? <Feedback error={error} /> : <p className="muted">Carregando…</p>}</div>;
+    return (
+      <div className="card detail batch-detail">
+        {error ? (
+          <Feedback error={error} />
+        ) : (
+          <p className="muted">
+            <LoadingHint />
+          </p>
+        )}
+      </div>
+    );
   const { batch, documents } = data;
   const isOwner = batch.owner.id === me.user.id;
   const isDirector = me.user.orgRole === 'director';

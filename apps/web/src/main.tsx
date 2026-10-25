@@ -5,10 +5,9 @@ import { AuthScreen, SetupScreen } from './AuthScreen';
 import { Dashboard } from './Dashboard';
 import { ConfirmProvider } from './ConfirmDialog';
 import { UpdateBanner } from './UpdateBanner';
-import { Wordmark } from './ui';
+import { LoadingHint, Wordmark } from './ui';
 import { initializeTheme } from './theme';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/source-serif-4';
+import '@fontsource-variable/schibsted-grotesk';
 import './style.css';
 
 initializeTheme();
@@ -48,7 +47,7 @@ function App() {
     return (
       <main className="app-loading" aria-busy="true">
         <Wordmark />
-        <p role="status">Carregando…</p>
+        <LoadingHint />
       </main>
     );
   if (!me)

@@ -318,7 +318,7 @@ export function OrganizationPanel({
         {org && t && (
           <div className={`dash-body ${loading ? 'stale' : ''}`} aria-busy={loading}>
             <DashboardWidgets userId={me?.user.id} namespace="organization">
-              <ChartCard title="Tendência por semana" subtitle="Período atual em verde; o anterior em linha tracejada" wide>
+              <ChartCard title="Tendência por semana" subtitle="Período atual em azul; o anterior em linha tracejada" wide>
                 <WeeklyTrend
                   period={period}
                   current={data!.current}
@@ -656,7 +656,7 @@ export function TeamPanel({ me, initialTeamId, initialSearch = '' }: { me: Me; i
         {team && t && (
           <div className={`dash-body ${loading ? 'stale' : ''}`} aria-busy={loading}>
             <DashboardWidgets userId={me.user.id} namespace="team" revealId={initialSearch ? 'documentos' : undefined}>
-              <ChartCard title="Tendência por semana" subtitle="Período atual em verde; o anterior em linha tracejada" wide>
+              <ChartCard title="Tendência por semana" subtitle="Período atual em azul; o anterior em linha tracejada" wide>
                 <WeeklyTrend period={period} current={data!.current} previous={data!.previous} />
               </ChartCard>
               <ChartCard title="Funil do fluxo" subtitle="Dos documentos recebidos no período, quantos chegaram a cada etapa" wide>

@@ -90,11 +90,40 @@ export const setUnauthorizedHandler = (handler: (() => void) | undefined) => {
 };
 
 /** Chamada à API na mesma origem (proxy do Vite). Cookie de sessão é HttpOnly; o cliente nunca vê o token. */
+/** Quantas requisições estão em andamento: alimenta o indicativo discreto de carregamento. */
+let inFlight = 0;
+const inFlightListeners = new Set<(count: number) => void>();
+export function onRequestsInFlight(listener: (count: number) => void) {
+  inFlightListeners.add(listener);
+  listener(inFlight);
+  return () => void inFlightListeners.delete(listener);
+}
+function trackRequest(delta: number) {
+  inFlight = Math.max(0, inFlight + delta);
+  for (const listener of inFlightListeners) listener(inFlight);
+}
+
 export async function api<T = unknown>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   extraHeaders: Record<string, string> = {},
+): Promise<T> {
+  // Consultas periódicas de fundo (contador e entregas de notificações) não acendem o indicativo.
+  const visible = !/^\/notifications\/(unread-count|deliveries)/.test(path);
+  if (visible) trackRequest(1);
+  try {
+    return await request<T>(method, path, body, extraHeaders);
+  } finally {
+    if (visible) trackRequest(-1);
+  }
+}
+
+async function request<T>(
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  path: string,
+  body: unknown,
+  extraHeaders: Record<string, string>,
 ): Promise<T> {
   const headers: Record<string, string> = { ...extraHeaders };
   if (method !== 'GET') headers['X-CSRF-Protection'] = '1';

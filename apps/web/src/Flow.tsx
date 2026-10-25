@@ -449,7 +449,7 @@ export function NewTranslation({
 type StepState = 'done' | 'current' | 'waiting' | 'failed';
 
 /** Etapas do fluxo automático, do envio ao Word final. */
-export function FlowTracker({ t }: { t: TranslationSummary }) {
+function flowSteps(t: TranslationSummary) {
   const processing = t.status === 'queued' || t.status === 'processing';
   const steps: Array<[string, StepState, string]> = [
     ['Envio', 'done', 'Documento armazenado'],
@@ -475,9 +475,13 @@ export function FlowTracker({ t }: { t: TranslationSummary }) {
     ],
     ['Word final', t.status === 'approved' ? 'done' : 'waiting', t.status === 'approved' ? 'Word e PDF liberados' : '—'],
   ];
+  return steps;
+}
+
+export function FlowTracker({ t }: { t: TranslationSummary }) {
   return (
     <ol className="flow-track doc-flow-track" aria-label="Etapas da tradução">
-      {steps.map(([label, state, hint]) => (
+      {flowSteps(t).map(([label, state, hint]) => (
         <li key={label} className={state}>
           <strong>{label}</strong>
           <span className="small-text">{hint}</span>
@@ -486,6 +490,20 @@ export function FlowTracker({ t }: { t: TranslationSummary }) {
     </ol>
   );
 }
+
+/** A linha do fluxo em miniatura, na lista: seis trechos com a etapa atual destacada. O status vai em texto ao lado. */
+export function FlowGlyph({ t }: { t: TranslationSummary }) {
+  const steps = flowSteps(t);
+  return (
+    <span className="flow-glyph" aria-hidden="true" title={steps.map(([label, state]) => `${label}: ${stateLabel[state]}`).join(' · ')}>
+      {steps.map(([label, state]) => (
+        <i key={label} className={state} />
+      ))}
+    </span>
+  );
+}
+
+const stateLabel: Record<StepState, string> = { done: 'feita', current: 'agora', waiting: 'a seguir', failed: 'falhou' };
 
 /**
  * O Word na tela (em PDF, como o Word imprime), com os botões de baixar em Word e em PDF. Antes da conclusão é a

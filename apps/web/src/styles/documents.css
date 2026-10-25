@@ -1,6 +1,11 @@
 @reference 'tailwindcss';
 @reference './tokens.css';
 
+/*
+ * Traduções: lista, envio e conferência. A lista é corrida (linhas fantasma, sem cartões); as fases são uma régua com
+ * a linha do fluxo; os módulos do detalhe se separam por linhas finas. O documento (Word/PDF) mantém a moldura,
+ * porque é uma folha.
+ */
 @layer components {
   .doc-domain {
     @apply min-w-0 text-ink;
@@ -12,7 +17,7 @@
   .doc-downloads,
   .doc-patterns,
   .doc-review {
-    @apply grid gap-3;
+    @apply grid gap-5;
   }
 
   .doc-domain :is(h3, h4) {
@@ -21,11 +26,13 @@
   }
 
   .doc-domain h3 {
-    @apply text-xl leading-tight;
+    @apply leading-tight;
+    font-size: 1.25rem;
   }
 
   .doc-domain h4 {
-    @apply text-lg leading-tight;
+    @apply leading-tight;
+    font-size: 1.0625rem;
   }
 
   .doc-domain > :is(.toolbar, .top-gap, .card, .flow-track, .document-quick-facts),
@@ -37,14 +44,17 @@
     @apply flex flex-wrap items-center justify-end gap-2;
   }
 
+  /* Módulos: começam numa linha fina, sem moldura. */
   .doc-form,
   .doc-module,
   .doc-word-panel {
-    @apply min-w-0 rounded-panel border border-line bg-surface p-4 shadow-none;
+    @apply min-w-0 rounded-none border-0 bg-transparent px-0 pb-0 shadow-none;
+    padding-top: 1.125rem;
+    border-top: 1px solid var(--rule);
   }
 
   .doc-form {
-    @apply grid gap-3;
+    @apply grid gap-4;
   }
 
   .doc-form > :is(h3, p),
@@ -62,37 +72,50 @@
 
   .doc-form .translation-step-fields,
   .doc-module .classification-fields {
-    @apply gap-3;
+    @apply gap-4;
   }
 
   .doc-form-footer {
-    @apply mt-1 flex flex-wrap items-center gap-2 border-t border-line pt-3;
+    @apply mt-1 flex flex-wrap items-center gap-2 pt-4;
+    border-top: 1px solid var(--rule);
   }
 
+  /* Área de arrastar: a única moldura tracejada do envio, porque é um alvo. */
   .doc-form .dropzone {
-    @apply flex min-h-32 flex-col items-center justify-center gap-2 rounded-panel border border-dashed border-line bg-canvas p-5 text-center;
+    @apply flex min-h-40 flex-col items-center justify-center gap-2 p-6 text-center;
+    border: 1.5px dashed var(--line-mid);
+    border-radius: 1rem;
+    background: transparent;
     box-shadow: none;
+    transition:
+      border-color var(--duration-normal) var(--ease-out),
+      background-color var(--duration-normal) var(--ease-out);
   }
 
+  .doc-form .dropzone:hover,
   .doc-form .dropzone.over {
-    @apply border-accent;
-    background: color-mix(in srgb, var(--accent) 7%, var(--sheet));
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
 
   .doc-form .dropzone > strong {
-    @apply text-sm font-semibold;
+    font-size: 1rem;
+    font-weight: 680;
   }
 
   .doc-form .dropzone > span {
-    @apply text-xs leading-relaxed;
+    font-size: 0.875rem;
+    line-height: 1.5;
   }
 
   .doc-protocol-fields {
-    @apply my-0 min-w-0 rounded-panel border border-line bg-canvas p-3;
+    @apply my-0 min-w-0 border-0 p-0 pt-2;
   }
 
   .doc-protocol-fields legend {
-    @apply px-1 text-sm font-semibold;
+    @apply px-0;
+    font-size: 0.9375rem;
+    font-weight: 680;
   }
 
   .doc-protocol-fields label {
@@ -104,33 +127,73 @@
   }
 
   .doc-category-field small {
-    @apply text-xs leading-relaxed;
+    font-size: 0.8125rem;
+    line-height: 1.5;
   }
 
+  /* Nova tradução em etapas: a sequência é real, então leva números. */
   .doc-setup-steps {
-    @apply my-1 grid grid-cols-4 gap-1 rounded-panel border border-line bg-canvas p-1;
+    @apply my-1 grid grid-cols-4 gap-0;
+    counter-reset: none;
   }
 
   .doc-setup-steps button {
-    @apply flex min-w-0 flex-row items-center gap-2 rounded-control border-transparent bg-transparent px-2 py-2 text-left text-xs text-muted shadow-none;
-    line-height: 1.4;
+    @apply relative flex min-w-0 flex-row items-center gap-2.5 rounded-none border-0 bg-transparent px-1 text-left text-muted;
+    min-height: 3rem;
+    padding-top: 0.875rem;
+    white-space: normal;
+    font-size: 0.875rem;
+    font-weight: 560;
+    line-height: 1.3;
+    box-shadow: none;
+  }
+
+  .doc-setup-steps button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 3px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--rule);
+    transition: background-color var(--duration-slow) var(--ease-out);
+  }
+
+  .doc-setup-steps button:hover:not(:disabled) {
+    background: transparent;
+    color: var(--ink);
   }
 
   .doc-setup-steps button > span {
-    @apply flex size-5 shrink-0 items-center justify-center rounded-control border border-line text-xs font-semibold;
+    @apply flex shrink-0 items-center justify-center rounded-full;
+    width: 1.5rem;
+    height: 1.5rem;
+    box-shadow: inset 0 0 0 1px var(--line-mid);
+    font-size: 0.75rem;
+    font-weight: 700;
     font-family: inherit;
+    font-variant-numeric: tabular-nums;
   }
 
   .doc-setup-steps button[aria-current='step'] {
-    @apply border-line bg-surface text-accent;
+    @apply text-ink;
+    font-weight: 680;
+  }
+
+  .doc-setup-steps button[aria-current='step']::before {
+    background: var(--ink);
   }
 
   .doc-setup-steps button[aria-current='step'] > span {
-    @apply border-accent bg-accent text-on-operation;
+    background: var(--primary);
+    color: var(--on-primary);
+    box-shadow: none;
   }
 
   .doc-step-status {
-    @apply m-0 text-xs;
+    @apply m-0;
+    font-size: 0.875rem;
   }
 
   .doc-form .translation-send-summary {
@@ -138,27 +201,32 @@
   }
 
   .doc-form .translation-send-summary dl {
-    @apply m-0 grid grid-cols-2 gap-x-5 gap-y-0 rounded-panel border border-line bg-canvas px-3;
+    @apply m-0 grid grid-cols-2 gap-x-8 gap-y-0 border-0 bg-transparent p-0;
   }
 
   .doc-form .translation-send-summary dl > div {
-    @apply min-w-0 border-0 border-b border-line bg-transparent px-0 py-2;
+    @apply min-w-0 border-0 bg-transparent px-0 py-2.5;
+    border-bottom: 1px solid var(--rule);
   }
 
   .doc-form .translation-send-summary dt {
-    @apply text-xs text-muted;
+    @apply text-muted;
+    font-size: 0.8125rem;
   }
 
   .doc-form .translation-send-summary dd {
-    @apply mt-1 text-sm font-medium;
+    @apply mt-0.5;
+    font-size: 0.9375rem;
+    font-weight: 560;
   }
 
   .doc-form .translation-send-summary :is(h4, p) {
     @apply m-0;
   }
 
+  /* Filtros: uma linha corrida, sem painel. */
   .doc-filter-bar {
-    @apply m-0 flex min-w-0 flex-wrap items-end gap-2 rounded-panel border border-line bg-surface p-3;
+    @apply m-0 flex min-w-0 flex-wrap items-center gap-2 border-0 bg-transparent p-0;
   }
 
   .doc-filter-bar > * {
@@ -170,20 +238,21 @@
   }
 
   .doc-filter-bar > select {
-    flex: 1 1 10rem;
+    flex: 0 1 12rem;
     width: auto;
   }
 
   .doc-filter-bar :is(input, select) {
-    @apply text-xs;
+    min-height: 2.5rem;
+    font-size: 0.875rem;
   }
 
   .doc-filter-bar .check {
-    @apply text-xs;
+    font-size: 0.875rem;
   }
 
   .doc-trial-fields {
-    @apply bg-canvas;
+    @apply bg-transparent;
   }
 
   .doc-trial-fields > button:first-child {
@@ -195,42 +264,112 @@
     flex: 1 1 18rem;
   }
 
+  /* Fases da lista: régua de seis trechos com contagem; a ativa ganha a linha escura. */
   .doc-workflow-nav {
-    @apply m-0 grid grid-cols-3 gap-1 rounded-panel border border-line bg-canvas p-1;
+    @apply m-0 grid grid-cols-3 gap-x-1 gap-y-3 border-0 bg-transparent p-0;
   }
 
   .doc-workflow-nav button {
-    @apply min-w-0 gap-1 rounded-control border-transparent bg-transparent px-3 py-2.5 text-left text-ink shadow-none;
+    @apply relative grid min-w-0 content-start gap-1 rounded-none border-0 bg-transparent px-1 pb-1 text-left text-muted;
+    padding-top: 0.875rem;
+    white-space: normal;
+    box-shadow: none;
+    min-height: 0;
+    font-weight: 400;
+  }
+
+  .doc-workflow-nav button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--rule);
+    transition: background-color var(--duration-slow) var(--ease-out);
+  }
+
+  .doc-workflow-nav button:hover:not(:disabled) {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .doc-workflow-nav button:hover:not(:disabled)::before {
+    background: var(--line-mid);
   }
 
   .doc-workflow-nav button.active {
-    @apply border-line bg-surface text-accent;
+    @apply border-transparent bg-transparent text-ink;
+  }
+
+  .doc-workflow-nav button.active::before {
+    background: var(--ink);
   }
 
   .doc-workflow-nav button strong {
-    @apply flex flex-wrap items-center gap-1.5 text-xs font-semibold;
+    @apply flex flex-wrap items-baseline gap-2;
+    font-size: 0.9375rem;
+    font-weight: 680;
+    color: var(--ink);
+  }
+
+  .doc-workflow-nav button:not(.active) strong {
+    font-weight: 560;
+    color: var(--ink-2);
+  }
+
+  .doc-workflow-nav button strong .badge {
+    @apply border-0 bg-transparent p-0;
+    min-height: 0;
+    color: var(--muted);
+    font-size: 0.875rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .doc-workflow-nav button.active strong .badge {
+    color: var(--accent);
   }
 
   .doc-workflow-nav button > span {
-    @apply text-xs text-muted;
+    @apply text-muted;
+    font-size: 0.8125rem;
+    line-height: 1.35;
     opacity: 1;
   }
 
+  /* Lista corrida: linhas com divisória fina e placa fantasma ao passar. */
   .doc-cards {
-    @apply m-0 grid list-none gap-2 p-0;
+    @apply m-0 grid list-none gap-0 p-0;
+    isolation: isolate;
   }
 
   .doc-cards > li {
-    @apply flex min-w-0 flex-wrap items-start gap-3 rounded-panel border border-line bg-surface p-3 shadow-none;
-    transition:
-      border-color 150ms ease,
-      background-color 150ms ease;
+    @apply relative flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 rounded-none border-0 bg-transparent shadow-none;
+    padding: 1rem 0.875rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .doc-cards > li::before {
+    inset: 3px 0;
+    border-radius: 0.75rem;
+  }
+
+  .doc-cards.selectable > li {
+    cursor: pointer;
   }
 
   .doc-cards.selectable > li:hover,
   .doc-cards > li.selected {
-    @apply border-accent;
-    background: color-mix(in srgb, var(--accent) 4%, var(--sheet));
+    background: transparent;
+  }
+
+  .doc-cards > li.selected::before {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    background: var(--accent-soft);
   }
 
   .doc-card-content,
@@ -249,36 +388,79 @@
   .doc-card-content > .muted,
   .doc-file-cards > li > div > .muted,
   .doc-batch-cards > li > div > .muted {
-    @apply mt-1 text-xs leading-relaxed;
+    @apply mt-1;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .doc-card-content > .muted.small-text {
+    font-size: 0.8125rem;
   }
 
   .doc-card-heading {
-    @apply flex min-w-0 flex-wrap items-start justify-between gap-2;
+    @apply flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1.5;
   }
 
   .doc-document-name,
   .doc-card-heading > .link,
   .doc-original-cards .doc-card-content > strong {
-    @apply text-sm font-semibold leading-relaxed text-ink;
+    @apply text-ink;
+    font-size: 1rem;
+    font-weight: 680;
+    line-height: 1.35;
     overflow-wrap: anywhere;
     text-align: left;
   }
 
+  .doc-document-name .badge {
+    margin-right: 0.25rem;
+    vertical-align: 1px;
+  }
+
   .doc-card-statuses {
-    @apply flex flex-wrap items-center gap-1;
+    @apply flex flex-wrap items-center gap-1.5;
   }
 
   .doc-translation-cards {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 27rem), 1fr));
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .doc-translation-cards > li {
+    @apply flex-nowrap items-center;
   }
 
   .doc-translation-cards > li .doc-card-content {
-    @apply w-full;
-    flex-basis: 100%;
+    flex: 1 1 auto;
   }
 
   .doc-translation-cards > li > button.small:last-child {
     @apply ml-auto;
+  }
+
+  /* A linha do fluxo em miniatura: seis trechos; feito em tinta, atual em azul-aço, falha em vermelho. */
+  .flow-glyph {
+    @apply inline-flex shrink-0 self-center;
+    gap: 3px;
+    width: 5rem;
+  }
+
+  .flow-glyph i {
+    flex: 1;
+    height: 5px;
+    border-radius: 2px;
+    background: var(--rule);
+  }
+
+  .flow-glyph i.done {
+    background: var(--ink-2);
+  }
+
+  .flow-glyph i.current {
+    background: var(--accent);
+  }
+
+  .flow-glyph i.failed {
+    background: var(--danger);
   }
 
   .doc-download-cards .doc-download-card {
@@ -291,7 +473,7 @@
   }
 
   .doc-card-metadata {
-    @apply mb-0 mt-3 grid grid-cols-3 gap-3 border-t border-line pt-2;
+    @apply mb-0 mt-3 grid grid-cols-3 gap-4 pt-0;
   }
 
   .doc-card-metadata > div {
@@ -299,11 +481,14 @@
   }
 
   .doc-card-metadata dt {
-    @apply text-xs text-muted;
+    @apply text-muted;
+    font-size: 0.8125rem;
   }
 
   .doc-card-metadata dd {
-    @apply m-0 mt-1 text-xs font-medium;
+    @apply m-0 mt-0.5;
+    font-size: 0.875rem;
+    font-weight: 560;
   }
 
   .doc-card-actions {
@@ -311,7 +496,8 @@
   }
 
   .doc-original-cards .linked {
-    @apply mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-2 text-xs;
+    @apply mt-2 flex flex-wrap items-center gap-2;
+    font-size: 0.875rem;
   }
 
   .doc-original-cards .linked-item {
@@ -323,12 +509,12 @@
   }
 
   .doc-intake .documents-workspace {
-    @apply m-0 items-start gap-4;
-    grid-template-columns: minmax(15rem, 0.75fr) minmax(0, 1.5fr);
+    @apply m-0 items-start gap-10;
+    grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 1.5fr);
   }
 
   .doc-intake .batch-detail {
-    @apply grid gap-3 rounded-panel border border-line bg-surface p-4 shadow-none;
+    @apply grid gap-4 rounded-none border-0 bg-transparent p-0 shadow-none;
   }
 
   .doc-intake .batch-detail > :is(h3, p, .archive-controls, .top-gap) {
@@ -336,15 +522,16 @@
   }
 
   .doc-intake .batch-detail > h3 {
-    @apply text-xl;
+    font-size: 1.375rem;
   }
 
   .doc-intake .batch-documents-table {
-    @apply rounded-control border border-line;
+    @apply border-0;
   }
 
   .doc-intake .batch-documents-table :is(th, td) {
-    @apply p-2 text-xs;
+    @apply px-2 py-2.5;
+    font-size: 0.875rem;
   }
 
   .doc-intake .batch-documents-table td.actions {
@@ -359,87 +546,182 @@
     height: 3px;
   }
 
+  /* Conferência: título grande, a linha do fluxo e os módulos abaixo. */
   .doc-review .review-top {
-    @apply flex min-w-0 flex-wrap items-start gap-3 border-b border-line pb-3;
+    @apply flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 border-0 pb-0;
+  }
+
+  .doc-review .review-top > button.ghost {
+    @apply -ml-3;
   }
 
   .doc-review .review-title {
     @apply min-w-0;
-    flex: 1 1 20rem;
+    flex: 1 1 100%;
   }
 
   .doc-review .review-title h2 {
-    @apply m-0 font-display text-2xl leading-tight;
+    @apply m-0 font-display leading-tight;
+    font-size: clamp(1.625rem, 2.6vw, 2.125rem);
+    font-weight: 760;
+    letter-spacing: -0.024em;
   }
 
   .doc-review .review-title p {
-    @apply my-1 text-xs leading-relaxed;
+    @apply my-1.5;
+    font-size: 0.875rem;
+    line-height: 1.55;
   }
 
   .doc-flow-track {
-    @apply m-0 grid list-none grid-cols-6 gap-1 p-0;
+    @apply m-0 grid list-none grid-cols-6 gap-x-1 gap-y-3 p-0;
   }
 
   .doc-flow-track > li {
-    @apply min-w-0 gap-1 rounded-control border border-line bg-surface px-2 py-2 text-muted shadow-none;
+    @apply relative grid min-w-0 content-start gap-0.5 rounded-none border-0 bg-transparent px-0.5 pb-0 text-muted shadow-none;
+    padding-top: 0.875rem;
+  }
+
+  .doc-flow-track > li::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--rule);
   }
 
   .doc-flow-track strong {
-    @apply text-xs font-semibold;
+    color: var(--ink-2);
+    font-size: 0.9375rem;
+    font-weight: 620;
   }
 
   .doc-flow-track .small-text {
-    @apply text-xs leading-snug;
+    font-size: 0.8125rem;
+    line-height: 1.35;
   }
 
   .doc-flow-track > li.done {
-    @apply border-line bg-surface text-ink;
+    @apply border-0 bg-transparent text-muted;
+  }
+
+  .doc-flow-track > li.done::before {
+    background: var(--ink-2);
   }
 
   .doc-flow-track > li.current {
-    @apply border-accent text-accent shadow-none;
-    background: color-mix(in srgb, var(--accent) 6%, var(--sheet));
+    @apply border-0 bg-transparent shadow-none;
+    color: var(--accent);
+  }
+
+  .doc-flow-track > li.current::before {
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+  }
+
+  .doc-flow-track > li.current strong {
+    color: var(--ink);
+    font-weight: 720;
+  }
+
+  .doc-flow-track > li.failed::before {
+    background: var(--danger);
+  }
+
+  .doc-flow-track > li.failed strong {
+    color: var(--danger);
   }
 
   .doc-quick-facts {
-    @apply m-0 flex flex-wrap gap-x-5 gap-y-1 border-b border-line pb-3 text-xs text-muted;
+    @apply m-0 flex flex-wrap gap-x-6 gap-y-1 border-0 pb-0 text-muted;
+    font-size: 0.875rem;
   }
 
+  /* Tempos: régua corrida com divisões finas. */
   .doc-timing {
-    @apply my-3 grid grid-cols-4 gap-2;
+    @apply my-3 grid grid-cols-4 gap-0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
   }
 
   .doc-timing > div {
-    @apply gap-1 rounded-control border-line bg-canvas p-3;
+    @apply gap-0.5 rounded-none border-0 bg-transparent;
+    padding: 0.875rem 1rem;
+  }
+
+  .doc-timing > div:first-child {
+    padding-left: 0;
+  }
+
+  .doc-timing > div + div {
+    border-left: 1px solid var(--rule);
   }
 
   .doc-timing strong {
-    @apply text-lg font-semibold tabular-nums;
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
     font-family: inherit;
   }
 
   .doc-timing :is(span, small) {
-    @apply text-xs leading-relaxed;
+    font-size: 0.8125rem;
+    line-height: 1.45;
   }
 
   .doc-review .document-options > .doc-module {
-    @apply rounded-none border-0 border-t border-line bg-transparent px-0 pb-0 pt-3;
+    @apply rounded-none border-0 bg-transparent px-0 pb-0 pt-3;
+    border-top: 1px solid var(--rule);
   }
 
-  .doc-module > summary {
-    @apply text-sm font-semibold leading-relaxed;
+  /* Módulos recolhíveis: linha com seta que gira; o conteúdo se materializa. */
+  details.doc-module > summary {
+    @apply flex items-center gap-2;
+    list-style: none;
+    font-size: 0.9375rem;
+    font-weight: 650;
+    line-height: 1.45;
+  }
+
+  details.doc-module > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details.doc-module > summary::before {
+    content: '';
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform var(--duration-normal) var(--ease-out);
+    margin-right: 0.25rem;
+  }
+
+  details.doc-module[open] > summary::before {
+    transform: rotate(45deg);
+  }
+
+  details.doc-module[open] > :not(summary) {
+    animation: ghost-in var(--duration-slow) var(--ease-out) both;
   }
 
   .doc-inspection-gate {
-    @apply border-accent;
+    border-top-color: var(--accent);
+    border-top-width: 2px;
   }
 
   .doc-inspection-gate .check {
-    @apply my-2 text-sm;
+    @apply my-2;
+    font-size: 0.9375rem;
   }
 
   .doc-inspection-gate .inspection-stages {
-    @apply gap-x-4 gap-y-1 py-1;
+    @apply gap-x-5 gap-y-1 py-1;
   }
 
   .doc-inspection-history .inspection-history {
@@ -447,29 +729,39 @@
   }
 
   .doc-inspection-history .inspection-history > li {
-    @apply py-2 text-sm;
+    @apply py-2;
+    font-size: 0.875rem;
   }
 
+  /* Opções de modalidade: escolhas em linha, a marcada com anel azul-aço. */
   .doc-mode-options {
     @apply grid gap-2;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   }
 
   .doc-mode-options .mode-option {
-    @apply min-w-0 content-start gap-1 rounded-control border border-line bg-surface p-3 text-left text-ink shadow-none;
+    @apply min-w-0 content-start gap-1 rounded-control border-0 bg-transparent p-3 text-left text-ink;
+    white-space: normal;
+    box-shadow: inset 0 0 0 1px var(--rule);
+  }
+
+  .doc-mode-options .mode-option:hover:not(:disabled) {
+    background: var(--ghost);
   }
 
   .doc-mode-options .mode-option strong {
-    @apply text-sm font-semibold;
+    font-size: 0.9375rem;
+    font-weight: 680;
   }
 
   .doc-mode-options .mode-option > span {
-    @apply text-xs leading-relaxed;
+    font-size: 0.8125rem;
+    line-height: 1.45;
   }
 
   .doc-mode-options .mode-option.on {
-    @apply border-accent shadow-none;
-    background: color-mix(in srgb, var(--accent) 6%, var(--sheet));
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1.5px var(--accent);
   }
 
   .doc-stages .stage-track {
@@ -477,23 +769,27 @@
   }
 
   .doc-stages .stage-track > li {
-    @apply rounded-control border-line bg-canvas px-3 py-2 text-xs;
+    @apply rounded-none border-0 bg-transparent px-1 py-2;
+    font-size: 0.8125rem;
   }
 
   .doc-stages .checklist {
-    @apply border-t border-line pt-2;
+    @apply pt-2;
+    border-top: 1px solid var(--rule);
   }
 
   .doc-stages .checklist summary {
-    @apply text-sm;
+    font-size: 0.9375rem;
   }
 
   .doc-rules > .card {
-    @apply rounded-panel border border-line bg-surface p-4 shadow-none;
+    @apply rounded-none border-0 bg-transparent px-0 pb-0 shadow-none;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
   }
 
   .doc-word-panel {
-    @apply grid gap-3 p-3;
+    @apply grid gap-4;
   }
 
   .doc-panel-header {
@@ -513,25 +809,31 @@
     @apply m-0 gap-2;
   }
 
+  /* Original e Word lado a lado: as folhas sobre a mesa, com a moldura da própria folha. */
   .doc-comparison {
-    @apply grid grid-cols-2 gap-3;
+    @apply grid grid-cols-2 gap-5;
   }
 
   .doc-comparison-pane {
-    @apply min-w-0 overflow-hidden rounded-panel border border-line bg-canvas shadow-none;
+    @apply min-w-0 overflow-hidden bg-canvas shadow-none;
+    border: 1px solid var(--rule);
+    border-radius: 0.75rem;
   }
 
   .doc-comparison-pane > .doc-comparison-header {
-    @apply m-0 flex min-h-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-surface p-3;
+    @apply m-0 flex min-h-0 flex-wrap items-center justify-between gap-2 bg-surface px-4 py-3;
+    border-bottom: 1px solid var(--rule);
   }
 
   .doc-comparison-header h4 {
-    @apply m-0 min-w-0 text-base leading-snug;
+    @apply m-0 min-w-0 leading-snug;
+    font-size: 0.9375rem;
     flex: 1 1 10rem;
   }
 
   .doc-comparison-pane .comparison-fallback {
-    @apply min-h-48 p-4 text-sm;
+    @apply min-h-48 p-4;
+    font-size: 0.875rem;
   }
 
   .doc-pdf-preview {
@@ -539,15 +841,20 @@
   }
 
   .doc-pdf-toolbar {
-    @apply flex flex-wrap items-center gap-1.5 border-b border-line bg-surface px-2 py-1.5 text-xs;
+    @apply flex flex-wrap items-center gap-1.5 bg-surface px-2 py-1.5;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.8125rem;
   }
 
   .doc-pdf-toolbar button {
-    @apply min-h-7 px-2 py-1;
+    @apply px-3;
+    min-height: 2rem;
   }
 
   .doc-pdf-toolbar select {
-    @apply ml-auto min-w-0 max-w-full text-xs;
+    @apply ml-auto min-w-0 max-w-full;
+    min-height: 2rem;
+    font-size: 0.8125rem;
   }
 
   .doc-pdf-pages {
@@ -562,7 +869,9 @@
   }
 
   .doc-pdf-text {
-    @apply border-t border-line bg-surface p-3 text-xs;
+    @apply bg-surface p-3;
+    border-top: 1px solid var(--rule);
+    font-size: 0.8125rem;
   }
 
   .doc-paper {
@@ -570,7 +879,7 @@
   }
 
   .doc-trial-comparison {
-    @apply mt-4 grid gap-3;
+    @apply mt-4 grid gap-4;
   }
 
   .doc-patterns .pattern-result {
@@ -578,11 +887,12 @@
   }
 
   .doc-pattern-history {
-    @apply rounded-panel border border-line bg-surface;
+    @apply border-0 bg-transparent;
   }
 
   .doc-pattern-history :is(th, td) {
-    @apply p-3 text-xs;
+    @apply p-3;
+    font-size: 0.875rem;
   }
 
   .doc-save-download {
@@ -590,11 +900,16 @@
   }
 
   .doc-save-download .alert {
-    @apply m-0 text-xs;
+    @apply m-0;
+    font-size: 0.875rem;
   }
 
+  /* Entrega final: o único bloco realçado, com fundo azul-aço suave. */
   .doc-final-delivery {
-    @apply grid gap-2 bg-canvas p-3;
+    @apply grid gap-3 p-4;
+    background: var(--accent-soft);
+    border-radius: 0.75rem;
+    border-top: 0;
   }
 
   .doc-final-delivery > * + * {
@@ -602,7 +917,7 @@
   }
 
   .doc-final-delivery h3 {
-    @apply text-lg;
+    font-size: 1.125rem;
   }
 
   .doc-delivery-refresh {
@@ -614,11 +929,13 @@
   }
 
   .doc-delivery-options {
-    @apply border-t border-line pt-2;
+    @apply pt-3;
+    border-top: 1px solid var(--accent-line);
   }
 
   .doc-delivery-options > summary {
-    @apply text-xs font-semibold;
+    font-size: 0.875rem;
+    font-weight: 650;
   }
 
   .doc-delivery-options > * + * {
@@ -626,7 +943,7 @@
   }
 
   .doc-delivery-options h4 {
-    @apply text-base;
+    font-size: 1rem;
   }
 
   .doc-archive-controls {
@@ -638,11 +955,15 @@
   }
 
   .doc-archive-controls small {
-    @apply text-xs leading-relaxed;
+    font-size: 0.8125rem;
+    line-height: 1.5;
   }
 
   .doc-delivery-dialog {
-    @apply rounded-panel border border-line bg-surface p-4 text-ink shadow-sm;
+    @apply bg-surface p-5 text-ink;
+    border: 1px solid var(--rule);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-window);
     width: min(44rem, calc(100vw - 2rem));
   }
 
@@ -669,6 +990,15 @@
       @apply grid-cols-2;
     }
 
+    .doc-timing > div:nth-child(3) {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .doc-timing > div:nth-child(n + 3) {
+      border-top: 1px solid var(--rule);
+    }
+
     .doc-flow-track {
       @apply grid-cols-3;
     }
@@ -680,11 +1010,30 @@
     }
 
     .doc-setup-steps {
-      @apply grid-cols-2;
+      @apply grid-cols-2 gap-y-2;
     }
 
     .doc-workflow-nav {
       @apply grid-cols-2;
+    }
+
+    .doc-workflow-nav button > span {
+      display: none;
+    }
+
+    .doc-cards > li {
+      padding-inline: 0.25rem;
+    }
+
+    .doc-translation-cards > li {
+      @apply flex-wrap;
+    }
+
+    .flow-glyph {
+      order: -1;
+      flex-basis: 100%;
+      width: auto;
+      max-width: 7rem;
     }
 
     .doc-download-cards .doc-download-card {
@@ -711,13 +1060,6 @@
       @apply m-0;
     }
 
-    .doc-form,
-    .doc-module,
-    .doc-word-panel,
-    .doc-intake .batch-detail {
-      @apply p-3;
-    }
-
     .doc-filter-bar > :is(select, .search, .language-pair-picker) {
       flex-basis: 100%;
     }
@@ -738,7 +1080,8 @@
     }
 
     .doc-setup-steps button {
-      @apply px-1.5 text-xs;
+      @apply px-1;
+      font-size: 0.8125rem;
     }
 
     .doc-filter-bar .date-range {
@@ -747,8 +1090,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .doc-cards > li {
-      transition: none;
+    details.doc-module[open] > :not(summary) {
+      animation: none;
     }
   }
 }
