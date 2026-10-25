@@ -10,7 +10,6 @@ import {
   type Batch,
   type DocumentCategory,
   type DocumentItem,
-  type SwornTranslator,
   type Team,
   type TranslationMode,
   type TranslationSummary,
@@ -116,13 +115,9 @@ export function NewTranslation({
   onCancel: () => void;
 }) {
   const limits = useLoad(() => api<UploadLimits>('GET', '/batches/limits'), []);
-  const translators = useLoad(() => api<{ items: SwornTranslator[] }>('GET', '/sworn-translators?active=true'), []);
-  const ready = (translators.data?.items ?? []).filter((item) => item.ready);
   const [teamId, setTeamId] = useState(teams.length === 1 ? teams[0]!.id : '');
   const [pair, setPair] = useState('pt-en');
   const [mode, setMode] = useState<TranslationMode>('sworn');
-  const [useMask, setUseMask] = useState(true);
-  const [translatorId, setTranslatorId] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
@@ -185,8 +180,6 @@ export function NewTranslation({
           ...(isDirector ? {} : { teamId }),
           translation: { sourceLanguage, targetLanguage },
           mode,
-          ...(sworn ? { useMask } : {}),
-          ...(sworn && useMask && translatorId ? { translatorId } : {}),
           ...(documentCategory ? { documentCategory } : {}),
           ...(name.trim() ? { name: name.trim() } : {}),
           files: files.map((file) => ({ name: file.name, size: file.size })),
@@ -355,52 +348,7 @@ export function NewTranslation({
               <span className="field-label">Modalidade</span>
               <ModeSelect value={mode} onChange={setMode} />
             </div>
-            {sworn && (
-              <div className="tags-field mask-choice">
-                <span className="field-label">Máscara do tradutor</span>
-                <div className="mode-options doc-mode-options" role="radiogroup" aria-label="Máscara do tradutor">
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={useMask}
-                    className={`mode-option ${useMask ? 'on' : ''}`}
-                    onClick={() => setUseMask(true)}
-                  >
-                    <strong>Com máscara</strong>
-                    <span className="muted small-text">
-                      Timbre, abertura e encerramento do tradutor, com número, livro e folha pela regra dele.
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={!useMask}
-                    className={`mode-option ${!useMask ? 'on' : ''}`}
-                    onClick={() => setUseMask(false)}
-                  >
-                    <strong>Sem máscara</strong>
-                    <span className="muted small-text">Só o documento traduzido no layout do original, sem tradutor nem numeração.</span>
-                  </button>
-                </div>
-                {useMask && (
-                  <label className="top-gap">
-                    Tradutor juramentado
-                    <select value={translatorId} onChange={(e) => setTranslatorId(e.target.value)}>
-                      <option value="">Escolher depois, na prévia</option>
-                      {ready.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                          {item.languages ? ` (${item.languages})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    {translators.data && !ready.length && (
-                      <small className="warn-text">Nenhum tradutor com máscara pronta: cadastre em Tradutores juramentados.</small>
-                    )}
-                  </label>
-                )}
-              </div>
-            )}
+            {sworn && <p className="muted small-text">O tradutor juramentado e a máscara são escolhidos na conclusão, e são opcionais.</p>}
           </>
         )}
         {step === 3 && (
@@ -433,7 +381,7 @@ export function NewTranslation({
                 <dt>Modalidade</dt>
                 <dd>
                   {modeLabel[mode]}
-                  {sworn ? (useMask ? ' · com máscara' : ' · sem máscara') : ''}
+                  {sworn ? ' · tradutor escolhido na conclusão' : ''}
                 </dd>
               </div>
               <div>
@@ -573,9 +521,11 @@ export function WordPanel({
               ? `${t.number ? `Tradução Pública nº ${t.number} · ` : ''}pronta para entregar`
               : t.status === 'awaiting_approval'
                 ? 'Aprovada: aguardando a conclusão pela liderança'
-                : t.useMask
-                  ? `Na máscara de ${t.preferredTranslator?.name ?? 'tradutor a escolher'}, com o número previsto`
-                  : 'Documento traduzido no layout do original'}
+                : t.useMask && t.preferredTranslator
+                  ? `Na máscara de ${t.preferredTranslator.name}, com o número previsto`
+                  : t.useMask
+                    ? 'No layout do original; o tradutor juramentado (opcional) é escolhido na conclusão'
+                    : 'Documento traduzido no layout do original'}
           </span>
         </div>
         <div className="actions">

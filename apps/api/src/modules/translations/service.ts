@@ -351,6 +351,8 @@ export interface ApproveInput {
   number?: string;
   book?: string;
   sheet?: string;
+  /** Juramentada concluída sem tradutor: sem máscara e sem número; a numeração rascunhada é liberada. */
+  withoutTranslator?: boolean;
 }
 
 export interface InspectionInput {
@@ -1107,6 +1109,11 @@ export function createTranslationService({
       throw conflict(`Ação não permitida no estado "${row.status}"`);
     }
     if (!canApprove) return get(ctx, jobId);
+    // Juramentada sem tradutor decidido: fica pronta, e quem conclui escolhe o tradutor (ou nenhum) na conclusão.
+    if (withMask(row) && !row.preferred_translator_id) {
+      const entry = await pool.query(`SELECT 1 FROM numbering_entries WHERE job_id = $1 AND status <> 'void'`, [jobId]);
+      if (!entry.rowCount) return get(ctx, jobId);
+    }
     return approve(ctx, jobId, {});
   }
 
@@ -1477,6 +1484,8 @@ export function createTranslationService({
    * o DOCX final é a máscara do tradutor preenchida, gravado imutável. Nada é concluído automaticamente.
    */
   async function approve(ctx: AuthenticatedContext, jobId: string, input: ApproveInput) {
+    if (input.withoutTranslator && (input.translatorId || input.number || input.book || input.sheet))
+      throw new AppError(400, 'VALIDATION_FAILED', 'Sem tradutor, a conclusão não leva tradutor nem número');
     await requireApprover(ctx, jobId);
     const keyHolder: { key?: string } = {};
     try {
@@ -1505,7 +1514,17 @@ export function createTranslationService({
         }
         // O número sai da cota do responsável; sem responsável, de quem marcou como pronta ou de quem conclui.
         const assigneeId = row.assignee_id ?? row.submitted_by ?? ctx.actor.id;
-        if (!withMask(row)) {
+        // A juramentada escolhe o tradutor só na conclusão, e pode concluir sem ele: sai sem máscara e sem número.
+        const withoutTranslator = withMask(row) && !!input.withoutTranslator;
+        if (withoutTranslator) {
+          const entry = await db.query<{ status: string }>(`SELECT status FROM numbering_entries WHERE job_id = $1`, [jobId]);
+          if (entry.rows[0]?.status === 'issued') throw conflict('Esta tradução já tem número emitido; conclua com o tradutor dele');
+          // O número rascunhado volta a ficar livre para outra tradução.
+          await db.query(`UPDATE numbering_entries SET status = 'void', updated_at = now() WHERE job_id = $1 AND status = 'draft'`, [
+            jobId,
+          ]);
+        }
+        if (!withMask(row) || withoutTranslator) {
           // Certificada, técnica, simples ou juramentada sem máscara (ADR-015, ADR-017): o documento no layout do
           // original, com a fonte da regra e, na certificada, a declaração do tradutor; sem número de Tradução Pública.
           const issuedAt = now();
@@ -1521,7 +1540,8 @@ export function createTranslationService({
           await uploadBuffer(storage, key, docx);
           await db.query(
             `UPDATE translation_jobs SET status = 'approved', approved_by = $2, approved_at = $3, approval_override_reason = $4,
-                    output_key = $5, output_sha256 = $6, output_size = $7, assignee_id = $8, updated_at = now()
+                    output_key = $5, output_sha256 = $6, output_size = $7, assignee_id = $8,
+                    use_mask = use_mask AND NOT $9, updated_at = now()
               WHERE id = $1`,
             [
               jobId,
@@ -1532,6 +1552,7 @@ export function createTranslationService({
               createHash('sha256').update(docx).digest(),
               docx.length,
               assigneeId,
+              withoutTranslator,
             ],
           );
           await audit(db, ctx, row, 'translation.approved', {
@@ -1539,6 +1560,7 @@ export function createTranslationService({
             mode: row.translation_mode,
             openErrors: errors.length,
             ...(errors.length ? { overrideReason: input.overrideReason } : {}),
+            ...(withoutTranslator ? { withoutTranslator: true } : {}),
           });
           await notify(
             db,

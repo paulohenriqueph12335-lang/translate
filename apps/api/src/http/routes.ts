@@ -900,6 +900,8 @@ export function registerRoutes(
         number: label.optional(),
         book: label.optional(),
         sheet: label.optional(),
+        // Juramentada concluída sem tradutor: sem máscara e sem número.
+        withoutTranslator: z.boolean().optional(),
       }),
       request.body,
     );

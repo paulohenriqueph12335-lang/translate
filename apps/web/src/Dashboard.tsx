@@ -83,9 +83,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   useEffect(() => setUnauthorizedHandler(onUnauthorized), [onUnauthorized]);
 
   const pendingCount = pending.data?.items.length ?? 0;
-  const translationNotice = (
-    <AutoTranslationNotice isDirector={isDirector} canManageTranslators={supervises} onGoTranslators={() => goToTranslators()} />
-  );
+  const translationNotice = <AutoTranslationNotice isDirector={isDirector} />;
   const translations = () => (
     <>
       {!openTranslation && translationNotice}

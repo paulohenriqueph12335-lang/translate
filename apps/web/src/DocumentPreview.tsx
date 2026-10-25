@@ -26,7 +26,9 @@ export function DocumentPreview({
     <div className={`paper doc-paper ${editable ? 'editing' : ''}`}>
       <p className="paper-mask-note">
         {frame.draftMark && <strong>{frame.draftMark}</strong>}
-        <span>Timbre, abertura, encerramento, número e data entram pela máscara do tradutor escolhido na conclusão.</span>
+        <span>
+          Com tradutor juramentado escolhido na conclusão, timbre, abertura, encerramento, número e data entram pela máscara dele.
+        </span>
       </p>
       <p className="gap">
         <strong>{frame.documentTypeLabel}:</strong>{' '}

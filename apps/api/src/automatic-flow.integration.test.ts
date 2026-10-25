@@ -172,6 +172,34 @@ describe('fluxo automático até o Word', () => {
     assert.equal(final.statusCode, 200);
     assert.doesNotMatch(await docxText(final.rawPayload), /ANA BEATRIZ MOREIRA LIMA/i);
   });
+
+  it('juramentada com o tradutor só no final: sem escolher, fica pronta; sem tradutor, conclui sem máscara e descarta a numeração', async () => {
+    const job = await upload(c.lider!, 'no-final.pdf', 'nofinal', { mode: 'sworn' });
+    assert.equal((await inspectReady(c.lider!, job)).status, 200);
+    const ready = await c.lider!.post(`/api/v1/translations/${job}/accept`);
+    assert.equal(ready.status, 200, JSON.stringify(ready.body).slice(0, 300));
+    assert.equal(ready.body.translation.status, 'awaiting_approval');
+    // Numeração rascunhada que a conclusão sem tradutor descarta.
+    const numbering = await c.lider!.request('PUT', `/api/v1/translations/${job}/numbering`, {
+      translatorId: ids.translator,
+      pages: 1,
+      confirmCompleted: true,
+    });
+    assert.equal(numbering.status, 200, JSON.stringify(numbering.body).slice(0, 300));
+    assert.equal((await inspectReady(c.lider!, job)).status, 200);
+    const mixed = await c.lider!.post(`/api/v1/translations/${job}/approve`, { withoutTranslator: true, translatorId: ids.translator });
+    assert.equal(mixed.status, 400);
+    const done = await c.lider!.post(`/api/v1/translations/${job}/approve`, { withoutTranslator: true });
+    assert.equal(done.status, 200, JSON.stringify(done.body).slice(0, 300));
+    assert.equal(done.body.translation.status, 'approved');
+    assert.equal(done.body.translation.useMask, false);
+    assert.equal(done.body.translation.number, null);
+    const entry = await pool.query<{ status: string }>('SELECT status FROM numbering_entries WHERE job_id = $1', [job]);
+    assert.equal(entry.rows[0]!.status, 'void');
+    const final = await c.lider!.raw('GET', `/api/v1/translations/${job}/final`);
+    assert.equal(final.statusCode, 200);
+    assert.doesNotMatch(await docxText(final.rawPayload), /ANA BEATRIZ MOREIRA LIMA/i);
+  });
 });
 
 describe('documento sem texto lido', () => {
@@ -202,7 +230,7 @@ describe('padrões de documento', () => {
       /HISTÓRICO ESCOLAR/i.test(entry.title),
     );
     assert.ok(item, JSON.stringify(list.body.items));
-    assert.equal(item.approved, 3);
+    assert.equal(item.approved, 4);
     assert.equal(item.verdict, 'can');
   });
 
