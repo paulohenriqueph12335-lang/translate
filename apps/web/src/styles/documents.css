@@ -138,7 +138,7 @@
   }
 
   .doc-setup-steps button {
-    @apply relative flex min-w-0 flex-row items-center gap-2.5 rounded-none border-0 bg-transparent px-1 text-left text-muted;
+    @apply relative flex min-w-0 flex-row items-center justify-start gap-2.5 rounded-none border-0 bg-transparent px-1 text-left text-muted;
     min-height: 3rem;
     padding-top: 0.875rem;
     white-space: normal;
@@ -177,7 +177,7 @@
   }
 
   .doc-setup-steps button[aria-current='step'] {
-    @apply text-ink;
+    @apply border-transparent bg-transparent text-ink;
     font-weight: 680;
   }
 
@@ -270,7 +270,7 @@
   }
 
   .doc-workflow-nav button {
-    @apply relative grid min-w-0 content-start gap-1 rounded-none border-0 bg-transparent px-1 pb-1 text-left text-muted;
+    @apply relative grid min-w-0 content-start justify-start justify-items-start gap-1 rounded-none border-0 bg-transparent px-1 pb-1 text-left text-muted;
     padding-top: 0.875rem;
     white-space: normal;
     box-shadow: none;
@@ -548,7 +548,7 @@
 
   /* Conferência: título grande, a linha do fluxo e os módulos abaixo. */
   .doc-review .review-top {
-    @apply flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 border-0 pb-0;
+    @apply flex min-w-0 flex-row flex-wrap items-start gap-x-4 gap-y-2 border-0 pb-0;
   }
 
   .doc-review .review-top > button.ghost {
@@ -556,7 +556,7 @@
   }
 
   .doc-review .review-title {
-    @apply min-w-0;
+    @apply w-full min-w-0;
     flex: 1 1 100%;
   }
 

@@ -101,6 +101,13 @@
   .performance-view .stat-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .performance-view .stat-row > :nth-child(3n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .performance-view .stat-row > :nth-child(n + 4) {
+    border-top: 1px solid var(--rule);
+  }
   .kpi-tile,
   .analytics-view .stat-tile {
     @apply grid min-w-0 content-start gap-1.5 rounded-none border-0 bg-transparent;
@@ -985,9 +992,13 @@
     .analytics-view .stat-row {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .analytics-view .stat-row > :nth-child(3) {
+    .analytics-view .stat-row > :nth-child(odd) {
       padding-left: 0;
       border-left: 0;
+    }
+    .analytics-view .stat-row > :nth-child(even) {
+      padding-left: 1.5rem;
+      border-left: 1px solid var(--rule);
     }
     .analytics-view .stat-row > :nth-child(n + 3) {
       border-top: 1px solid var(--rule);

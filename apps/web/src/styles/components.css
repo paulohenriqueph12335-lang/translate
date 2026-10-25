@@ -127,6 +127,8 @@
   }
   .main-col {
     @apply flex min-h-dvh min-w-0 flex-col;
+    /* Rótulos de gráfico na borda não podem criar rolagem lateral; "clip" mantém a barra superior fixa. */
+    overflow-x: clip;
   }
   .topbar {
     @apply sticky top-0 flex min-w-0 items-center gap-4;
@@ -294,6 +296,12 @@
   .menu-item.danger,
   .menu-item.danger svg {
     color: var(--danger);
+  }
+  button.menu-item.danger {
+    box-shadow: none;
+  }
+  button.menu-item.danger:hover:not(:disabled) {
+    background: var(--danger-bg);
   }
   .menu-sep {
     height: 1px;
@@ -1054,6 +1062,12 @@
     line-height: 1.45;
     overflow-wrap: anywhere;
     animation: ghost-in var(--duration-normal) var(--ease-out) both;
+  }
+  .alert.test-account {
+    @apply flex-wrap items-center justify-between gap-x-4 gap-y-2;
+  }
+  .alert.test-account > span {
+    flex: 1 1 18rem;
   }
   .alert.error {
     color: var(--danger);

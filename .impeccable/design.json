@@ -1,56 +1,75 @@
 {
-  "direction": "corporativa, elegante, discreta e compacta",
+  "direction": "mesa de conferência editorial: grafite e cinza-azulado, ações pretas, sem verde, sem cartões",
   "sourceOfTruth": "apps/web/src/styles/tokens.css",
   "colors": {
     "light": {
-      "canvas": "#f4f6f4",
+      "canvas": "#f6f8fa",
       "surface": "#ffffff",
-      "raised": "#fafcfb",
-      "ink": "#222e27",
-      "muted": "#59685f",
-      "line": "#dce4de",
-      "accent": "#28634d",
-      "onAccent": "#ffffff",
-      "menu": "#18251e",
-      "success": "#276044",
-      "warning": "#815611",
-      "danger": "#a23f37"
+      "ghost": "#eaeef3",
+      "ink": "#1a1e25",
+      "ink2": "#424850",
+      "muted": "#5d646c",
+      "line": "#dce0e5",
+      "primary": "#000000",
+      "onPrimary": "#ffffff",
+      "accent": "#3c5b8a",
+      "accentSoft": "#e7effb",
+      "menu": "#161a1f",
+      "warning": "#804d18",
+      "danger": "#aa2a27",
+      "plum": "#71426d"
     },
     "dark": {
-      "canvas": "#141d17",
-      "surface": "#1c2820",
-      "raised": "#233128",
-      "ink": "#e8efe9",
-      "muted": "#a6b8ac",
-      "line": "#34483a",
-      "accent": "#91cbaa",
-      "onAccent": "#132e20",
-      "menu": "#101b14",
-      "success": "#a1d6b2",
-      "warning": "#e7c784",
-      "danger": "#f0b2a8"
+      "canvas": "#111418",
+      "surface": "#191c20",
+      "ghost": "#1e2227",
+      "ink": "#eef0f3",
+      "ink2": "#c0c4cb",
+      "muted": "#a0a5ac",
+      "line": "#2a2e33",
+      "primary": "#f2f4f6",
+      "onPrimary": "#000000",
+      "accent": "#91b4e1",
+      "accentSoft": "#1c2738",
+      "menu": "#0a0c10",
+      "warning": "#e7b369",
+      "danger": "#f08f87",
+      "plum": "#cf9fc9"
     },
-    "legacyAliases": ["--ink", "--paper", "--sheet", "--rule"],
-    "semanticUtilities": ["bg-canvas", "bg-surface", "text-ink", "text-muted", "text-accent", "border-line"]
+    "charts": {
+      "light": ["#4e78c7", "#af7528", "#744276", "#c6ccd3"],
+      "dark": ["#5695e0", "#bd871c", "#9e5598", "#3a3f46"],
+      "sequential": "one hue (steel blue), light to dark, own steps in dark",
+      "validated": "CVD-safe in both themes"
+    },
+    "noGreen": true,
+    "legacyAliases": ["--ink", "--paper", "--sheet", "--rule", "--ok", "--menu-*", "--chart-*"],
+    "semanticUtilities": ["bg-canvas", "bg-surface", "bg-ghost", "text-ink", "text-ink-2", "text-muted", "text-accent", "border-line"]
   },
   "typography": {
-    "display": "Source Serif 4 Variable",
-    "sans": "Inter Variable",
-    "monoFallback": "Cascadia Code, Consolas, ui-monospace, monospace",
-    "body": "13px",
-    "bodyLineHeight": 1.55,
-    "headingWeight": 600,
-    "numbers": "tabular where comparing quantities"
+    "family": "Schibsted Grotesk Variable",
+    "display": "same family, weight 740-780",
+    "body": "15px",
+    "bodyLineHeight": 1.5,
+    "labels": "13-14px",
+    "numbers": "tabular-nums, no monospace"
   },
-  "radius": { "control": "6px", "panel": "8px", "dialog": "10px" },
-  "borders": "1px semantic line",
-  "shadow": "minimal; subtle surface separation",
+  "radius": {
+    "control": "10px",
+    "panel": "12px",
+    "dialog": "16px",
+    "buttons": "pill"
+  },
+  "borders": "hairline only where it groups; no card frames",
+  "shadow": "windows, menus and tips only",
   "layout": {
-    "density": "compact",
-    "navigation": "grouped work and administration areas",
-    "documents": "individual compact cards with aligned metadata and clear actions",
-    "dashboard": "large charts and prominent indices",
-    "icons": "few, functional, text predominant"
+    "density": "balanced",
+    "navigation": "dark fixed sidebar with icon groups; compact top bar with Ctrl+K search, bell panel, theme and account menu; mobile bottom bar with Mais sheet",
+    "documents": "flowing ghost rows with the flow-line glyph; no cards",
+    "dashboard": "KPI ledger, proportional live register, charts in a grid separated by hairlines",
+    "settings": "secondary menu on the left",
+    "signature": "linha do fluxo: six segments at row, header and register scales",
+    "icons": "thin stroke 1.5, navigation and main actions only"
   },
   "documentPreview": {
     "paper": "white in both themes",
@@ -80,9 +99,18 @@
       "styles/administration.css",
       "styles/analytics.css"
     ],
-    "layers": ["base", "components", "utilities"]
+    "layers": ["base", "components", "utilities"],
+    "fonts": "@fontsource-variable/schibsted-grotesk",
+    "components": ["icons.tsx", "CommandPalette.tsx", "BellPanel.tsx", "ui.tsx LoadingLine/LoadingHint", "Flow.tsx FlowGlyph"]
   },
-  "motion": { "fast": "140ms", "normal": "180ms", "reducedMotion": "respected" },
+  "motion": {
+    "fast": "120ms",
+    "normal": "180ms",
+    "slow": "240ms",
+    "easing": "cubic-bezier(0.2, 0, 0, 1)",
+    "grammar": "ghost: blur + opacity materialize",
+    "reducedMotion": "respected"
+  },
   "constraints": {
     "scope": "visual only",
     "preserve": [
@@ -100,7 +128,8 @@
   "evidence": {
     "codeAudit": "docs/design/visual-audit.md",
     "browserValidationRecord": "docs/design/visual-validation.md",
-    "browserValidationStatus": "pending evidence",
-    "acceptanceStatus": "not declared"
-  }
+    "browserValidationStatus": "captured with Playwright: 3 roles, light/dark, desktop/mobile; no page errors; no horizontal overflow at 375px",
+    "acceptanceStatus": "prototype approved by owner 2026-10-25"
+  },
+  "loading": "thin line under the top bar plus a small three-dot hint; no boxes"
 }

@@ -525,6 +525,10 @@
     .auth-brand-text {
       display: none;
     }
+    .auth-flow {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      row-gap: 0.75rem;
+    }
     .account-settings-grid {
       grid-template-columns: minmax(0, 1fr);
     }
