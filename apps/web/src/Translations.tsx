@@ -23,7 +23,7 @@ import {
 } from './api';
 import { AiAssist } from './AiManagement';
 import { DocumentPreview } from './DocumentPreview';
-import { FlowTracker, NewTranslation, WordPanel } from './Flow';
+import { FlowGlyph, FlowTracker, NewTranslation, WordPanel } from './Flow';
 import { ModeBadge, StagesPanel } from './Modes';
 import { LanguagePairPicker } from './LanguagePairPicker';
 import { ArchiveDownloadButtons } from './ArchiveDownloadButtons';
@@ -36,6 +36,7 @@ import {
   dateTime,
   DateRange,
   Feedback,
+  LoadingHint,
   message,
   PagedFooter,
   SearchInput,
@@ -265,6 +266,7 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
         <ul className="list selectable work-list doc-cards doc-translation-cards">
           {list.items.map((item) => (
             <li key={item.id} onClick={() => onOpen(item.id)}>
+              <FlowGlyph t={item} />
               <div className="doc-card-content">
                 <div className="doc-card-heading">
                   <strong className="doc-document-name">
@@ -438,7 +440,18 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
 
   const dirty = useMemo(() => !!data?.draft && JSON.stringify(draft) !== JSON.stringify(data.draft.content), [draft, data]);
 
-  if (!data) return <Section title="Tradução">{error ? <Feedback error={error} /> : <p className="muted">Carregando…</p>}</Section>;
+  if (!data)
+    return (
+      <Section title="Tradução">
+        {error ? (
+          <Feedback error={error} />
+        ) : (
+          <p className="muted">
+            <LoadingHint />
+          </p>
+        )}
+      </Section>
+    );
   const { translation: t, frame } = data;
   const errors = data.draft?.issues.filter((issue) => issue.severity === 'error') ?? [];
   const warnings = data.draft?.issues.filter((issue) => issue.severity === 'warning') ?? [];

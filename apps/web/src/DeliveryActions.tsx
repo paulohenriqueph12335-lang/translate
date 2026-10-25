@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { ArchiveDownloadButtons } from './ArchiveDownloadButtons';
 import { canChooseSaveLocation, saveFile, type SaveRequest } from './save-file';
-import { Feedback, useLoad } from './ui';
+import { Feedback, LoadingHint, useLoad } from './ui';
 
 export function SaveDownloadButton({
   url,
@@ -75,7 +75,11 @@ export function FinalDelivery({ translationId, version, batchId }: { translation
       <h3>Tradução concluída</h3>
       <p className="muted small-text">O arquivo permanece disponível aqui. Escolha salvar agora ou volte quando precisar.</p>
       <Feedback error={manifest.error} />
-      {!manifest.data && !manifest.error && <p role="status">Carregando arquivos disponíveis…</p>}
+      {!manifest.data && !manifest.error && (
+        <p>
+          <LoadingHint text="Carregando arquivos disponíveis" />
+        </p>
+      )}
       <button className="small ghost doc-delivery-refresh" onClick={manifest.reload}>
         Atualizar arquivos disponíveis
       </button>

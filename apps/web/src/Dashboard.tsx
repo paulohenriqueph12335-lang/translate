@@ -4,6 +4,8 @@ import { AiManagement } from './AiManagement';
 import { api, statusLabel, type Me, type Page, type Session, type User, type UserStatus, setUnauthorizedHandler } from './api';
 import { Audit } from './Audit';
 import { AutoTranslationNotice } from './AutoTranslationNotice';
+import { BellPanel } from './BellPanel';
+import { CommandPalette, type PaletteEntry } from './CommandPalette';
 import { Documents } from './Documents';
 import { Downloads } from './Downloads';
 import { LiveNotifications } from './LiveNotifications';
@@ -19,9 +21,11 @@ import { Teams } from './Teams';
 import { Translators } from './Translators';
 import { Settings, PasswordSettings } from './Settings';
 import { useUserPreferences } from './preferences';
-import { SmartSearch, type DocumentsSearchTarget } from './SmartSearch';
+import { type DocumentsSearchTarget } from './SmartSearch';
 import { PerformancePanel } from './PerformancePanel';
-import { dateTime, EmbeddedSection, Wordmark, Feedback, message, Section, useLoad } from './ui';
+import { Icon, type IconName } from './icons';
+import { setThemePreference } from './theme';
+import { dateTime, EmbeddedSection, Wordmark, Feedback, LoadingLine, message, Section, useLoad } from './ui';
 
 /**
  * Navegação por papel, compacta: poucas áreas no menu e as telas parecidas como abas dentro delas.
@@ -48,6 +52,30 @@ interface Area {
   tabs: Tab[];
 }
 
+const areaIcon: Record<AreaKey, IconName> = {
+  home: 'home',
+  work: 'docs',
+  history: 'history',
+  team: 'users',
+  settings: 'sliders',
+  admin: 'shield',
+  notifications: 'bell',
+  account: 'gear',
+};
+
+/** Áreas de configuração usam um menu secundário à esquerda em vez de abas. */
+const sideMenuAreas = new Set<AreaKey>(['settings', 'admin', 'account']);
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join('');
+
+const resolvedTheme = () => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+
 export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: () => void; onUnauthorized: () => void }) {
   const isDirector = me.user.orgRole === 'director';
   const supervises = me.memberships.some((m) => m.role === 'leader');
@@ -62,6 +90,9 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const [notificationsVersion, setNotificationsVersion] = useState(0);
   const unread = useUnreadCount(notificationsVersion);
   const preferences = useUserPreferences(me.user.id);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(resolvedTheme);
   const pending = useLoad(
     () => (isDirector ? api<Page<User>>('GET', '/users?status=pending&limit=100') : Promise.resolve(null)),
     [isDirector, place.area],
@@ -81,6 +112,31 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
 
   // Sessão revogada/expirada em qualquer chamada leva de volta ao login.
   useEffect(() => setUnauthorizedHandler(onUnauthorized), [onUnauthorized]);
+
+  // Ctrl+K (ou ⌘K) abre a pesquisa de qualquer tela.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  // O tema pode mudar em Configurações ou em outra aba; a barra superior acompanha.
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(resolvedTheme()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    if (preferences.data) void preferences.update({ theme: next }).catch(() => setThemePreference(next));
+    else setThemePreference(next);
+  }
 
   const pendingCount = pending.data?.items.length ?? 0;
   const translationNotice = <AutoTranslationNotice isDirector={isDirector} />;
@@ -296,110 +352,310 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   // Áreas de uma aba só mostram a tela como sempre; com várias, o título da área e as abas.
   const single = current.tabs.length === 1;
   const navigationGroup = (key: AreaKey) => (key === 'home' ? 'Visão geral' : key === 'work' || key === 'history' ? 'Operação' : 'Gestão');
+  const openDocuments = (target: DocumentsSearchTarget) => {
+    setDocumentTarget(target);
+    go('work', 'send');
+  };
+  const sideMenu = sideMenuAreas.has(current.key);
+  // No celular: três áreas na barra de baixo e o resto em "Mais".
+  const bottom = visible.slice(0, 3);
+  const more = [...visible.slice(3), ...footer];
+
+  const paletteEntries: PaletteEntry[] = [
+    ...[...visible, ...footer].flatMap((area) =>
+      area.tabs.map((item, index) => ({
+        label: area.tabs.length === 1 || index === 0 ? area.label : item.label,
+        hint: area.tabs.length === 1 || index === 0 ? area.subtitle || area.title : area.label,
+        icon: areaIcon[area.key],
+        primary: index === 0,
+        run: () => go(area.key, item.key),
+      })),
+    ),
+    { label: 'Nova tradução', hint: 'Enviar documentos para traduzir', icon: 'filePlus', primary: true, run: goToUpload },
+    {
+      label: theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro',
+      hint: 'Aparência',
+      icon: theme === 'dark' ? 'sun' : 'moon',
+      run: toggleTheme,
+    },
+  ];
+
+  const navButton = (area: Area) => (
+    <button
+      aria-label={area.count ? `${area.label}, ${area.count}` : area.label}
+      aria-current={current.key === area.key ? 'page' : undefined}
+      className={current.key === area.key ? 'active' : ''}
+      onClick={() => go(area.key)}
+    >
+      <Icon name={areaIcon[area.key]} />
+      <span className="label-full">{area.label}</span>
+      <span className="label-short">{area.short ?? area.label}</span>
+      {!!area.count && <span className="nav-count">{area.count}</span>}
+    </button>
+  );
+
+  const tabPanel = (
+    <EmbeddedSection.Provider value={true}>
+      {/* A troca de aba entra com um movimento curto; a chave remonta o painel a cada troca. */}
+      <div role="tabpanel" key={`${current.key}:${tab.key}:${openTranslation ?? ''}`} className="panel-enter">
+        {tab.render()}
+      </div>
+    </EmbeddedSection.Provider>
+  );
 
   return (
     <div className="shell">
       <aside className="sidebar">
         <Wordmark />
-        <div className="identity">
-          <strong>{me.user.displayName}</strong>
-          <span className="muted">{me.user.email}</span>
-          <span className="badge">{role}</span>
-        </div>
         <nav aria-label="Navegação principal">
           {visible.map((area, index) => (
             <div key={area.key} className="nav-item">
               {(index === 0 || navigationGroup(visible[index - 1]!.key) !== navigationGroup(area.key)) && (
                 <span className="nav-group">{navigationGroup(area.key)}</span>
               )}
-              <button aria-label={area.label} className={current.key === area.key ? 'active' : ''} onClick={() => go(area.key)}>
-                <span className="label-full">{area.label}</span>
-                <span className="label-short">{area.short ?? area.label}</span>
-                {!!area.count && <span className="nav-count">{area.count}</span>}
-              </button>
+              {navButton(area)}
             </div>
           ))}
         </nav>
         <div className="sidebar-foot">
           <span className="nav-group account-nav-label">Minha conta</span>
           {footer.map((area) => (
-            <button
-              key={area.key}
-              className={`ghost small foot-${area.key} ${current.key === area.key ? 'active' : ''}`}
-              onClick={() => go(area.key)}
-            >
-              {area.label}
-              {!!area.count && <span className="nav-count">{area.count}</span>}
-            </button>
+            <div key={area.key}>{navButton(area)}</div>
           ))}
-          <button className="ghost foot-logout" onClick={onLogout}>
+          <button className="foot-logout" onClick={onLogout}>
+            <Icon name="logout" />
             Sair
           </button>
         </div>
       </aside>
-      <main className="content">
-        <LiveNotifications
-          userId={me.user.id}
-          onOpenTranslation={goToTranslation}
-          onOpenNotifications={() => go('notifications')}
-          onNew={() => setNotificationsVersion((value) => value + 1)}
-        />
-        {me.user.testAccount && <TestAccountBanner me={me} onDeleted={onLogout} />}
-        {single ? (
-          <div key={current.key} className="panel-enter">
-            {tab.render()}
+      <div className="main-col">
+        <header className="topbar">
+          <span className="topbar-brand">Tradutor Documental</span>
+          <button type="button" className="search-trigger" aria-haspopup="dialog" onClick={() => setPaletteOpen(true)}>
+            <Icon name="search" />
+            <span>{manages ? 'Pesquisar protocolos, documentos, pessoas e telas' : 'Pesquisar suas traduções e telas'}</span>
+            <kbd>Ctrl K</kbd>
+          </button>
+          <div className="topbar-actions">
+            <button type="button" className="icon-button search-icon" aria-label="Pesquisar" onClick={() => setPaletteOpen(true)}>
+              <Icon name="search" />
+            </button>
+            <BellPanel
+              unread={unread}
+              version={notificationsVersion}
+              onOpenTranslation={goToTranslation}
+              onOpenDocuments={(batchId) => openDocuments(batchId ? { batchId } : {})}
+              onSeeAll={() => go('notifications')}
+              onChange={() => setNotificationsVersion((value) => value + 1)}
+            />
+            <button
+              type="button"
+              className="icon-button theme-toggle"
+              aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
+              title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+              onClick={toggleTheme}
+            >
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+            </button>
+            <ProfileMenu me={me} role={role} onSettings={() => go('account')} onLogout={onLogout} />
           </div>
-        ) : (
-          <section className="area">
-            <header className="area-head">
-              <h2>{current.title}</h2>
-              <p className="muted">{current.subtitle}</p>
-            </header>
-            {current.key === 'home' && manages && (
-              <SmartSearch
-                me={me}
-                onOpenTranslation={goToTranslation}
-                onOpenAudit={(q) => {
-                  setAuditSearch(q);
-                  go('team', 'audit');
-                }}
-                onOpenDocuments={(target) => {
-                  setDocumentTarget(target);
-                  go('work', 'send');
-                }}
-                onOpenReports={(q) => {
-                  setReportSearch(q);
-                  go('home', 'teams');
-                }}
-                onOpenTeam={(teamId) => {
-                  setPanelTeam(teamId);
-                  go('home', 'teams');
-                }}
-              />
-            )}
-            <div className="tabs area-tabs" role="tablist" aria-label={current.title}>
-              {current.tabs.map((item) => (
-                <button
-                  key={item.key}
-                  role="tab"
-                  aria-selected={item.key === tab.key}
-                  className={item.key === tab.key ? 'on' : ''}
-                  onClick={() => go(current.key, item.key)}
-                >
-                  {item.label}
-                  {!!item.count && <span className="nav-count">{item.count}</span>}
-                </button>
-              ))}
+        </header>
+        <LoadingLine />
+        <main className="content">
+          <LiveNotifications
+            userId={me.user.id}
+            onOpenTranslation={goToTranslation}
+            onOpenNotifications={() => go('notifications')}
+            onNew={() => setNotificationsVersion((value) => value + 1)}
+          />
+          {me.user.testAccount && <TestAccountBanner me={me} onDeleted={onLogout} />}
+          {single ? (
+            <div key={current.key} className="panel-enter">
+              {tab.render()}
             </div>
-            <EmbeddedSection.Provider value={true}>
-              {/* A troca de aba entra com um movimento curto; a chave remonta o painel a cada troca. */}
-              <div role="tabpanel" key={`${current.key}:${tab.key}:${openTranslation ?? ''}`} className="panel-enter">
-                {tab.render()}
-              </div>
-            </EmbeddedSection.Provider>
-          </section>
-        )}
-      </main>
+          ) : (
+            <section className={`area ${sideMenu ? 'with-side-menu' : ''}`}>
+              <header className="area-head">
+                <h2>{current.title}</h2>
+                <p className="muted">{current.subtitle}</p>
+              </header>
+              {sideMenu ? (
+                <div className="area-body">
+                  <nav className="side-menu" aria-label={current.title}>
+                    {current.tabs.map((item) => (
+                      <button
+                        key={item.key}
+                        aria-current={item.key === tab.key ? 'page' : undefined}
+                        className={item.key === tab.key ? 'on' : ''}
+                        onClick={() => go(current.key, item.key)}
+                      >
+                        {item.label}
+                        {!!item.count && <span className="nav-count">{item.count}</span>}
+                      </button>
+                    ))}
+                  </nav>
+                  {tabPanel}
+                </div>
+              ) : (
+                <>
+                  <div className="tabs area-tabs" role="tablist" aria-label={current.title}>
+                    {current.tabs.map((item) => (
+                      <button
+                        key={item.key}
+                        role="tab"
+                        aria-selected={item.key === tab.key}
+                        className={item.key === tab.key ? 'on' : ''}
+                        onClick={() => go(current.key, item.key)}
+                      >
+                        {item.label}
+                        {!!item.count && <span className="nav-count">{item.count}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  {tabPanel}
+                </>
+              )}
+            </section>
+          )}
+        </main>
+      </div>
+      <nav className="bottom-nav" aria-label="Navegação principal">
+        {bottom.map((area) => (
+          <button
+            key={area.key}
+            aria-current={current.key === area.key ? 'page' : undefined}
+            className={current.key === area.key && !moreOpen ? 'active' : ''}
+            onClick={() => {
+              setMoreOpen(false);
+              go(area.key);
+            }}
+          >
+            <Icon name={areaIcon[area.key]} />
+            {area.short ?? area.label}
+          </button>
+        ))}
+        <button
+          aria-expanded={moreOpen}
+          aria-haspopup="menu"
+          className={moreOpen || more.some((area) => area.key === current.key) ? 'active' : ''}
+          onClick={() => setMoreOpen((open) => !open)}
+        >
+          <Icon name="menu" />
+          Mais
+        </button>
+      </nav>
+      {moreOpen && (
+        <>
+          <div className="sheet-backdrop" onClick={() => setMoreOpen(false)} />
+          <div className="more-sheet" role="menu" aria-label="Mais áreas">
+            {more.map((area) => (
+              <button
+                key={area.key}
+                role="menuitem"
+                className="menu-item"
+                onClick={() => {
+                  setMoreOpen(false);
+                  go(area.key);
+                }}
+              >
+                <Icon name={areaIcon[area.key]} />
+                {area.label}
+                {!!area.count && <span className="nav-count">{area.count}</span>}
+              </button>
+            ))}
+            <span className="menu-sep" />
+            <button role="menuitem" className="menu-item danger" onClick={onLogout}>
+              <Icon name="logout" />
+              Sair
+            </button>
+          </div>
+        </>
+      )}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        entries={paletteEntries}
+        smart={manages}
+        onOpenTranslation={goToTranslation}
+        onOpenAudit={(q) => {
+          setAuditSearch(q);
+          go('team', 'audit');
+        }}
+        onOpenDocuments={openDocuments}
+        onOpenReports={(q) => {
+          setReportSearch(q);
+          go('home', 'teams');
+        }}
+        onOpenTeam={(teamId) => {
+          setPanelTeam(teamId);
+          go('home', 'teams');
+        }}
+      />
+    </div>
+  );
+}
+
+/** Menu da conta: quem está conectado, o papel, configurações e sair. */
+function ProfileMenu({ me, role, onSettings, onLogout }: { me: Me; role: string; onSettings: () => void; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === 'Escape') setOpen(false);
+        return;
+      }
+      if (!(event.target as Element | null)?.closest?.('.profile-anchor')) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+  const pick = (run: () => void) => () => {
+    setOpen(false);
+    run();
+  };
+  return (
+    <div className="anchor profile-anchor">
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={`Conta de ${me.user.displayName}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="avatar" aria-hidden="true">
+          {initials(me.user.displayName)}
+        </span>
+      </button>
+      {open && (
+        <div className="popover profile menu" role="menu" aria-label="Conta">
+          <div className="profile-head">
+            <span className="avatar large" aria-hidden="true">
+              {initials(me.user.displayName)}
+            </span>
+            <span>
+              <strong>{me.user.displayName}</strong>
+              <span className="muted">{me.user.email}</span>
+              <span className="badge soft">{role}</span>
+            </span>
+          </div>
+          <span className="menu-sep" />
+          <button role="menuitem" className="menu-item" onClick={pick(onSettings)}>
+            <Icon name="gear" />
+            Configurações
+          </button>
+          <span className="menu-sep" />
+          <button role="menuitem" className="menu-item danger" onClick={pick(onLogout)}>
+            <Icon name="logout" />
+            Sair
+          </button>
+        </div>
+      )}
     </div>
   );
 }

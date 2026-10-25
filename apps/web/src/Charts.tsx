@@ -1,15 +1,15 @@
 import { useState, type MouseEvent, type ReactNode } from 'react';
 
 /**
- * Gráficos dos painéis, em SVG/HTML simples. Paleta categórica por tokens: verde para a série principal, oliva para
- * a comparação e cinza nas séries adicionais ("Outros"). Toda série tem legenda ou rótulo direto, dica ao passar
- * o mouse e tabela equivalente. Os aliases exportados preservam os contratos dos painéis.
+ * Gráficos dos painéis, em SVG/HTML simples. Paleta categórica por tokens, validada para daltonismo no claro e no
+ * escuro: azul-aço na série principal, ocre na comparação e ameixa na terceira série. Toda série tem legenda ou
+ * rótulo direto, dica ao passar o mouse e tabela equivalente. Os aliases exportados preservam os contratos dos painéis.
  */
 export const INK_BLUE = 'var(--chart-blue)';
 export const SEPIA = 'var(--chart-sepia)';
 export const SERIES = [INK_BLUE, SEPIA, 'var(--chart-gray)'] as const;
-/** Desfechos: acerto no verde principal, refeita no vermelho de erro, justificada no ocre de alerta. */
-export const OUTCOME_COLORS = [INK_BLUE, 'var(--chart-danger)', 'var(--chart-warn)'] as const;
+/** Desfechos na ordem fixa da paleta: acerto no azul, refeita no ocre, justificada na ameixa. */
+export const OUTCOME_COLORS = [INK_BLUE, SEPIA, 'var(--chart-gray)'] as const;
 const OTHER = 'var(--chart-other)';
 
 type Tip = { x: number; y: number; text: string } | null;
@@ -73,7 +73,7 @@ export function ChartCard({
   wide?: boolean;
 }) {
   return (
-    <figure className={`card chart-card analytics-card ${wide ? 'wide' : ''}`}>
+    <figure className={`chart-card analytics-card ${wide ? 'wide' : ''}`}>
       <figcaption>
         <h3>{title}</h3>
         {subtitle && <p className="muted small-text">{subtitle}</p>}
@@ -86,7 +86,7 @@ export function ChartCard({
 /** Número em destaque, com contexto curto. */
 export function StatTile({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="card stat-tile">
+    <div className="stat-tile">
       <span className="muted small-text">{label}</span>
       <strong>{value}</strong>
       {detail && <span className="muted small-text">{detail}</span>}

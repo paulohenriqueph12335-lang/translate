@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { api, roleLabel, statusLabel, type Page, type Team, type TeamMember, type TeamRole } from './api';
-import { Feedback, message, normalize, SearchInput, Section, Segmented, useDebounced, useLoad } from './ui';
+import { Feedback, LoadingHint, message, normalize, SearchInput, Section, Segmented, useDebounced, useLoad } from './ui';
 
 interface Candidate {
   userId: string;
@@ -427,7 +427,11 @@ function AddPeople({ team, isDirector, onChange }: { team: Team; isDirector: boo
           {query || assignment !== 'any' ? 'Ninguém corresponde aos filtros.' : 'Todas as pessoas ativas já estão na equipe.'}
         </p>
       )}
-      {loading && <p className="muted">Carregando…</p>}
+      {loading && (
+        <p className="muted">
+          <LoadingHint />
+        </p>
+      )}
       {cursor && !loading && (
         <button className="ghost" onClick={() => void load(cursor)}>
           Carregar mais

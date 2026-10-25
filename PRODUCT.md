@@ -37,7 +37,10 @@ Um sistema feito para a tradução juramentada brasileira: número da Tradução
 ## Brand Commitments
 
 - Nome do produto: Tradutor Documental.
-- Paleta definida pelo responsável (2026-10-22): base preta, contraste de cinzas e off-white.
+- Paleta aprovada pelo responsável (2026-10-25): grafite e cinza-azulado, ações em preto, nada verde; concluído é azul-aço.
+- Personalidade editorial: uma família tipográfica (Schibsted Grotesk), sem cartões, linhas finas e listas fluidas com efeito fantasma.
+- Assinatura visual: a linha do fluxo do documento (Envio → Tradução → Revisão → Prévia em Word → Conclusão → Word final).
+- Marcação de tradução juramentada discreta (ameixa suave), sempre com texto.
 - Linguagem de comunicação contemporânea, com todas as referências visuais vindas da tradução juramentada.
 
 ## Evidence on Hand

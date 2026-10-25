@@ -2,11 +2,85 @@
 @reference './tokens.css';
 
 @layer components {
+  /* Entrada dividida: marca em grafite à esquerda, formulário na mesa à direita. */
+  .auth-split {
+    @apply grid min-h-dvh;
+    grid-template-columns: minmax(22rem, 0.9fr) minmax(0, 1.1fr);
+    background: var(--canvas);
+  }
+  .auth-brand {
+    @apply flex min-w-0 flex-col justify-between gap-10;
+    padding: clamp(2rem, 5vw, 3.5rem);
+    background: var(--menu-bg);
+    color: var(--menu-ink);
+  }
+  .auth-brand .wordmark svg {
+    color: var(--menu-mark-ink);
+  }
+  .auth-brand-copy {
+    @apply grid gap-4;
+    max-width: 30rem;
+  }
+  .auth-brand-title {
+    @apply m-0;
+    font-size: clamp(1.75rem, 2.8vw, 2.5rem);
+    font-weight: 760;
+    line-height: 1.08;
+    letter-spacing: -0.028em;
+    text-wrap: balance;
+  }
+  .auth-brand-text {
+    @apply m-0;
+    color: var(--menu-muted);
+    font-size: 1rem;
+    line-height: 1.55;
+    max-width: 26rem;
+  }
+  .auth-flow {
+    @apply m-0 grid list-none p-0;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.25rem;
+    color: var(--menu-muted);
+    font-size: 0.8125rem;
+    line-height: 1.3;
+  }
+  .auth-flow li {
+    @apply grid content-start gap-2;
+  }
+  .auth-flow i {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--menu-rule);
+  }
+  .auth-flow li.done i {
+    background: var(--menu-ink);
+    opacity: 0.7;
+  }
+  .auth-flow li.current {
+    color: var(--menu-ink);
+    font-weight: 650;
+  }
+  .auth-flow li.current i {
+    background: var(--menu-active-indicator);
+    animation: auth-flow-pulse 2.4s var(--ease-out) infinite alternate;
+  }
+  @keyframes auth-flow-pulse {
+    from {
+      opacity: 0.55;
+    }
+    to {
+      opacity: 1;
+    }
+  }
   .account-auth {
-    @apply mx-auto min-w-0 text-ink;
-    width: min(28rem, calc(100% - 2rem));
+    @apply min-w-0 self-center justify-self-center text-ink;
+    width: min(26rem, calc(100% - 2rem));
     margin-block: clamp(2rem, 8vh, 5rem);
     padding: 0;
+  }
+  .account-auth-heading > .wordmark {
+    display: none;
   }
   .account-auth-heading {
     @apply grid gap-2;
@@ -18,21 +92,26 @@
     @apply text-accent;
   }
   .account-auth .auth-title {
-    @apply m-0 font-display text-3xl font-medium leading-tight text-ink;
-    letter-spacing: -0.025em;
+    @apply m-0 font-display leading-tight text-ink;
+    font-size: 2.25rem;
+    font-weight: 780;
+    letter-spacing: -0.028em;
   }
   .account-auth-heading > p {
-    @apply m-0 text-sm leading-relaxed text-muted;
+    @apply m-0 leading-relaxed text-muted;
+    font-size: 0.9375rem;
   }
   .account-auth-form {
-    @apply mt-5 grid min-w-0 gap-4 rounded-panel border border-line bg-surface p-5;
-    box-shadow: var(--shadow-auth);
+    @apply mt-7 grid min-w-0 gap-4 rounded-none border-0 bg-transparent p-0;
+    box-shadow: none;
   }
   .account-auth-form::after {
     content: none;
   }
   .account-auth-form > label {
-    @apply grid min-w-0 gap-1.5 text-sm font-medium;
+    @apply grid min-w-0 gap-1.5;
+    font-size: 0.875rem;
+    font-weight: 600;
   }
   .account-auth-form input {
     @apply min-w-0 max-w-full;
@@ -43,7 +122,8 @@
     @apply text-muted;
   }
   .account-auth-form label > small {
-    @apply text-xs font-normal leading-relaxed text-muted;
+    @apply font-normal leading-relaxed text-muted;
+    font-size: 0.8125rem;
     overflow-wrap: anywhere;
   }
   .account-auth-form .check {
@@ -57,10 +137,12 @@
     grid-column: 2;
   }
   .account-auth-form > .primary {
-    @apply mt-1 w-full;
+    @apply mt-2 w-full;
+    min-height: 2.875rem;
   }
   .account-auth-switch {
-    @apply mt-4 text-center text-sm text-muted;
+    @apply mt-6 text-muted;
+    font-size: 0.9375rem;
   }
   .account-auth-setup {
     width: min(36rem, calc(100% - 2rem));
@@ -79,27 +161,33 @@
     flex: 1 1 0%;
   }
   .account-password-field > button {
-    @apply shrink-0 px-1 text-xs;
+    @apply shrink-0 px-1;
     min-height: 2rem;
+    font-size: 0.8125rem;
   }
 
   .account-settings-grid {
-    @apply grid items-start gap-4;
-    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.4fr);
+    @apply grid items-start gap-x-12 gap-y-8;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.45fr);
   }
   .account-settings-grid > .settings-card,
   .account-password {
-    @apply grid min-w-0 content-start gap-4 rounded-panel border border-line bg-surface p-5;
+    @apply grid min-w-0 content-start gap-4 rounded-none border-0 bg-transparent px-0 pb-0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
   }
   .account-panel-heading {
     @apply grid min-w-0 gap-1.5;
   }
   .account-panel-heading h3 {
-    @apply m-0 font-display text-xl font-medium leading-snug text-ink;
+    @apply m-0 font-display leading-snug text-ink;
+    font-size: 1.25rem;
+    font-weight: 740;
   }
   .account-panel-heading p,
   .account-appearance .settings-hint {
-    @apply m-0 text-sm leading-relaxed text-muted;
+    @apply m-0 leading-relaxed text-muted;
+    font-size: 0.9375rem;
     overflow-wrap: anywhere;
   }
   .account-appearance-form,
@@ -127,13 +215,15 @@
     @apply min-w-0 max-w-full;
   }
   .account-loading {
-    @apply m-0 rounded-control border border-line bg-canvas px-4 py-3 text-sm text-muted;
+    @apply m-0 py-3 text-muted;
   }
   .account-notification-fields {
     @apply m-0 grid min-w-0 gap-4 border-0 p-0;
   }
   .account-notification-switch {
-    @apply border-b border-line pb-3 text-sm font-medium;
+    @apply border-b border-line pb-3;
+    font-size: 0.9375rem;
+    font-weight: 600;
   }
   .account-notification-controls {
     @apply grid min-w-0 gap-3;
@@ -145,14 +235,16 @@
   }
   .account-notification-form .small-text,
   .account-notification-form .settings-hint {
-    @apply m-0 text-xs leading-relaxed;
+    @apply m-0 leading-relaxed;
+    font-size: 0.8125rem;
   }
   .account-notification-categories {
-    @apply grid gap-2;
+    @apply grid gap-0;
     grid-template-columns: minmax(0, 1fr);
   }
   .account-notification-categories > .notification-category {
-    @apply grid min-w-0 items-center gap-4 rounded-control border border-line bg-surface p-3;
+    @apply grid min-w-0 items-center gap-4 rounded-none border-0 bg-transparent px-0 py-3.5;
+    border-bottom: 1px solid var(--rule);
     grid-template-columns: minmax(0, 1fr) auto;
   }
   .account-category-copy {
@@ -160,22 +252,27 @@
     overflow-wrap: anywhere;
   }
   .account-category-copy h4 {
-    @apply m-0 flex flex-wrap items-center gap-2 font-display text-base font-medium leading-snug text-ink;
+    @apply m-0 flex flex-wrap items-center gap-2 font-display leading-snug text-ink;
+    font-size: 1rem;
+    font-weight: 680;
   }
   .account-category-copy p {
-    @apply m-0 text-xs leading-relaxed;
+    @apply m-0 leading-relaxed;
+    font-size: 0.875rem;
   }
   .account-category-copy p.muted {
     @apply text-muted;
   }
   .account-category-copy .badge {
-    @apply m-0 text-xs font-medium text-accent;
+    @apply m-0;
   }
   .account-category-channels {
     @apply flex min-w-0 flex-col items-start gap-2.5;
   }
   .account-category-channels label {
-    @apply m-0 min-w-0 gap-2 text-xs font-medium;
+    @apply m-0 min-w-0 gap-2;
+    font-size: 0.875rem;
+    font-weight: 560;
   }
   .account-category-channels input {
     @apply shrink-0;
@@ -192,7 +289,7 @@
     @apply grid min-w-0 gap-3;
   }
   .account-notification-filters {
-    @apply m-0 flex min-w-0 flex-wrap items-center gap-2 rounded-panel border border-line bg-surface p-3;
+    @apply m-0 flex min-w-0 flex-wrap items-center gap-2 border-0 bg-transparent p-0;
   }
   .account-notification-filters > select {
     @apply min-w-0;
@@ -202,43 +299,93 @@
     @apply shrink-0;
   }
   .account-notification-list {
-    @apply m-0 grid min-w-0 list-none gap-2 p-0;
+    @apply m-0 grid min-w-0 list-none gap-0 p-0;
+    isolation: isolate;
   }
+  /* Notificações em lista corrida; as não lidas levam um ponto azul-aço e título mais forte. */
   .account-notification-list > .account-notification-item {
-    @apply grid min-w-0 items-start gap-4 rounded-panel border border-line bg-surface p-4;
-    grid-template-columns: minmax(0, 1fr) auto;
+    @apply relative grid min-w-0 items-start gap-x-4 gap-y-2 rounded-none border-0 bg-transparent;
+    grid-template-columns: 0.5rem minmax(0, 1fr) auto;
+    padding: 1rem 0.875rem;
+    border-bottom: 1px solid var(--rule);
     opacity: 1;
   }
-  .account-notification-list > .unread {
-    border-left: 2px solid var(--accent);
+  .account-notification-list > .account-notification-item::before {
+    content: '';
+    position: absolute;
+    inset: 3px 0;
+    z-index: -1;
+    border-radius: 0.75rem;
+    background: var(--ghost);
+    opacity: 0;
+    filter: blur(6px);
+    transition:
+      opacity var(--duration-normal) var(--ease-out),
+      filter var(--duration-normal) var(--ease-out);
+  }
+  .account-notification-list > .account-notification-item:hover::before,
+  .account-notification-list > .account-notification-item:focus-within::before {
+    opacity: 1;
+    filter: none;
+  }
+  .account-notification-list > .account-notification-item::after {
+    content: '';
+    grid-column: 1;
+    grid-row: 1;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-top: 0.5rem;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .account-notification-list > .unread::after {
+    background: var(--accent);
+  }
+  .account-notification-list > .account-notification-item > :first-child {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .account-notification-list > .account-notification-item > :nth-child(2) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .account-notification-list > :not(.unread) .account-notification-title {
+    font-weight: 560;
+    color: var(--ink-2);
   }
   .account-notification-content {
     @apply grid min-w-0 gap-1.5;
     overflow-wrap: anywhere;
   }
   .account-notification-title {
-    @apply grid min-w-0 gap-1 font-display text-lg font-medium leading-snug text-ink;
+    @apply grid min-w-0 gap-1 font-display leading-snug text-ink;
+    font-size: 1.0625rem;
+    font-weight: 700;
   }
   .account-notification-kind {
-    @apply m-0 justify-self-start font-sans text-xs font-medium;
+    @apply m-0 justify-self-start font-sans;
   }
   .account-notification-body {
-    @apply text-sm leading-relaxed;
+    @apply leading-relaxed;
+    font-size: 0.9375rem;
   }
   .account-notification-reason,
   .account-notification-meta {
-    @apply text-xs leading-relaxed text-muted;
+    @apply leading-relaxed text-muted;
+    font-size: 0.8125rem;
   }
   .account-notification-meta {
     @apply mt-1;
     font-variant-numeric: tabular-nums;
   }
   .account-notification-read {
-    @apply min-w-0 self-start whitespace-normal text-xs;
+    @apply min-w-0 self-start whitespace-normal;
+    font-size: 0.8125rem;
   }
   .account-popup-note,
   .account-popup-settings {
-    @apply m-0 flex min-w-0 flex-wrap items-center gap-3 rounded-control border border-line bg-canvas px-3 py-2.5 text-xs leading-relaxed;
+    @apply m-0 flex min-w-0 flex-wrap items-center gap-3 rounded-panel bg-ghost px-4 py-3 leading-relaxed;
+    font-size: 0.875rem;
     overflow-wrap: anywhere;
   }
   .account-popup-granted {
@@ -256,26 +403,32 @@
   }
 
   .account-confirm {
-    @apply m-auto rounded-panel border border-line bg-surface p-6 text-ink;
+    @apply m-auto bg-surface p-6 text-ink;
+    border: 1px solid var(--rule);
+    border-radius: 1rem;
     width: min(32.5rem, calc(100vw - 2rem));
     max-height: calc(100dvh - 2rem);
     overflow: auto;
-    box-shadow: var(--shadow-confirm);
+    box-shadow: var(--shadow-window);
+    animation: ghost-in var(--duration-slow) var(--ease-out) both;
   }
   .account-confirm::backdrop {
     background: var(--backdrop-confirm);
     backdrop-filter: none;
   }
   .account-confirm-title {
-    @apply m-0 font-display text-2xl font-medium leading-tight;
+    @apply m-0 font-display leading-tight;
+    font-size: 1.5rem;
+    font-weight: 760;
   }
   .account-confirm-message {
-    @apply my-4 text-sm leading-relaxed;
+    @apply my-4 leading-relaxed;
+    font-size: 0.9375rem;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
   .account-confirm-actions {
-    @apply flex flex-wrap justify-end gap-2 border-t border-line pt-4;
+    @apply flex flex-wrap justify-end gap-2 pt-2;
   }
   .account-confirm-actions > button {
     @apply min-w-0 whitespace-normal;
@@ -290,10 +443,12 @@
     pointer-events: none;
   }
   .account-toast {
-    @apply relative flex min-w-0 items-start overflow-hidden rounded-panel border border-line bg-surface text-ink;
-    box-shadow: var(--shadow-toast);
+    @apply relative flex min-w-0 items-start overflow-hidden bg-surface text-ink;
+    border: 1px solid var(--rule);
+    border-radius: 0.875rem;
+    box-shadow: var(--shadow-window);
     pointer-events: auto;
-    animation: account-toast-in 160ms ease-out both;
+    animation: account-toast-in var(--duration-slow) var(--ease-out) both;
   }
   .account-toast::after {
     @apply absolute bottom-0 left-0 h-px w-full bg-accent;
@@ -310,13 +465,18 @@
     content: none;
   }
   .account-toast-kind {
-    @apply m-0 text-xs font-medium text-accent;
+    @apply m-0 text-accent;
+    font-size: 0.8125rem;
+    font-weight: 600;
   }
   .account-toast-title {
-    @apply font-display text-lg font-medium leading-snug;
+    @apply font-display leading-snug;
+    font-size: 1rem;
+    font-weight: 700;
   }
   .account-toast-body .small-text {
-    @apply text-xs leading-relaxed text-muted;
+    @apply leading-relaxed text-muted;
+    font-size: 0.8125rem;
   }
   .account-toast-dismiss {
     @apply m-1 grid shrink-0 place-items-center rounded-control border-0 bg-transparent p-0 text-muted;
@@ -324,7 +484,7 @@
     height: 2rem;
   }
   .account-toast-dismiss:hover {
-    @apply bg-canvas text-ink;
+    @apply bg-ghost text-ink;
   }
   .update-banner.account-update-banner {
     @apply sticky top-0 m-0 flex min-w-0 flex-wrap items-center justify-center gap-3 rounded-none border-0 border-b border-line bg-surface px-4 py-2 text-center text-sm text-ink;
@@ -351,6 +511,24 @@
     }
   }
   @media (max-width: 900px) {
+    .auth-split {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+    }
+    .auth-brand {
+      gap: 1.5rem;
+      padding: 1.5rem 1.25rem;
+    }
+    .auth-brand-title {
+      font-size: 1.375rem;
+    }
+    .auth-brand-text {
+      display: none;
+    }
+    .auth-flow {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      row-gap: 0.75rem;
+    }
     .account-settings-grid {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -370,9 +548,16 @@
     }
     .account-auth-setup .account-auth-form,
     .account-password-form,
-    .account-notification-controls,
-    .account-notification-list > .account-notification-item {
+    .account-notification-controls {
       grid-template-columns: minmax(0, 1fr);
+    }
+    .account-notification-list > .account-notification-item {
+      grid-template-columns: 0.5rem minmax(0, 1fr);
+      padding-inline: 0.25rem;
+    }
+    .account-notification-list > .account-notification-item > :nth-child(2) {
+      grid-column: 2;
+      grid-row: 2;
     }
     .account-confirm-actions {
       @apply grid grid-cols-2;
@@ -405,6 +590,8 @@
 @keyframes account-toast-in {
   from {
     opacity: 0;
+    transform: translateY(8px);
+    filter: blur(6px);
   }
   to {
     opacity: 1;

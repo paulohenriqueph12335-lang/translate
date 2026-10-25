@@ -1,6 +1,10 @@
 @reference 'tailwindcss';
 @reference './tokens.css';
 
+/*
+ * Painéis e gráficos. Nada de caixas: os números ficam numa régua com divisões finas, os gráficos se separam por
+ * uma linha de topo e espaço, e o que é lista (relatórios, fila) usa linhas fantasma que se materializam ao passar.
+ */
 @layer components {
   .analytics-view,
   .analytics-workspace,
@@ -12,14 +16,16 @@
     @apply font-display;
     letter-spacing: -0.015em;
   }
+
+  /* Filtros: uma linha corrida, sem painel em volta. */
   .analytics-view .section > .filters {
-    @apply rounded-panel border border-line bg-surface p-3;
+    @apply mb-2 items-center;
   }
   .analytics-view .dash-filters {
-    @apply gap-2.5;
+    @apply gap-3;
   }
   .dash-filters > .period-filter {
-    flex: 1 1 100%;
+    flex: 1 1 auto;
   }
   .period-filter {
     @apply flex min-w-0 flex-wrap items-center gap-3;
@@ -31,101 +37,127 @@
     @apply inline-flex min-w-0 flex-wrap items-center gap-2;
   }
   .period-custom input {
-    width: 9rem;
-    padding: 0.375rem 0.5rem;
+    width: 10rem;
   }
   .compare-toggle {
-    font-size: 0.75rem;
-    color: var(--muted);
+    font-size: 0.875rem;
+    color: var(--ink-2);
   }
   .secondary-actions {
     @apply relative ml-auto;
-    font-size: 0.75rem;
+    font-size: 0.875rem;
   }
   .secondary-actions > summary {
-    color: var(--muted);
+    color: var(--ink-2);
+    font-weight: 600;
   }
   .secondary-actions[open] .actions {
     @apply mt-2;
   }
   .analytics-view .report-search {
-    @apply mb-4;
+    @apply mb-6;
   }
   .analytics-view .report-search .search {
     flex-basis: 100%;
   }
-  .report-search-results {
-    @apply mb-4 p-4;
+  .report-search-results.card {
+    @apply mb-6 rounded-none border-0 bg-transparent p-0;
+    border-top: 1px solid var(--rule);
+    padding-top: 1rem;
   }
   .report-search-results > h3 {
     @apply mb-1 mt-0;
     font-size: 1.25rem;
   }
   .period-line {
-    @apply mb-2 mt-1;
-    font-size: 0.6875rem;
+    @apply mb-3 mt-1;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
   .team-panel-view .dash-body > h3 {
-    @apply mb-1 mt-4;
+    @apply mb-2 mt-8;
     font-size: 1.375rem;
   }
   .dash-body {
-    transition: opacity var(--duration-normal);
+    transition:
+      opacity var(--duration-normal) var(--ease-out),
+      filter var(--duration-normal) var(--ease-out);
   }
+  /* Ao trocar o período, os números esmaecem e desfocam de leve até chegar o novo cálculo. */
   .dash-body.stale {
-    opacity: 0.55;
+    opacity: 0.5;
+    filter: blur(1.5px);
     pointer-events: none;
   }
+
+  /* Números: régua corrida com divisões finas; o primeiro é a manchete. */
   .analytics-view .stat-row {
-    @apply mb-4 mt-3 gap-3;
+    @apply mb-8 mt-2 gap-0;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
   }
   .performance-view .stat-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .performance-view .stat-row > :nth-child(3n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .performance-view .stat-row > :nth-child(n + 4) {
+    border-top: 1px solid var(--rule);
+  }
   .kpi-tile,
   .analytics-view .stat-tile {
-    @apply grid min-w-0 content-start gap-2 rounded-panel border border-line bg-surface p-4;
+    @apply grid min-w-0 content-start gap-1.5 rounded-none border-0 bg-transparent;
+    padding: 1.25rem 1.5rem 1.375rem;
+    box-shadow: none;
   }
-  .kpi-tile:first-child {
-    border-color: color-mix(in srgb, var(--accent) 32%, var(--rule));
+  .analytics-view .stat-row > :first-child {
+    padding-left: 0;
+  }
+  .analytics-view .stat-row > * + * {
+    border-left: 1px solid var(--rule);
   }
   .kpi-label,
   .analytics-view .stat-tile > .muted:first-child {
-    @apply font-medium text-muted;
-    font-size: 0.6875rem;
-    line-height: 1.4;
+    @apply text-ink-2;
+    font-size: 0.875rem;
+    font-weight: 560;
+    line-height: 1.35;
   }
   .kpi-value,
   .analytics-view .stat-tile > strong {
     @apply font-sans text-ink;
-    font-size: clamp(1.75rem, 2.6vw, 2.375rem);
-    font-weight: 600;
-    line-height: 1.1;
-    letter-spacing: -0.045em;
+    font-size: clamp(2rem, 3vw, 2.875rem);
+    font-weight: 720;
+    line-height: 1.02;
+    letter-spacing: -0.035em;
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
   .kpi-tile:first-child .kpi-value {
-    color: var(--accent);
+    color: var(--ink);
   }
   .analytics-view .stat-tile > .small-text,
   .kpi-tile > .small-text {
-    font-size: 0.6875rem;
-    line-height: 1.5;
+    font-size: 0.8125rem;
+    line-height: 1.45;
   }
   .delta {
     @apply inline-flex flex-wrap items-center gap-1 text-muted;
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
   }
   .delta svg {
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 0.5625rem;
+    height: 0.5625rem;
     fill: currentColor;
   }
   .delta.good :is(strong, svg),
   .delta-cell.good {
-    color: var(--ok);
+    color: var(--accent);
   }
   .delta.bad :is(strong, svg),
   .delta-cell.bad {
@@ -135,31 +167,35 @@
     font-variant-numeric: tabular-nums;
   }
   .performance-body > p {
-    max-width: 120ch;
-    font-size: 0.6875rem;
+    max-width: 75ch;
+    font-size: 0.875rem;
   }
 
   .analytics-workspace {
-    @apply mt-4;
+    @apply mt-8;
   }
   .analytics-workspace .dashboard-picker {
-    @apply mb-3 mt-0 rounded-panel border border-line bg-surface px-3.5 py-3;
+    @apply mb-4 mt-0;
   }
   .dashboard-picker > summary {
-    font-size: 0.75rem;
+    font-size: 0.875rem;
   }
   .dashboard-picker > p {
     @apply mb-3 mt-2;
-    max-width: 105ch;
+    max-width: 75ch;
   }
   .dashboard-picker-options {
-    @apply my-3 grid gap-2;
+    @apply my-3 grid gap-x-6 gap-y-1;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-    font-size: 0.75rem;
+    font-size: 0.875rem;
   }
+
+  /* Gráficos em grade: cada um começa numa linha fina, sem moldura. */
   .chart-grid {
-    @apply grid min-w-0 gap-4;
+    @apply grid min-w-0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 3rem;
+    row-gap: 2.75rem;
   }
   .dashboard-widget {
     @apply relative grid min-w-0 content-start gap-2;
@@ -170,82 +206,108 @@
   }
   .dashboard-widget-controls {
     @apply flex flex-wrap items-center justify-end gap-1;
+    opacity: 0;
+    transition: opacity var(--duration-normal) var(--ease-out);
+  }
+  .dashboard-widget:hover .dashboard-widget-controls,
+  .dashboard-widget:focus-within .dashboard-widget-controls {
+    opacity: 1;
   }
   .dashboard-widget-controls button.small {
-    min-height: 1.75rem;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.6875rem;
+    min-height: 2rem;
+    padding: 0 0.625rem;
+    font-size: 0.8125rem;
   }
   .dashboard-widget-controls button:not(:first-child):not(:last-child) {
-    min-width: 1.75rem;
+    min-width: 2rem;
   }
   .analytics-card {
-    @apply m-0 min-w-0 rounded-panel border border-line bg-surface p-4;
+    @apply m-0 min-w-0 rounded-none border-0 bg-transparent p-0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line-mid);
   }
   .analytics-card figcaption {
-    @apply mb-4 border-b border-line pb-3;
+    @apply mb-5;
   }
   .analytics-card figcaption h3 {
     @apply m-0;
-    font-size: 1.25rem;
-    font-weight: 600;
+    font-size: 1.1875rem;
+    font-weight: 720;
     line-height: 1.25;
   }
   .analytics-card figcaption p {
     @apply mb-0 mt-1;
-    max-width: 110ch;
-    font-size: 0.6875rem;
+    max-width: 70ch;
+    font-size: 0.875rem;
   }
   .analytics-card .chart {
     @apply relative min-w-0;
+  }
+  .chart-tools {
+    @apply mb-3 flex flex-wrap items-center gap-2;
+  }
+  .trend {
+    position: relative;
+  }
+  .trend .legend svg {
+    width: 1.125rem;
+    height: 0.25rem;
   }
   .analytics-card .empty {
     @apply my-0 border-0 bg-transparent;
   }
   .chart-tip {
-    @apply absolute z-10 grid gap-1 rounded-control border border-line px-3 py-2;
+    @apply absolute z-10 grid gap-1 px-3 py-2;
+    border-radius: 0.625rem;
     background: var(--floating-bg);
     color: var(--floating-ink);
-    box-shadow: var(--shadow-chart-tooltip);
-    font-size: 0.6875rem;
+    box-shadow: var(--shadow-pop);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
     pointer-events: none;
     max-width: min(28rem, 90vw);
     white-space: normal;
+    animation: ghost-in var(--duration-fast) var(--ease-out) both;
   }
   .chart-table {
-    @apply mt-4 border-t border-line pt-3;
-    font-size: 0.6875rem;
+    @apply mt-4;
+    font-size: 0.8125rem;
   }
   .chart-table > summary {
     color: var(--muted);
+    border-top: 0;
+    padding-top: 0;
   }
   .chart-table > .table-wrap {
     @apply mb-0 mt-3;
   }
   .legend {
-    @apply mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-muted;
-    font-size: 0.6875rem;
+    @apply mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-ink-2;
+    font-size: 0.8125rem;
   }
   .legend > span {
     @apply inline-flex items-center gap-1.5;
   }
   .legend i,
   .donut-legend i {
-    @apply inline-block shrink-0 rounded-sm;
-    width: 0.5rem;
-    height: 0.5rem;
+    @apply inline-block shrink-0;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 3px;
   }
   .legend svg {
     width: 1.25rem;
     height: 0.25rem;
   }
+
+  /* Barras ordenadas: rótulo, trilho e número, sem grade. */
   .ranked {
-    @apply grid gap-1;
+    @apply grid gap-0.5;
   }
   .ranked-row {
-    @apply grid items-center gap-3 py-2;
+    @apply grid items-center gap-3 py-1.5;
     grid-template-columns: minmax(7rem, 30%) minmax(0, 1fr) auto;
-    font-size: 0.75rem;
+    font-size: 0.875rem;
   }
   .ranked .ranked-row {
     grid-template-columns: minmax(7rem, 30%) minmax(0, 1fr);
@@ -253,36 +315,42 @@
   .ranked-label {
     @apply min-w-0;
     overflow-wrap: anywhere;
-    line-height: 1.4;
+    line-height: 1.35;
   }
   .ranked-track {
     @apply flex min-w-0 items-center gap-3;
   }
   .bar-h {
-    @apply block rounded-sm;
+    @apply block;
     min-width: 2px;
-    height: 1rem;
+    height: 0.75rem;
+    border-radius: 0 4px 4px 0;
+    transition: width var(--duration-slow) var(--ease-out);
   }
   .bar-value {
     @apply text-ink;
+    font-weight: 620;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
   .stacked .ranked-row {
-    @apply py-3;
+    @apply py-2.5;
   }
   .stack-track {
-    @apply flex min-w-0 gap-0.5 overflow-hidden rounded-sm;
-    height: 1.5rem;
+    @apply flex min-w-0 overflow-hidden;
+    gap: 2px;
+    height: 1.375rem;
+    border-radius: 4px;
   }
   .stack-seg {
     @apply flex min-w-0 items-center justify-center;
     color: var(--on-accent);
-    font-size: 0.625rem;
-    font-weight: 600;
+    font-size: 0.75rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
   }
   .donut {
-    @apply flex flex-wrap items-center justify-center gap-6;
+    @apply flex flex-wrap items-center justify-center gap-8;
   }
   .donut > svg {
     width: 12rem;
@@ -290,56 +358,60 @@
   }
   .donut-total {
     font-family: var(--sans);
-    font-size: 1.375rem;
-    font-weight: 600;
+    font-size: 1.5rem;
+    font-weight: 720;
     fill: var(--ink);
   }
   .donut-caption {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     fill: var(--muted);
   }
   .donut-legend {
-    @apply m-0 grid list-none gap-3 p-0;
-    font-size: 0.75rem;
+    @apply m-0 grid list-none gap-2.5 p-0;
+    font-size: 0.875rem;
   }
   .donut-legend li {
     @apply grid items-center gap-2;
-    grid-template-columns: 0.5rem minmax(0, 1fr) auto auto;
+    grid-template-columns: 0.625rem minmax(0, 1fr) auto auto;
   }
   .donut-legend strong {
     font-variant-numeric: tabular-nums;
   }
   .columns {
-    @apply pb-6;
+    @apply pb-7;
   }
   .columns-plot {
-    @apply flex items-end gap-2 border-b border-line pt-6;
-    height: 18rem;
+    @apply flex items-end gap-2 pt-6;
+    height: 17rem;
+    border-bottom: 1px solid var(--line-mid);
   }
   .column-slot {
     @apply relative flex h-full min-w-0 flex-1 flex-col items-center justify-end;
   }
   .bar-v {
-    @apply rounded-t-sm;
     min-height: 2px;
-    width: min(2rem, 72%);
+    width: min(1.75rem, 72%);
+    border-radius: 4px 4px 0 0;
   }
   .column-value {
     @apply mb-1 text-ink;
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
+    font-weight: 620;
     font-variant-numeric: tabular-nums;
   }
   .column-label {
     @apply absolute text-muted;
-    bottom: -1.4rem;
-    font-size: 0.625rem;
+    bottom: -1.5rem;
+    font-size: 0.75rem;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
   .column-pair {
-    @apply flex h-full w-full items-end justify-center gap-1;
+    @apply flex h-full w-full items-end justify-center;
+    gap: 2px;
   }
   .paired .bar-v {
-    width: min(1.25rem, 40%);
+    width: min(1.125rem, 40%);
   }
   .bar-v.empty-bar {
     min-height: 0;
@@ -361,21 +433,22 @@
   .trend-svg .axis {
     fill: var(--muted);
     font-family: var(--sans);
-    font-size: 11px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .trend-svg .direct-label {
     fill: var(--ink);
     font-family: var(--sans);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 12.5px;
+    font-weight: 650;
   }
   .trend-svg .crosshair {
-    stroke: var(--muted);
+    stroke: var(--line-strong);
     stroke-width: 1;
     stroke-dasharray: 3 3;
   }
   .trend-svg .trend-dot {
-    stroke: var(--sheet);
+    stroke: var(--canvas);
     stroke-width: 2;
   }
   .trend-svg .trend-line {
@@ -405,16 +478,19 @@
     stroke: var(--chart-sepia);
   }
 
+  /* Funil: o trilho é a própria linha do fluxo; a perda entre etapas aparece como recuo. */
   .funnel {
-    @apply grid gap-2;
+    @apply grid gap-1;
   }
   .funnel-row {
-    @apply grid items-center gap-4 rounded-control px-2 py-3;
+    @apply grid items-center gap-4 px-2 py-2.5;
+    border-radius: 0.625rem;
     grid-template-columns: minmax(11rem, 25%) minmax(0, 1fr) minmax(6rem, auto);
+    transition: background-color var(--duration-normal) var(--ease-out);
   }
   .funnel-row.on,
   .funnel-row:focus-visible {
-    background: var(--raised);
+    background: var(--ghost);
   }
   .funnel-row:focus-visible {
     outline: 2px solid var(--accent);
@@ -422,36 +498,40 @@
   }
   .funnel-label,
   .funnel-value {
-    @apply grid gap-1;
+    @apply grid gap-0.5;
   }
   .funnel-label > strong {
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
   }
   .funnel-label > span,
   .funnel-value > span {
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
   }
   .funnel-value {
     @apply text-right;
   }
   .funnel-value > strong {
-    font-size: 1.375rem;
+    font-size: 1.5rem;
     line-height: 1;
-    font-weight: 600;
+    font-weight: 720;
     font-variant-numeric: tabular-nums;
   }
   .funnel-track {
-    @apply block overflow-hidden rounded-sm bg-canvas;
-    height: 1.5rem;
+    @apply block overflow-hidden;
+    height: 0.875rem;
+    border-radius: 4px;
+    background: var(--ghost);
   }
   .funnel-bar {
-    @apply block h-full rounded-sm;
-    transition: width var(--duration-normal);
+    @apply block h-full;
+    border-radius: 4px;
+    transition: width var(--duration-slow) var(--ease-out);
   }
   .funnel-drop {
-    @apply flex flex-wrap items-baseline gap-2 border-l border-line py-1 pl-3 text-muted;
+    @apply flex flex-wrap items-baseline gap-2 py-0.5 pl-3 text-muted;
     margin-left: calc(25% + 1rem);
-    font-size: 0.6875rem;
+    border-left: 2px solid var(--rule);
+    font-size: 0.8125rem;
   }
   .funnel-drop.leak {
     color: var(--chart-leak-ink);
@@ -459,24 +539,24 @@
   }
   .funnel-drop.leak strong {
     font-family: var(--sans);
-    font-size: 0.625rem;
-    font-weight: 600;
+    font-size: 0.8125rem;
+    font-weight: 650;
   }
   .funnel-note {
-    @apply mb-0 mt-3 border-t border-line pt-3 text-muted;
-    font-size: 0.75rem;
+    @apply mb-0 mt-4 text-muted;
+    font-size: 0.875rem;
   }
   .heat-head {
     @apply mb-4 flex flex-wrap items-center justify-between gap-3;
   }
   .heat-legend {
     @apply inline-flex flex-wrap items-center gap-1 text-muted;
-    font-size: 0.625rem;
+    font-size: 0.75rem;
   }
   .heat-legend i {
-    @apply rounded-sm;
-    width: 1.125rem;
+    width: 1.25rem;
     height: 0.625rem;
+    border-radius: 3px;
   }
   .heat-legend > span {
     @apply px-1;
@@ -487,21 +567,28 @@
   .heat-grid {
     @apply w-full;
     border-collapse: separate;
-    border-spacing: 0.25rem;
-    font-size: 0.75rem;
+    border-spacing: 3px;
+    font-size: 0.8125rem;
   }
   .heat-grid th {
     @apply border-0 bg-transparent px-2 py-2;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
   }
   .heat-grid tbody th {
-    @apply font-medium text-ink;
+    @apply text-ink;
     min-width: 10rem;
+    font-size: 0.875rem;
+    font-weight: 560;
     text-transform: none;
     letter-spacing: 0;
   }
   .heat-grid td {
-    @apply rounded-control border-0 bg-canvas px-2 text-center font-medium;
+    @apply border-0 px-2 text-center;
+    border-radius: 6px;
+    background: var(--ghost);
+    font-weight: 600;
     min-width: 3rem;
     height: 2.5rem;
     font-variant-numeric: tabular-nums;
@@ -517,51 +604,77 @@
   }
   .heat-grid td:hover,
   .heat-grid td:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--ink);
     outline-offset: 1px;
   }
 
+  /* Agora: régua proporcional da fila, o total grande e os últimos eventos. */
   .live-now {
-    @apply mb-4 mt-0 rounded-panel border border-line bg-surface p-4;
+    @apply mb-10 mt-0;
   }
   .live-head {
-    @apply flex flex-wrap items-center gap-2.5 border-b border-line pb-3;
+    @apply flex flex-wrap items-center gap-2.5 pb-3;
   }
   .live-head h3 {
     @apply m-0 font-display;
     font-size: 1.25rem;
+    font-weight: 740;
   }
   .live-head > .small-text {
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
   }
   .live-head > button {
     @apply ml-auto;
   }
   .live-dot {
-    @apply inline-block shrink-0 rounded-full;
-    width: 0.375rem;
-    height: 0.375rem;
-    background: var(--ok);
-    animation: none;
-    box-shadow: none;
+    @apply relative inline-block shrink-0 rounded-full;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--accent);
+  }
+  .live-dot:not(.paused)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: live-breathe 2.4s var(--ease-out) infinite;
+  }
+  @keyframes live-breathe {
+    from {
+      transform: scale(1);
+      opacity: 0.55;
+    }
+    to {
+      transform: scale(2.6);
+      opacity: 0;
+    }
   }
   .live-dot.paused {
-    background: var(--gray-500);
+    background: var(--line-strong);
   }
   .live-body {
-    @apply mt-3 grid items-start gap-5;
-    grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 1.5fr) minmax(0, 1.5fr);
+    @apply grid items-start;
+    grid-template-columns: minmax(9rem, 0.6fr) minmax(0, 1.6fr) minmax(0, 1.3fr);
+    column-gap: 2.5rem;
+    row-gap: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
   }
   .live-total {
     @apply grid gap-1;
   }
   .live-total > strong {
     @apply font-sans;
-    font-size: 2.25rem;
-    line-height: 1;
+    font-size: 3rem;
+    line-height: 0.95;
     letter-spacing: -0.04em;
-    font-weight: 600;
+    font-weight: 740;
     font-variant-numeric: tabular-nums;
+  }
+  .live-total > .small-text {
+    font-size: 0.875rem;
   }
   .spark {
     @apply mt-2;
@@ -569,43 +682,81 @@
     height: 2.5rem;
     overflow: visible;
   }
+  .live-register {
+    @apply grid min-w-0 gap-4;
+  }
+  .live-bar {
+    @apply flex min-w-0 overflow-hidden;
+    gap: 3px;
+    height: 0.75rem;
+  }
+  .live-bar i {
+    flex-basis: 0;
+    min-width: 6px;
+    border-radius: 3px;
+    transition:
+      flex-grow var(--duration-slow) var(--ease-out),
+      opacity var(--duration-slow) var(--ease-out);
+  }
+  .live-bar i[data-stage='0'],
+  .live-stages > li[data-stage='0']::before {
+    background: var(--chart-other);
+  }
+  .live-bar i[data-stage='1'],
+  .live-stages > li[data-stage='1']::before {
+    background: var(--chart-blue);
+  }
+  .live-bar i[data-stage='2'],
+  .live-stages > li[data-stage='2']::before {
+    background: var(--chart-sepia);
+  }
+  .live-bar i[data-stage='3'],
+  .live-stages > li[data-stage='3']::before {
+    background: var(--danger);
+  }
   .live-stages {
-    @apply m-0 grid list-none gap-2 p-0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    @apply m-0 grid list-none gap-x-4 gap-y-3 p-0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .live-stages > li {
-    @apply grid gap-1 rounded-control border border-line bg-raised px-3 py-2 text-muted;
-    font-size: 0.6875rem;
+    @apply grid content-start gap-0.5 text-ink-2;
+    font-size: 0.8125rem;
+    line-height: 1.3;
+  }
+  .live-stages > li::before {
+    content: '';
+    width: 1rem;
+    height: 3px;
+    margin-bottom: 0.375rem;
+    border-radius: 2px;
   }
   .live-stages strong {
     @apply text-ink;
-    font-size: 1.25rem;
-    line-height: 1.1;
-    font-weight: 600;
+    font-size: 1.5rem;
+    line-height: 1.05;
+    font-weight: 720;
     font-variant-numeric: tabular-nums;
-  }
-  .live-stages .alarm {
-    border-color: var(--danger-line);
-    background: var(--danger-bg);
   }
   .live-stages .alarm strong {
     color: var(--danger);
   }
   .live-events {
-    @apply m-0 grid list-none gap-2 p-0;
-    font-size: 0.6875rem;
+    @apply m-0 grid list-none gap-0 p-0;
+    font-size: 0.875rem;
   }
   .live-event {
-    @apply grid gap-3 border-b border-line pb-2;
+    @apply grid gap-3 py-1.5;
     grid-template-columns: auto minmax(0, 1fr);
-    animation: none;
+    border-bottom: 1px solid var(--rule);
+    animation: ghost-in var(--duration-slow) var(--ease-out) both;
   }
   .live-event:last-child {
     border-bottom: 0;
   }
   .live-event time {
     color: var(--muted);
-    font-size: 0.625rem;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
   }
   .sort-head {
     @apply inline-flex items-center justify-start gap-1 border-0 bg-transparent p-0;
@@ -614,21 +765,23 @@
     font: inherit;
     letter-spacing: inherit;
     text-transform: inherit;
+    box-shadow: none;
   }
   .sort-head span {
-    color: var(--gray-500);
+    color: var(--line-strong);
   }
   .sort-head.on,
   .sort-head.on span {
-    color: var(--accent);
+    color: var(--ink);
   }
   .cell-bar {
     @apply inline-flex items-center gap-2;
     font-variant-numeric: tabular-nums;
   }
   .cell-bar i {
-    @apply block rounded-sm;
+    @apply block;
     height: 0.375rem;
+    border-radius: 3px;
     background: var(--chart-blue);
   }
   .meter {
@@ -636,12 +789,15 @@
     font-variant-numeric: tabular-nums;
   }
   .meter-track {
-    @apply block flex-1 overflow-hidden rounded-control bg-canvas;
+    @apply block flex-1 overflow-hidden;
     height: 0.375rem;
     min-width: 5rem;
+    border-radius: 3px;
+    background: var(--ghost-2);
   }
   .meter-fill {
     @apply block h-full bg-accent;
+    border-radius: 3px;
   }
   .meter.warn .meter-fill {
     background: var(--warn-mid);
@@ -653,6 +809,7 @@
     color: var(--danger);
   }
 
+  /* Relatórios de documentos: linhas fantasma, com os rótulos das colunas na própria célula. */
   .document-report {
     @apply mb-0 max-w-full overflow-visible rounded-none border-0 bg-transparent;
   }
@@ -664,30 +821,57 @@
     @apply sr-only;
   }
   .document-report tbody {
-    @apply grid gap-2.5;
+    @apply grid gap-0;
   }
   .document-report tbody tr {
-    @apply grid min-w-0 items-start gap-x-4 gap-y-3 rounded-panel border border-line bg-surface p-3.5;
+    @apply relative grid min-w-0 items-start gap-x-5 gap-y-2.5 border-0 bg-transparent;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 0.875rem 0.75rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .document-report tbody tr::before {
+    content: '';
+    position: absolute;
+    inset: 2px 0;
+    z-index: -1;
+    border-radius: 0.75rem;
+    background: var(--ghost);
+    opacity: 0;
+    filter: blur(6px);
+    transform: scale(0.985);
+    transition:
+      opacity var(--duration-normal) var(--ease-out),
+      filter var(--duration-normal) var(--ease-out),
+      transform var(--duration-normal) var(--ease-out);
   }
   .document-report tbody tr:hover {
-    background: var(--raised);
+    background: transparent;
+  }
+  .document-report tbody tr:hover::before,
+  .document-report tbody tr:focus-within::before {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+  .document-report tbody {
+    isolation: isolate;
   }
   .document-report tbody td {
     @apply block min-w-0 max-w-none border-0 p-0 text-ink;
     white-space: normal;
     overflow-wrap: anywhere;
-    font-size: 0.75rem;
+    font-size: 0.875rem;
   }
   .document-report td::before {
-    @apply mb-1 block font-medium text-muted;
+    @apply mb-0.5 block text-muted;
     content: attr(data-label);
-    font-size: 0.625rem;
-    line-height: 1.2;
+    font-size: 0.75rem;
+    font-weight: 560;
+    line-height: 1.25;
   }
   .document-report td:first-child {
     grid-column: span 2;
-    font-weight: 600;
+    font-weight: 650;
   }
   .document-report td .block-line {
     @apply mt-1;
@@ -714,99 +898,119 @@
   .search-document-report tbody tr {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  /* Minha fila (Usuário): números de ação e a lista corrida. */
   .workspace-view .action-tile {
     @apply items-start text-left;
     font-weight: 400;
   }
-  .workspace-view .action-tile:first-child {
-    @apply border-accent bg-accent-soft;
-  }
   .workspace-view .action-tile strong {
-    font-size: 1.375rem;
-    letter-spacing: -0.025em;
+    font-size: 2.25rem;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+  }
+  .workspace-view .action-tile:first-child strong {
     color: var(--accent);
   }
   .workspace-view .work-list {
-    @apply grid gap-2.5;
+    @apply grid gap-0;
   }
   .work-list > li {
-    @apply items-start gap-4 p-3.5;
+    @apply items-start gap-4;
   }
   .work-list > li > div {
     flex: 1 1 26rem;
   }
   .work-list strong {
     @apply flex flex-wrap items-center gap-1.5;
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
   }
   .work-list .muted {
     @apply mt-1;
     line-height: 1.5;
   }
   .workspace-view h3.top-gap {
-    @apply mb-3 mt-5;
+    @apply mb-2 mt-10;
     font-size: 1.375rem;
   }
   .workspace-preferences,
   .workspace-news {
-    @apply my-4;
+    @apply my-6;
   }
   .workspace-news .list {
     @apply mt-3;
   }
   .ai-choice {
-    @apply mb-0 flex flex-wrap items-center gap-4 p-3;
+    @apply mb-0 flex flex-wrap items-center gap-4 py-3;
   }
   .ai-choice .who {
     @apply grid gap-1;
     flex: 1 1 20rem;
   }
   .ai-filters {
-    @apply mb-4 flex min-w-0 flex-wrap items-end gap-2.5 rounded-control border border-line bg-raised p-3;
+    @apply mb-6 flex min-w-0 flex-wrap items-end gap-3;
   }
   .ai-compare-tiles {
-    @apply my-4 grid gap-3;
+    @apply mb-8 mt-2 grid gap-0;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
   }
   .ai-compare-tiles .stat-tile {
-    @apply bg-raised;
+    @apply rounded-none border-0 bg-transparent;
+    padding: 1.25rem 1.5rem;
+  }
+  .ai-compare-tiles .stat-tile:first-child {
+    padding-left: 0;
+  }
+  .ai-compare-tiles .stat-tile + .stat-tile {
+    border-left: 1px solid var(--rule);
   }
   .ai-compare-tiles .stat-tile strong {
-    font-size: 1.875rem;
+    font-size: 2.25rem;
   }
   .ai-compare-tiles i {
-    @apply mr-1.5 inline-block rounded-sm;
-    width: 0.5rem;
-    height: 0.5rem;
+    @apply mr-1.5 inline-block;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 3px;
   }
   .dashboard-expanded-placeholder {
-    @apply m-0 rounded-panel border border-line bg-surface px-4 py-8 text-center text-muted;
+    @apply m-0 px-4 py-10 text-center text-muted;
+    border-top: 1px solid var(--line-mid);
   }
   .dashboard-print-only {
     display: none;
   }
 
   @media (min-width: 1600px) {
-    .analytics-card {
-      padding: 1.25rem;
-    }
     .columns-plot {
-      height: 21rem;
+      height: 20rem;
     }
   }
   @media (max-width: 1180px) {
     .analytics-view .stat-row {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .analytics-view .stat-row > :nth-child(odd) {
+      padding-left: 0;
+      border-left: 0;
+    }
+    .analytics-view .stat-row > :nth-child(even) {
+      padding-left: 1.5rem;
+      border-left: 1px solid var(--rule);
+    }
+    .analytics-view .stat-row > :nth-child(n + 3) {
+      border-top: 1px solid var(--rule);
+    }
     .chart-grid {
       grid-template-columns: minmax(0, 1fr);
     }
     .live-body {
-      grid-template-columns: minmax(7rem, 0.65fr) minmax(0, 2fr);
+      grid-template-columns: minmax(8rem, 0.6fr) minmax(0, 2fr);
     }
     .live-events {
       grid-column: 1 / -1;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .team-document-report tbody tr {
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -822,19 +1026,17 @@
     }
   }
   @media (max-width: 650px) {
-    .analytics-view .stat-row {
-      @apply gap-2;
-    }
     .kpi-tile,
     .analytics-view .stat-tile {
-      @apply gap-1.5 p-3;
+      @apply gap-1;
+      padding: 1rem 0.875rem;
     }
     .kpi-value,
     .analytics-view .stat-tile > strong {
-      font-size: clamp(1.125rem, 6vw, 1.75rem);
+      font-size: clamp(1.625rem, 8vw, 2.125rem);
     }
     .workspace-view .action-tile strong {
-      font-size: 1.125rem;
+      font-size: 1.75rem;
     }
     .dash-filters > .period-filter {
       @apply grid w-full gap-2.5;
@@ -856,12 +1058,6 @@
     .secondary-actions {
       @apply ml-0;
     }
-    .analytics-card {
-      @apply p-3;
-    }
-    .analytics-card figcaption {
-      @apply mb-3 pb-3;
-    }
     .analytics-card figcaption h3 {
       font-size: 1.125rem;
     }
@@ -875,17 +1071,17 @@
       top: 3rem;
     }
     .columns-plot {
-      height: 15rem;
+      height: 14rem;
       gap: 0.25rem;
     }
     .column-label {
-      font-size: 0.5625rem;
+      font-size: 0.6875rem;
     }
     .ranked-row,
     .ranked .ranked-row {
       grid-template-columns: minmax(5rem, 35%) minmax(0, 1fr);
       gap: 0.5rem;
-      font-size: 0.6875rem;
+      font-size: 0.8125rem;
     }
     .stacked .ranked-row {
       grid-template-columns: minmax(5rem, 35%) minmax(0, 1fr) auto;
@@ -904,16 +1100,12 @@
     .heat-grid tbody th {
       min-width: 7rem;
     }
-    .live-now {
-      @apply p-3;
-    }
     .live-head > .small-text {
       order: 3;
       flex-basis: 100%;
     }
     .live-body {
       grid-template-columns: minmax(0, 1fr);
-      gap: 1rem;
     }
     .live-total {
       @apply grid items-center gap-x-3;
@@ -925,15 +1117,15 @@
       margin: 0;
       justify-self: end;
     }
-    .live-events {
-      grid-template-columns: minmax(0, 1fr);
+    .live-stages {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .document-report tbody tr,
     .team-document-report tbody tr,
     .history-report tbody tr {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.875rem;
-      padding: 0.875rem;
+      gap: 0.75rem;
+      padding: 0.875rem 0.25rem;
     }
     .document-report td:first-child {
       grid-column: 1 / -1;
@@ -941,11 +1133,15 @@
     .history-report td:nth-child(2) {
       grid-column: 1 / -1;
     }
-    .document-report td .small-text {
-      font-size: 0.6875rem;
-    }
     .ai-compare-tiles {
       grid-template-columns: minmax(0, 1fr);
+    }
+    .ai-compare-tiles .stat-tile {
+      padding-left: 0;
+    }
+    .ai-compare-tiles .stat-tile + .stat-tile {
+      border-left: 0;
+      border-top: 1px solid var(--rule);
     }
     .ai-filters > .segmented {
       width: 100%;
@@ -954,11 +1150,21 @@
       flex: 1;
     }
   }
+  @media (hover: none) {
+    .dashboard-widget-controls {
+      opacity: 1;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     .dash-body,
     .funnel-bar,
+    .bar-h,
+    .live-bar i,
     .trend-svg .trend-line {
       transition: none;
+    }
+    .live-dot::after {
+      animation: none;
     }
   }
   @media print {

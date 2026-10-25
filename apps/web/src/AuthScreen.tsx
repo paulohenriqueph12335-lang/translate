@@ -21,6 +21,29 @@ export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>,
   );
 }
 
+const FLOW = ['Envio', 'Tradução', 'Revisão', 'Prévia em Word', 'Conclusão', 'Word final'];
+
+/** Metade da marca na entrada: o nome, o que o sistema faz e a linha do fluxo de cada documento. */
+function AuthBrand() {
+  return (
+    <aside className="auth-brand" aria-label="Tradutor Documental">
+      <Wordmark />
+      <div className="auth-brand-copy">
+        <p className="auth-brand-title">Cada documento, do original ao Word final, no mesmo layout.</p>
+        <p className="auth-brand-text">Tradução automática, conferência lado a lado, numeração e entrega da tradução pública.</p>
+      </div>
+      <ol className="auth-flow" aria-label="Etapas de cada tradução">
+        {FLOW.map((step, index) => (
+          <li key={step} className={index < 4 ? 'done' : index === 4 ? 'current' : ''}>
+            <i aria-hidden="true" />
+            {step}
+          </li>
+        ))}
+      </ol>
+    </aside>
+  );
+}
+
 export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -58,73 +81,76 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
   }
 
   return (
-    <main className="auth account-auth">
-      <header className="account-auth-heading">
-        <Wordmark />
-        <h1 className="auth-title">{mode === 'login' ? 'Entrar' : 'Solicitar acesso'}</h1>
-        <p className="muted">
-          {mode === 'login'
-            ? 'Use o e-mail e a senha da sua conta aprovada.'
-            : 'Seu cadastro ficará pendente até a aprovação de um Diretor.'}
-        </p>
-      </header>
+    <div className="auth-split">
+      <AuthBrand />
+      <main className="auth account-auth">
+        <header className="account-auth-heading">
+          <Wordmark />
+          <h1 className="auth-title">{mode === 'login' ? 'Entrar' : 'Solicitar acesso'}</h1>
+          <p className="muted">
+            {mode === 'login'
+              ? 'Use o e-mail e a senha da sua conta aprovada.'
+              : 'Seu cadastro ficará pendente até a aprovação de um Diretor.'}
+          </p>
+        </header>
 
-      <form className="card form account-auth-form" onSubmit={submit}>
-        <label>
-          E-mail
-          <input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        {mode === 'signup' && (
+        <form className="card form account-auth-form" onSubmit={submit}>
           <label>
-            Nome
-            <input autoComplete="name" required maxLength={120} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            E-mail
+            <input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
-        )}
-        <label>
-          Senha
-          <PasswordInput
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            required
-            minLength={mode === 'signup' ? 12 : 1}
-            maxLength={256}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          {mode === 'signup' && <small className="muted">Mínimo de 12 caracteres.</small>}
-        </label>
-        {error && (
-          <div className="alert error" role="alert">
-            {error}
-          </div>
-        )}
-        {notice && (
-          <div className="alert success" role="status">
-            {notice}
-          </div>
-        )}
-        <button className="primary" disabled={busy}>
-          {busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Enviar cadastro'}
-        </button>
-      </form>
+          {mode === 'signup' && (
+            <label>
+              Nome
+              <input autoComplete="name" required maxLength={120} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            </label>
+          )}
+          <label>
+            Senha
+            <PasswordInput
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              required
+              minLength={mode === 'signup' ? 12 : 1}
+              maxLength={256}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {mode === 'signup' && <small className="muted">Mínimo de 12 caracteres.</small>}
+          </label>
+          {error && (
+            <div className="alert error" role="alert">
+              {error}
+            </div>
+          )}
+          {notice && (
+            <div className="alert success" role="status">
+              {notice}
+            </div>
+          )}
+          <button className="primary" disabled={busy}>
+            {busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Enviar cadastro'}
+          </button>
+        </form>
 
-      <p className="switch account-auth-switch">
-        {mode === 'login' ? (
-          <>
-            Não tem conta?{' '}
-            <button className="link" onClick={() => switchMode('signup')}>
-              Solicitar acesso
-            </button>
-          </>
-        ) : (
-          <>
-            Já tem conta aprovada?{' '}
-            <button className="link" onClick={() => switchMode('login')}>
-              Entrar
-            </button>
-          </>
-        )}
-      </p>
-    </main>
+        <p className="switch account-auth-switch">
+          {mode === 'login' ? (
+            <>
+              Não tem conta?{' '}
+              <button className="link" onClick={() => switchMode('signup')}>
+                Solicitar acesso
+              </button>
+            </>
+          ) : (
+            <>
+              Já tem conta aprovada?{' '}
+              <button className="link" onClick={() => switchMode('login')}>
+                Entrar
+              </button>
+            </>
+          )}
+        </p>
+      </main>
+    </div>
   );
 }
 
@@ -173,98 +199,101 @@ export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
   }
 
   return (
-    <main className="auth account-auth account-auth-setup">
-      <header className="account-auth-heading">
-        <Wordmark />
-        <h1 className="auth-title">Configuração inicial</h1>
-        <p className="muted">O sistema ainda não tem Diretor. Crie a conta que vai administrar tudo.</p>
-      </header>
+    <div className="auth-split">
+      <AuthBrand />
+      <main className="auth account-auth account-auth-setup">
+        <header className="account-auth-heading">
+          <Wordmark />
+          <h1 className="auth-title">Configuração inicial</h1>
+          <p className="muted">O sistema ainda não tem Diretor. Crie a conta que vai administrar tudo.</p>
+        </header>
 
-      <form className="card form account-auth-form" onSubmit={submit}>
-        <label>
-          Código de configuração
-          <input
-            required
-            autoComplete="off"
-            placeholder="ABCD-1234"
-            maxLength={20}
-            value={form.code}
-            onChange={(e) => set('code')(e.target.value)}
-          />
-          <small className="muted">
-            Está no log da API: no Docker Desktop, abra Containers → translate → api → Logs e procure "CÓDIGO DE CONFIGURAÇÃO INICIAL". Ou
-            rode <code>docker compose logs api</code>.
-          </small>
-        </label>
-        <label>
-          Nome
-          <input
-            autoComplete="name"
-            required
-            maxLength={120}
-            value={form.displayName}
-            onChange={(e) => set('displayName')(e.target.value)}
-          />
-        </label>
-        <label>
-          E-mail
-          <input
-            type="email"
-            autoComplete="email"
-            required
-            maxLength={254}
-            value={form.email}
-            onChange={(e) => set('email')(e.target.value)}
-          />
-        </label>
-        <label>
-          Senha
-          <PasswordInput
-            autoComplete="new-password"
-            required
-            minLength={12}
-            maxLength={256}
-            value={form.password}
-            onChange={(e) => set('password')(e.target.value)}
-          />
-          <small className="muted">Mínimo de 12 caracteres.</small>
-        </label>
-        <label>
-          Confirme a senha
-          <PasswordInput
-            autoComplete="new-password"
-            required
-            minLength={12}
-            maxLength={256}
-            value={form.confirm}
-            onChange={(e) => set('confirm')(e.target.value)}
-          />
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={form.testAccount} onChange={(e) => set('testAccount')(e.target.checked)} /> Conta de teste
-          <small className="muted block-line">
-            Pode ser excluída depois com um botão; aí o sistema volta para esta tela e você cria a conta definitiva.
-          </small>
-        </label>
-        {form.testAccount && (
-          <label className="check">
-            <input type="checkbox" checked={form.demoAccounts} onChange={(e) => set('demoAccounts')(e.target.checked)} /> Criar também Líder
-            e Usuário de teste
-            <small className="muted block-line">
-              Na "Equipe de Teste", com a mesma senha: lider.teste@exemplo.com e usuario.teste@exemplo.com. Todas as contas de teste saem
-              juntas com um botão.
+        <form className="card form account-auth-form" onSubmit={submit}>
+          <label>
+            Código de configuração
+            <input
+              required
+              autoComplete="off"
+              placeholder="ABCD-1234"
+              maxLength={20}
+              value={form.code}
+              onChange={(e) => set('code')(e.target.value)}
+            />
+            <small className="muted">
+              Está no log da API: no Docker Desktop, abra Containers → translate → api → Logs e procure "CÓDIGO DE CONFIGURAÇÃO INICIAL". Ou
+              rode <code>docker compose logs api</code>.
             </small>
           </label>
-        )}
-        {error && (
-          <div className="alert error" role="alert">
-            {error}
-          </div>
-        )}
-        <button className="primary" disabled={busy}>
-          {busy ? 'Aguarde…' : form.testAccount ? 'Criar Diretor de teste e entrar' : 'Criar Diretor e entrar'}
-        </button>
-      </form>
-    </main>
+          <label>
+            Nome
+            <input
+              autoComplete="name"
+              required
+              maxLength={120}
+              value={form.displayName}
+              onChange={(e) => set('displayName')(e.target.value)}
+            />
+          </label>
+          <label>
+            E-mail
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              maxLength={254}
+              value={form.email}
+              onChange={(e) => set('email')(e.target.value)}
+            />
+          </label>
+          <label>
+            Senha
+            <PasswordInput
+              autoComplete="new-password"
+              required
+              minLength={12}
+              maxLength={256}
+              value={form.password}
+              onChange={(e) => set('password')(e.target.value)}
+            />
+            <small className="muted">Mínimo de 12 caracteres.</small>
+          </label>
+          <label>
+            Confirme a senha
+            <PasswordInput
+              autoComplete="new-password"
+              required
+              minLength={12}
+              maxLength={256}
+              value={form.confirm}
+              onChange={(e) => set('confirm')(e.target.value)}
+            />
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={form.testAccount} onChange={(e) => set('testAccount')(e.target.checked)} /> Conta de teste
+            <small className="muted block-line">
+              Pode ser excluída depois com um botão; aí o sistema volta para esta tela e você cria a conta definitiva.
+            </small>
+          </label>
+          {form.testAccount && (
+            <label className="check">
+              <input type="checkbox" checked={form.demoAccounts} onChange={(e) => set('demoAccounts')(e.target.checked)} /> Criar também
+              Líder e Usuário de teste
+              <small className="muted block-line">
+                Na "Equipe de Teste", com a mesma senha: lider.teste@exemplo.com e usuario.teste@exemplo.com. Todas as contas de teste saem
+                juntas com um botão.
+              </small>
+            </label>
+          )}
+          {error && (
+            <div className="alert error" role="alert">
+              {error}
+            </div>
+          )}
+          <button className="primary" disabled={busy}>
+            {busy ? 'Aguarde…' : form.testAccount ? 'Criar Diretor de teste e entrar' : 'Criar Diretor e entrar'}
+          </button>
+        </form>
+      </main>
+    </div>
   );
 }

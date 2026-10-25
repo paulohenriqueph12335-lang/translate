@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api } from './api';
 import { SmartNotificationSettings } from './SmartNotificationSettings';
 import type { UserPreferences } from './preferences';
-import { Feedback, message, Section } from './ui';
+import { Feedback, LoadingHint, message, Section } from './ui';
 
 export function Settings({
   preferences,
@@ -46,8 +46,8 @@ export function Settings({
         </button>
       )}
       {loading && !preferences && (
-        <p className="muted account-loading" role="status">
-          Carregando preferências…
+        <p className="muted account-loading">
+          <LoadingHint text="Carregando preferências" />
         </p>
       )}
       {preferences && (

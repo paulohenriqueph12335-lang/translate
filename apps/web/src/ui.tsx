@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, ApiError, type Page } from './api';
+import { api, ApiError, onRequestsInFlight, type Page } from './api';
 
 export const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 export const message = (error: unknown) => (error instanceof ApiError ? error.message : 'Falha inesperada');
@@ -84,7 +84,7 @@ export function Wordmark() {
       </svg>
       <span>
         <strong>Tradutor Documental</strong>
-        <small>TRADUÇÃO PÚBLICA</small>
+        <small>Tradução pública</small>
       </span>
     </span>
   );
@@ -244,7 +244,7 @@ export function PagedFooter({
       {empty && !loading && <p className="empty">{emptyText}</p>}
       {hasMore && (
         <button className="ghost" disabled={loading} onClick={onMore}>
-          {loading ? 'Carregando…' : 'Carregar mais'}
+          {loading ? <LoadingHint /> : 'Carregar mais'}
         </button>
       )}
     </>
@@ -346,4 +346,23 @@ export function TagInput({
       </datalist>
     </div>
   );
+}
+
+/** Indicativo discreto de carregamento: a palavra e três pontos, sem caixa. */
+export function LoadingHint({ text = 'Carregando' }: { text?: string }) {
+  return (
+    <span className="loading-hint" role="status">
+      {text}
+      <i aria-hidden="true" />
+      <i aria-hidden="true" />
+      <i aria-hidden="true" />
+    </span>
+  );
+}
+
+/** Linha fina sob a barra superior enquanto houver requisições em andamento (aparece só depois de 180 ms). */
+export function LoadingLine() {
+  const [busy, setBusy] = useState(false);
+  useEffect(() => onRequestsInFlight((count) => setBusy(count > 0)), []);
+  return <div className={`loading-line no-print ${busy ? 'on' : ''}`} aria-hidden="true" />;
 }

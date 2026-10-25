@@ -1,100 +1,135 @@
 # Design da interface web
 
-Direção confirmada para `apps/web`: uma aplicação corporativa discreta, compacta e clara para o trabalho documental. Grafite, verde sóbrio e branco sustentam a hierarquia. O conteúdo, os indicadores e a próxima ação recebem mais atenção que a decoração.
+Direção aprovada para `apps/web` (protótipo de 2026-10-25): **mesa de conferência editorial**. A interface usa grafite e cinza-azulado, e as ações principais são pretas. Não há verde. Listas e painéis não usam caixas: as seções começam com uma linha fina, as listas usam placas fantasma que aparecem ao passar o mouse, e os números ficam em réguas. A marca da interface é a **linha do fluxo**, com seis trechos (Envio, Tradução, Revisão, Prévia em Word, Conclusão e Word final). Ela aparece em três escalas: na linha da lista, no cabeçalho do detalhe e na régua proporcional do "Agora".
 
-O produto e seus papéis estão em [PRODUCT.md](PRODUCT.md). O contrato visual está em [.impeccable/briefs/web-app.md](.impeccable/briefs/web-app.md). O inventário e o diagnóstico da auditoria estão em [docs/design/visual-audit.md](docs/design/visual-audit.md). A validação de execução será registrada separadamente em `docs/design/visual-validation.md`.
+O produto e seus papéis estão em [PRODUCT.md](PRODUCT.md). O contrato visual está em [.impeccable/briefs/web-app.md](.impeccable/briefs/web-app.md). Os valores estão em [`apps/web/src/styles/tokens.css`](apps/web/src/styles/tokens.css).
 
-## Identidade e hierarquia
+## Estrutura
 
-- Títulos em **Source Serif 4 Variable**, com peso 600 e entrelinha curta; corpo e controles em **Inter Variable**.
-- Corpo base de **13px**, entrelinha 1,55. Rótulos e metadados usam uma escala compacta, mantendo os textos de trabalho legíveis.
-- Texto predominante. Ícones ficam restritos a funções que se beneficiam deles e conservam nome acessível.
-- Menu organizado por grupos de trabalho e administração, com item ativo reconhecível por forma, contraste e texto.
-- Documentos em **blocos individuais** compactos: nome e protocolo identificam o documento; situação, idiomas, equipe, responsável e tempos têm alinhamento consistente; as ações ficam claramente associadas ao bloco.
-- Dashboards reservam áreas maiores para gráficos e dão prioridade aos índices, seus rótulos e períodos. Filtros e ações secundárias ocupam menos espaço.
-- Bordas finas, cantos discretos e pouca sombra. Colchetes ornamentais, traços decorativos e botões com metáforas de tinta deixam de definir a interface.
+- **Menu lateral grafite fixo** (15,5rem), com os grupos Visão geral, Operação e Gestão. Cada área tem um ícone de traço fino. A área ativa tem fundo grafite claro e ícone azul-aço. "Minha conta" (Notificações, Configurações e Sair) fica no pé do menu.
+- **Barra superior compacta**:
+  - pesquisa global (**Ctrl+K** ou ⌘K), que abre a paleta de telas e documentos;
+  - sino com painel suspenso, em duas abas: "Precisa de você" e "Atualizações", com link para a lista completa;
+  - alternância de tema;
+  - menu da conta: nome, e-mail, papel, Configurações e Sair.
+- **Celular** (até 800px): o menu lateral dá lugar a uma barra inferior com três áreas e "Mais". "Mais" abre uma folha com as demais áreas, Notificações, Configurações e Sair. A pesquisa vira um ícone na barra superior.
+- **Carregando**: uma linha fina sob a barra superior, sem caixa, aparece enquanto há requisições visíveis. A consulta periódica de notificações não aciona a linha. Onde antes havia "Carregando…", fica um indicativo pequeno de três pontos, com `role="status"`.
+- **Ajustes, Administração e Configurações** usam um menu secundário à esquerda. As demais áreas usam abas com sublinhado que desliza.
 
 ## Cor e temas
 
-[`apps/web/src/styles/tokens.css`](apps/web/src/styles/tokens.css) é a fonte dos valores. As variáveis legadas `--ink`, `--paper`, `--sheet` e `--rule` continuam como aliases para os componentes existentes. As utilidades Tailwind usam nomes semânticos: `bg-canvas`, `bg-surface`, `text-ink`, `text-muted`, `text-accent` e `border-line`.
+As variáveis legadas (`--paper`, `--sheet`, `--rule`, `--ok`, `--menu-*`, `--chart-*`) continuam como apelidos dos papéis novos. Os nomes semânticos para utilidades Tailwind são: `bg-canvas`, `bg-surface`, `bg-ghost`, `text-ink`, `text-ink-2`, `text-muted`, `text-accent` e `border-line`.
 
-| Papel                              | Tema claro | Tema escuro |
-| ---------------------------------- | ---------- | ----------- |
-| Fundo da aplicação (`--paper`)     | `#f4f6f4`  | `#141d17`   |
-| Superfície (`--sheet`)             | `#ffffff`  | `#1c2820`   |
-| Superfície elevada (`--raised`)    | `#fafcfb`  | `#233128`   |
-| Texto principal (`--ink`)          | `#222e27`  | `#e8efe9`   |
-| Texto secundário (`--muted`)       | `#59685f`  | `#a6b8ac`   |
-| Borda (`--rule`)                   | `#dce4de`  | `#34483a`   |
-| Acento (`--accent`)                | `#28634d`  | `#91cbaa`   |
-| Texto sobre acento (`--on-accent`) | `#ffffff`  | `#132e20`   |
-| Menu (`--menu-bg`)                 | `#18251e`  | `#101b14`   |
+| Papel                      | Claro     | Escuro    |
+| -------------------------- | --------- | --------- |
+| Mesa (`--canvas`)          | `#f6f8fa` | `#111418` |
+| Superfície (`--surface`)   | `#ffffff` | `#191c20` |
+| Placa fantasma (`--ghost`) | `#eaeef3` | `#1e2227` |
+| Linha (`--rule`)           | `#dce0e5` | `#2a2e33` |
+| Texto (`--ink`)            | `#1a1e25` | `#eef0f3` |
+| Texto 2 (`--ink-2`)        | `#424850` | `#c0c4cb` |
+| Texto apagado (`--muted`)  | `#5d646c` | `#a0a5ac` |
+| Ação (`--primary`)         | `#000000` | `#f2f4f6` |
+| Azul-aço (`--accent`)      | `#3c5b8a` | `#91b4e1` |
+| Menu (`--menu-bg`)         | `#161a1f` | `#0a0c10` |
+| Aviso (`--warn`)           | `#804d18` | `#e7b369` |
+| Erro (`--danger`)          | `#aa2a27` | `#f08f87` |
+| Juramentada (`--plum`)     | `#71426d` | `#cf9fc9` |
 
-Os dois temas devem oferecer a mesma hierarquia, densidade, ações e estados. A aparência acompanha a preferência da conta ou do sistema conforme a opção existente. Fundos, texto, bordas, controles, menus, notificações e gráficos recebem tokens próprios para cada tema.
+Regras de cor:
 
-Verde é o acento de interação. Sucesso, aviso e erro mantêm tokens semânticos independentes e identificação textual. Um bloqueio, uma reprovação ou uma falha técnica não podem depender apenas da cor. O texto sobre acento usa `--on-accent`, inclusive no tema escuro.
+- **Concluído é azul-aço**, nunca verde. `--ok` aponta para o acento.
+- Aviso, erro e ameixa têm fundos suaves próprios e sempre vêm acompanhados de texto.
+- Os pares de texto e fundo foram medidos e passam WCAG AA nos dois temas. Exemplos: texto apagado sobre a mesa, 5,6:1 no claro e 7,5:1 no escuro; azul-aço sobre a mesa, 6,5:1 no claro e 8,6:1 no escuro.
 
-Os gráficos usam verde, neutros e cores de estado. Nomes legados como `--chart-blue` permanecem por compatibilidade, mas o valor atual é verde. Séries comparadas conservam legenda e diferenciação de traço ou forma; mapas de calor usam a rampa de tokens do tema. A equivalência em tabela e os controles existentes de período e comparação permanecem disponíveis.
+**Gráficos**: a paleta categórica tem ordem fixa e foi validada para daltonismo no claro e no escuro.
 
-Contraste de texto, controles, foco e estados deve ser verificado nos dois temas durante a validação. Esta documentação define a direção e os critérios; não certifica uma medição ou uma aceitação de navegador.
+| Série      | Claro     | Escuro    |
+| ---------- | --------- | --------- |
+| Principal  | `#4e78c7` | `#5695e0` |
+| Comparação | `#af7528` | `#bd871c` |
+| Terceira   | `#744276` | `#9e5598` |
+| Contexto   | `#c6ccd3` | `#3a3f46` |
 
-## Tipografia e medidas
+- Os desfechos (acerto, refeita, justificada) seguem a mesma ordem.
+- O mapa de calor usa uma rampa de um tom só, em azul-aço, com passos próprios no escuro.
+- Toda série tem legenda ou rótulo direto, dica ao passar o mouse e tabela equivalente.
 
-| Uso                           | Direção                                                            |
-| ----------------------------- | ------------------------------------------------------------------ |
-| Corpo                         | Inter Variable, 13px, entrelinha 1,55                              |
-| Títulos                       | Source Serif 4 Variable, peso 600, escala conforme o nível         |
-| Controles e rótulos           | Inter, com densidade compacta e nomes claros                       |
-| Índices                       | Valor forte, números tabulares e contexto próximo                  |
-| Código e referências técnicas | Cascadia Code, Consolas ou fallback monoespaçado                   |
-| Documento impresso            | Fonte e medidas do documento real; não herda a escala da aplicação |
+## Tipografia
 
-As fontes variáveis são dependências locais do web app. Contadores e índices não precisam de uma fonte monoespaçada: `font-variant-numeric: tabular-nums` mantém comparabilidade sem aumentar o ruído.
+Uma família só: **Schibsted Grotesk Variable**, instalada como dependência local (`@fontsource-variable/schibsted-grotesk`).
 
-Os raios centrais são **6px** para controles, **8px** para painéis e **10px** para diálogos. A borda estrutural é de 1px. Espaçamento parte de unidades de 4px, com grupos próximos de 8–16px e separação maior entre assuntos. Sombra serve apenas à separação discreta de superfícies e sobreposições.
+- Corpo de 15px, entrelinha 1,5.
+- Títulos na mesma letra, mais pesados (740–780), com espaçamento negativo e quebra equilibrada.
+- Rótulos de 13–14px. Nada de 11px no texto de trabalho.
+- Números com `tabular-nums`, sem fonte monoespaçada.
 
-## Composição das telas
+## Forma
 
-A tela deve apresentar título, contexto breve e ação principal com uma ordem consistente. Formulários agrupam campos relacionados; filtros se alinham e quebram linha em larguras pequenas; ações secundárias permanecem reconhecíveis. A reconstrução visual conserva as condições de abertura dos detalhes e dos diálogos existentes.
+- Botões em pílula. O primário é preto (claro no tema escuro). O secundário tem um anel fino. O fantasma não tem contorno.
+- Raios de 10px nos controles, 12px nos painéis e 16px nas janelas.
+- Sombra só em janelas, menus e dicas. Painéis não têm sombra.
+- Situações aparecem em pílulas suaves.
+- **Sem cartões**. Um `.card` é só um agrupamento que começa numa linha fina. Listas usam linhas com divisória e uma placa fantasma que se materializa (desfoque e opacidade) ao passar o mouse.
+- Números ficam em réguas com divisões finas.
+- Filtros formam uma linha corrida, sem painel em volta.
+- Movimento de 120–240ms com `cubic-bezier(0.2, 0, 0, 1)`. Menus e painéis aparecem como fantasmas (desfoque, opacidade e um leve deslocamento). Tudo respeita `prefers-reduced-motion`.
 
-Na tradução, as quatro etapas de entrada e as fases de produção continuam com seus rótulos, ordem, estados e bloqueios. A comparação original × Word ocupa a área principal quando necessária. Conferência obrigatória, erros, pedidos para refazer, numeração e bloqueios por reprovação continuam expostos nas condições funcionais existentes.
+## Telas
 
-Listas documentais usam cartões individuais e mantêm seleção, etiquetas, filtros, paginação e entrega associados ao documento. Tabelas que precisam continuar tabulares preservam cabeçalhos e rolagem própria, sem cortar ações em telas estreitas. O tema não deve ocultar conteúdo com `overflow` para compensar um problema de largura.
+- **Início**:
+  - régua de números com variação;
+  - "Agora", com régua proporcional da fila por etapa, total grande e últimos eventos;
+  - gráficos em grade, separados por linha de topo.
+- **Traduções**:
+  - fases como régua de seis trechos com contagem;
+  - lista corrida em que cada linha traz a linha do fluxo em miniatura, a situação em texto e a ação.
+- **Detalhe**:
+  - título grande e a linha do fluxo com a etapa atual em azul-aço;
+  - original e Word lado a lado, com a moldura da própria folha;
+  - módulos recolhíveis com seta que gira;
+  - entrega final em fundo azul-aço suave.
+- **Nova tradução**: quatro etapas numeradas, ligadas por uma linha. A sequência é real.
+- **Notificações**: lista corrida. As não lidas levam um ponto azul-aço e título mais forte.
+- **Entrada**: tela dividida. A metade da marca, em grafite, traz o nome, a frase do produto e a linha do fluxo. A outra metade traz o formulário na mesa.
 
 ## Word, PDF e geometria dinâmica
 
-A folha do Word e a página renderizada do PDF continuam **brancas** nos dois temas, com texto, fontes, alinhamentos, tabelas e proporções do arquivo real. O ambiente da comparação acompanha o tema; o conteúdo impresso conserva sua aparência documental.
+A folha do Word e a página do PDF continuam **brancas** nos dois temas, com as fontes e medidas do arquivo real. Estilos calculados a partir dos dados continuam dinâmicos:
 
-Estilos calculados a partir dos dados permanecem dinâmicos:
+- larguras e células mescladas das tabelas do documento;
+- canvas do PDF, página e zoom;
+- percentuais de envio;
+- barras, séries, coordenadas e intensidade dos gráficos;
+- posição de listas flutuantes.
 
-- larguras de colunas, alinhamento e células mescladas das tabelas do documento;
-- dimensões e resolução do canvas PDF, página selecionada e zoom;
-- percentuais de upload e processamento;
-- barras, séries, coordenadas, cores por intensidade e dicas dos gráficos;
-- posição das listas flutuantes e outros controles ancorados.
+## Implementação
 
-Esses estilos não devem ser substituídos por utilidades fixas. Em particular, forçar `width: 100%` no canvas eliminaria o comportamento de zoom. A remoção de estilos inline estáticos não autoriza alterar a geometria gerada por dados.
+Tailwind CSS 4.3.3 entra pelo `@tailwindcss/vite`. A única entrada de estilos é [`apps/web/src/style.css`](apps/web/src/style.css).
 
-## Implementação e manutenção
+| Arquivo                     | Responsabilidade                                                                  |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| `styles/tokens.css`         | Primitivos (grafite, aço), papéis semânticos dos dois temas, gráficos e movimento |
+| `styles/foundation.css`     | Base, tipografia, campos, foco e movimento reduzido                               |
+| `styles/domain.css`         | Regras de domínio preservadas (folha do documento, máscaras, numeração)           |
+| `styles/components.css`     | Estrutura, barra superior, paleta, sino, botões, abas, listas e celular           |
+| `styles/account.css`        | Entrada, configurações, notificações, confirmação e avisos                        |
+| `styles/documents.css`      | Envio, lista, fases, linha do fluxo, comparação e entrega                         |
+| `styles/administration.css` | Equipes, tradutores, numeração e administração                                    |
+| `styles/analytics.css`      | Início, gráficos, "Agora", relatórios e minha fila                                |
 
-Tailwind CSS **4.3.3** é integrado ao Vite por `@tailwindcss/vite`. [`apps/web/src/style.css`](apps/web/src/style.css) é a única entrada de estilos da aplicação, incluindo o CSS do seletor de idiomas.
+Componentes de estrutura:
 
-| Arquivo                     | Responsabilidade                                               |
-| --------------------------- | -------------------------------------------------------------- |
-| `styles/tokens.css`         | Paletas, fontes, raios e aliases semânticos dos temas          |
-| `styles/foundation.css`     | Base, tipografia, campos, foco e movimento reduzido            |
-| `styles/domain.css`         | Regras documentais e estruturais preservadas do domínio        |
-| `styles/components.css`     | Shell, navegação e componentes compartilhados                  |
-| `LanguagePairPicker.css`    | Campo pesquisável, lista flutuante e estados do par de idiomas |
-| `styles/account.css`        | Autenticação, conta, preferências, notificações e confirmação  |
-| `styles/documents.css`      | Entrada, cartões documentais, fluxo, comparação e entrega      |
-| `styles/administration.css` | Equipes, tradutores, numeração e administração                 |
-| `styles/analytics.css`      | Dashboards, gráficos, auditoria, relatórios e workspace        |
-
-Os módulos referenciam Tailwind e os tokens com `@reference` e usam camadas `base` ou `components`. Utilidades de layout e espaçamento podem compor a marcação. Tokens e controles compartilhados devem ser corrigidos na origem, evitando sucessivas camadas de sobrescrita por tela.
+- `icons.tsx`: ícones de traço fino;
+- `CommandPalette.tsx`: Ctrl+K;
+- `BellPanel.tsx`: sino;
+- `LoadingLine` e `LoadingHint` em `ui.tsx`;
+- `FlowGlyph` em `Flow.tsx`.
 
 ## Acessibilidade e preservação funcional
 
-Preservar rótulos, nomes acessíveis, foco visível, navegação por teclado, `aria-*`, feedbacks, estados de carregamento, desabilitação, erros e vazios. Diálogos mantêm fechamento, cancelamento, foco e prevenção de cliques repetidos. Movimento respeita `prefers-reduced-motion`.
+A reconstrução é visual. Endpoints, permissões, requisições, regras, validações, fluxo de aprovação, confirmações e documentos gerados não mudam. A interface preserva:
 
-Esta reconstrução é visual: não altera endpoints, permissões, regras, requisições, callbacks, validações, fluxo de aprovação, confirmações ou conteúdo gerado. A auditoria de código e a validação real têm registros separados; a conclusão visual depende das evidências de execução.
+- nomes acessíveis, `aria-*`, foco visível e navegação por teclado (a paleta navega por setas, Enter e Esc, e os menus fecham com Esc);
+- estados de carregamento, vazio e erro;
+- área de toque de 44px em telas de toque.
