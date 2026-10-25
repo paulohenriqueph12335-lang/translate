@@ -1,0 +1,188 @@
+@reference 'tailwindcss';
+@reference './tokens.css';
+
+/* Tutorial: leitura confortável, passos numerados (são sequências reais) e fotos com a moldura da tela. */
+@layer components {
+  .tutorial {
+    @apply grid min-w-0 gap-8;
+    max-width: 62rem;
+  }
+  .tutorial-head {
+    @apply grid justify-items-start gap-2;
+  }
+  .tutorial-head h2 {
+    @apply m-0;
+    font-size: clamp(1.625rem, 2.4vw, 2rem);
+    font-weight: 780;
+    letter-spacing: -0.024em;
+  }
+  .tutorial-head p {
+    @apply m-0;
+    font-size: 1rem;
+    max-width: 60ch;
+  }
+  .tutorial-head button {
+    @apply mt-1;
+  }
+  .tutorial-block {
+    @apply grid gap-3;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+  }
+  .tutorial-block h3 {
+    @apply m-0;
+    font-size: 1.125rem;
+    font-weight: 720;
+  }
+  .tutorial-block p,
+  .tutorial-list,
+  .tutorial-flow,
+  .tutorial-steps {
+    @apply m-0;
+    max-width: 68ch;
+    font-size: 0.9875rem;
+    line-height: 1.6;
+  }
+  .tutorial-list {
+    @apply grid gap-2 pl-5;
+  }
+  .tutorial-list li::marker {
+    color: var(--line-strong);
+  }
+  /* A linha do fluxo do tutorial repete a marca do sistema: seis trechos, um por etapa. */
+  .tutorial-flow {
+    @apply grid list-none gap-x-2 gap-y-3 p-0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: none;
+    counter-reset: flow;
+  }
+  .tutorial-flow li {
+    @apply grid content-start gap-1;
+    padding-top: 0.75rem;
+    border-top: 4px solid var(--ink-2);
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--ink-2);
+  }
+  .tutorial-flow li:nth-child(4) {
+    border-top-color: var(--accent);
+  }
+  .tutorial-flow li:nth-child(n + 5) {
+    border-top-color: var(--line-mid);
+  }
+  .tutorial-flow strong {
+    color: var(--ink);
+    font-size: 0.9375rem;
+  }
+  .tutorial-steps {
+    @apply grid list-none gap-3 p-0;
+    counter-reset: step;
+  }
+  .tutorial-steps li {
+    @apply relative;
+    padding-left: 2.25rem;
+    counter-increment: step;
+  }
+  .tutorial-steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.0625rem;
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .tutorial-tip {
+    @apply m-0 flex items-start gap-3;
+    max-width: 68ch;
+    padding: 0.875rem 1rem;
+    border-radius: 0.75rem;
+    background: var(--accent-soft);
+    color: var(--ink);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+  .tutorial-tip svg {
+    flex: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-top: 0.125rem;
+    color: var(--accent);
+  }
+  .tutorial-figures {
+    @apply flex flex-wrap items-start gap-6;
+  }
+  .tutorial-figures > .tutorial-figure {
+    flex: 1 1 100%;
+  }
+  .tutorial-figures > .tutorial-figure.narrow {
+    flex: 0 1 16rem;
+  }
+  .tutorial-figure {
+    @apply m-0 grid gap-2;
+  }
+  .tutorial-figure a {
+    @apply block overflow-hidden;
+    border: 1px solid var(--rule);
+    border-radius: 0.75rem;
+    background: var(--surface);
+    transition:
+      box-shadow var(--duration-normal) var(--ease-out),
+      transform var(--duration-normal) var(--ease-out);
+  }
+  .tutorial-figure a:hover {
+    box-shadow: var(--shadow-pop);
+    transform: translateY(-1px);
+  }
+  .tutorial-figure img {
+    @apply block h-auto w-full;
+  }
+  .tutorial-figure.narrow {
+    max-width: 18rem;
+  }
+  .tutorial-figure figcaption {
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+  .tutorial-faq {
+    @apply m-0 grid gap-0;
+    max-width: 68ch;
+  }
+  .tutorial-faq > div {
+    @apply grid gap-1 py-4;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tutorial-faq dt {
+    font-size: 1rem;
+    font-weight: 680;
+  }
+  .tutorial-faq dd {
+    @apply m-0;
+    color: var(--ink-2);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+  :root[data-theme='dark'] .tutorial-figure a {
+    background: var(--canvas);
+  }
+  @media (max-width: 800px) {
+    .tutorial-flow {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tutorial-figure a {
+      transition: none;
+    }
+    .tutorial-figure a:hover {
+      transform: none;
+    }
+  }
+}

@@ -14,25 +14,13 @@ import { StatusBadge } from './Translations';
 import { ArchiveDownloadButtons } from './Flow';
 import { LanguagePairPicker } from './LanguagePairPicker';
 import { DeliveryMenu, SaveDownloadButton } from './DeliveryActions';
-import {
-  dateTime,
-  DateRange,
-  Feedback,
-  PagedFooter,
-  SearchInput,
-  Section,
-  Segmented,
-  TagList,
-  useDebounced,
-  useLoad,
-  usePaged,
-} from './ui';
+import { dateTime, DateRange, Feedback, PagedFooter, SearchInput, Section, Segmented, useDebounced, useLoad, usePaged } from './ui';
 
 type View = 'translations' | 'originals';
 
 /**
  * Área de downloads (ADR-010): traduções concluídas e documentos enviados, cada original ligado às traduções
- * geradas a partir dele, com filtros por equipe, tipo, etiqueta, idioma, pessoa e período.
+ * geradas a partir dele, com filtros por equipe, tipo, idioma, pessoa e período.
  */
 export function Downloads({ me, onOpenTranslation }: { me: Me; onOpenTranslation: (id: string) => void }) {
   const [view, setView] = useState<View>('translations');
@@ -55,7 +43,7 @@ export function Downloads({ me, onOpenTranslation }: { me: Me; onOpenTranslation
         {view === 'translations' ? (
           <ConcludedTranslations teams={showTeams ? (teams.data?.items ?? []) : []} facets={facets.data} onOpen={onOpenTranslation} />
         ) : (
-          <Originals teams={showTeams ? (teams.data?.items ?? []) : []} tags={facets.data?.tags ?? []} onOpen={onOpenTranslation} />
+          <Originals teams={showTeams ? (teams.data?.items ?? []) : []} onOpen={onOpenTranslation} />
         )}
       </div>
     </Section>
@@ -89,12 +77,11 @@ function ConcludedTranslations({
   const q = useDebounced(search.trim());
   const [teamId, setTeamId] = useState('');
   const [documentType, setDocumentType] = useState('');
-  const [tag, setTag] = useState('');
   const [pair, setPair] = useState('');
   const [approvedBy, setApprovedBy] = useState('');
   const [period, setPeriod] = useState({ from: '', to: '' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  useEffect(() => setSelected(new Set()), [q, teamId, documentType, tag, pair, approvedBy, period.from, period.to]);
+  useEffect(() => setSelected(new Set()), [q, teamId, documentType, pair, approvedBy, period.from, period.to]);
   const list = usePaged<TranslationSummary>(
     `/translations${queryString({
       limit: 30,
@@ -102,7 +89,6 @@ function ConcludedTranslations({
       q,
       teamId,
       documentType,
-      tag,
       approvedBy,
       sourceLanguage: pair ? pair.slice(0, 2) : undefined,
       targetLanguage: pair ? pair.slice(3) : undefined,
@@ -110,7 +96,7 @@ function ConcludedTranslations({
       approvedTo: period.to,
     })}`,
   );
-  const filtered = !!(q || teamId || documentType || tag || pair || approvedBy || period.from || period.to);
+  const filtered = !!(q || teamId || documentType || pair || approvedBy || period.from || period.to);
 
   return (
     <>
@@ -122,14 +108,6 @@ function ConcludedTranslations({
           {facets?.documentTypes.map((type) => (
             <option key={type} value={type}>
               {type}
-            </option>
-          ))}
-        </select>
-        <select aria-label="Etiqueta" value={tag} onChange={(e) => setTag(e.target.value)}>
-          <option value="">Todas as etiquetas</option>
-          {facets?.tags.map((value) => (
-            <option key={value} value={value}>
-              {value}
             </option>
           ))}
         </select>
@@ -150,7 +128,6 @@ function ConcludedTranslations({
               setSearch('');
               setTeamId('');
               setDocumentType('');
-              setTag('');
               setPair('');
               setApprovedBy('');
               setPeriod({ from: '', to: '' });
@@ -187,7 +164,7 @@ function ConcludedTranslations({
             </button>
           )}
         </div>
-        <ArchiveDownloadButtons translationIds={[...selected]} disabled={selected.size > 100} />
+        <ArchiveDownloadButtons heading translationIds={[...selected]} disabled={selected.size > 100} />
         {selected.size > 100 && <p className="warn-text">Selecione no máximo 100 documentos por ZIP.</p>}
       </div>
       <ul className="list doc-cards doc-download-cards">
@@ -216,7 +193,6 @@ function ConcludedTranslations({
                 </button>
                 {item.number && <span className="badge soft">Nº {item.number.split(' – ')[0]}</span>}
               </div>
-              <TagList tags={item.document.tags} onPick={setTag} />
               <p className="muted small-text">
                 {pairLabel(item.sourceLanguage, item.targetLanguage)} · {item.batch.protocol ? `protocolo ${item.batch.protocol} · ` : ''}
                 lote {item.batch.name ?? 'sem nome'} · enviado por {item.uploadedBy}
@@ -261,11 +237,10 @@ function ConcludedTranslations({
   );
 }
 
-function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onOpen: (id: string) => void }) {
+function Originals({ teams, onOpen }: { teams: Team[]; onOpen: (id: string) => void }) {
   const [search, setSearch] = useState('');
   const q = useDebounced(search.trim());
   const [teamId, setTeamId] = useState('');
-  const [tag, setTag] = useState('');
   const [format, setFormat] = useState('');
   const [translation, setTranslation] = useState('');
   const [mine, setMine] = useState(false);
@@ -277,8 +252,6 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
       q,
       teamId: teamId === '__none' ? undefined : teamId,
       unassigned: teamId === '__none',
-      tag: tag === '__none' ? undefined : tag,
-      untagged: tag === '__none',
       format,
       translation,
       mine,
@@ -286,22 +259,13 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
       to: period.to,
     })}`,
   );
-  const filtered = !!(q || teamId || tag || format || translation || mine || period.from || period.to);
+  const filtered = !!(q || teamId || format || translation || mine || period.from || period.to);
 
   return (
     <>
       <div className="filters top-gap doc-filter-bar">
         <SearchInput value={search} onChange={setSearch} placeholder="Protocolo, arquivo, lote, pessoa, tipo ou nº" />
         <TeamSelect teams={teams} value={teamId} onChange={setTeamId} />
-        <select aria-label="Etiqueta" value={tag} onChange={(e) => setTag(e.target.value)}>
-          <option value="">Todas as etiquetas</option>
-          <option value="__none">Sem etiqueta</option>
-          {tags.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
         <select aria-label="Formato" value={format} onChange={(e) => setFormat(e.target.value)}>
           <option value="">Todos os formatos</option>
           {['pdf', 'docx', 'pptx', 'jpeg', 'png'].map((value) => (
@@ -328,7 +292,6 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
             onClick={() => {
               setSearch('');
               setTeamId('');
-              setTag('');
               setFormat('');
               setTranslation('');
               setMine(false);
@@ -351,7 +314,6 @@ function Originals({ teams, tags, onOpen }: { teams: Team[]; tags: string[]; onO
                 {doc.batch.protocol ? ` · protocolo ${doc.batch.protocol}` : ''} · enviado por {doc.uploadedBy.displayName}
                 {doc.storedAt ? ` em ${dateTime(doc.storedAt)}` : ''}
               </span>
-              <TagList tags={doc.tags} onPick={setTag} />
               {doc.translations.length > 0 && (
                 <span className="linked">
                   Gerados:{' '}

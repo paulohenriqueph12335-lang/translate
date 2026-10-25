@@ -720,74 +720,8 @@
       grid-template-columns: 1fr;
     }
   }
-  .tags {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 4px;
-  }
-  .tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 9px;
-    border-radius: 999px;
-    border: 1px solid var(--rule);
-    background: var(--gray-50);
-    color: var(--ink);
-    font-size: 0.8125rem;
-    font-weight: 600;
-  }
-  .tag button {
-    border: 0;
-    padding: 0 2px;
-    background: none;
-    color: inherit;
-    font-size: 14px;
-    line-height: 1;
-  }
-  .tag-input {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border: 1px solid var(--gray-300);
-    border-radius: var(--radius);
-    background: var(--sheet);
-  }
-  .tag-input .tags {
-    margin: 0;
-  }
-  .tag-input input {
-    flex: 1;
-    min-width: 180px;
-    border: 0;
-    padding: 4px;
-    outline: none;
-  }
   .tags-field {
     margin-top: 12px;
-  }
-  .tag-line {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-  }
-  .tag-line .tags {
-    margin: 0;
-  }
-  .tag-edit {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    margin-top: 6px;
-  }
-  .tag-edit .tag-input {
-    flex: 1;
-    min-width: 260px;
   }
   .date-range {
     display: inline-flex;

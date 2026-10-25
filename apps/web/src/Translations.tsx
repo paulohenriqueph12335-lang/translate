@@ -42,8 +42,6 @@ import {
   SearchInput,
   Section,
   Segmented,
-  TagInput,
-  TagList,
   useDebounced,
   useLoad,
   usePaged,
@@ -82,7 +80,6 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
   const [search, setSearch] = useState('');
   const q = useDebounced(search.trim());
   const [teamId, setTeamId] = useState('');
-  const [tag, setTag] = useState('');
   const [documentType, setDocumentType] = useState('');
   const [documentCategory, setDocumentCategory] = useState<DocumentCategory | ''>('');
   const [onlyNew, setOnlyNew] = useState(false);
@@ -101,7 +98,6 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
     q,
     teamId: teamId === '__none' ? undefined : teamId,
     unassigned: teamId === '__none',
-    tag,
     documentType,
     documentCategory,
     translationMode: mode || undefined,
@@ -114,11 +110,10 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
   const list = usePaged<TranslationSummary>(path);
   const [archiveSelection, setArchiveSelection] = useState<Set<string>>(new Set());
   useEffect(() => setArchiveSelection(new Set()), [path]);
-  const filtered = !!(q || teamId || tag || documentType || documentCategory || onlyNew || pair || mode || period.from || period.to);
+  const filtered = !!(q || teamId || documentType || documentCategory || onlyNew || pair || mode || period.from || period.to);
   const clear = () => {
     setSearch('');
     setTeamId('');
-    setTag('');
     setDocumentType('');
     setDocumentCategory('');
     setOnlyNew(false);
@@ -212,14 +207,6 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
               </option>
             ))}
           </select>
-          <select aria-label="Etiqueta" value={tag} onChange={(e) => setTag(e.target.value)}>
-            <option value="">Todas as etiquetas</option>
-            {facets.data?.tags.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
           <select aria-label="Modalidade" value={mode} onChange={(e) => setMode(e.target.value as TranslationMode | '')}>
             <option value="">Todas as modalidades</option>
             {MODES.map((value) => (
@@ -259,7 +246,7 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
               />
               Selecionar concluídos carregados
             </label>
-            <ArchiveDownloadButtons translationIds={[...archiveSelection]} disabled={archiveSelection.size > 100} />
+            <ArchiveDownloadButtons heading translationIds={[...archiveSelection]} disabled={archiveSelection.size > 100} />
             {archiveSelection.size > 100 && <p className="warn-text">Selecione até 100 documentos por ZIP.</p>}
           </details>
         )}
@@ -296,7 +283,6 @@ function TranslationList({ me, onOpen }: { me: Me; onOpen: (id: string) => void 
                   </span>
                 )}
                 {item.reviewLifecycle?.blocked && <span className="badge danger">3 reprovações · novo formato obrigatório</span>}
-                <TagList tags={item.document.tags} onPick={setTag} />
               </div>
               {tab === 'approved' && item.permissions.download && (
                 <label className="check" onClick={(event) => event.stopPropagation()}>
@@ -587,12 +573,6 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
             {t.assignee ? <strong>{t.assignee.name}</strong> : <span className="muted">ninguém ainda — a equipe pode assumir</span>}
             {t.assignee?.id === me.user.id ? ' (você)' : ''}
           </p>
-          <DocumentTags
-            documentId={t.document.id}
-            tags={t.document.tags}
-            completed={t.status === 'approved' || t.status === 'awaiting_approval'}
-            onSaved={reload}
-          />
         </div>
       </div>
 
@@ -1239,66 +1219,6 @@ function RedoPanel({
           {busy ? 'Enviando…' : reprocess ? 'Reprocessar e avisar a equipe' : 'Devolver para a equipe'}
         </button>
       </div>
-    </div>
-  );
-}
-
-/** Etiquetas do documento, editáveis por quem trabalha com ele. */
-export function DocumentTags({
-  documentId,
-  tags,
-  completed = false,
-  onSaved,
-}: {
-  documentId: string;
-  tags: string[];
-  completed?: boolean;
-  onSaved: () => void;
-}) {
-  const confirm = useConfirm();
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(tags);
-  const [error, setError] = useState<string | null>(null);
-  const suggestions = useLoad(
-    () => (editing ? api<{ items: Array<{ tag: string }> }>('GET', '/tags') : Promise.resolve({ items: [] })),
-    [editing],
-  );
-
-  if (!editing) {
-    return (
-      <span className="tag-line">
-        <TagList tags={tags} />
-        <button className="link small-text" onClick={() => (setValue(tags), setEditing(true))}>
-          {tags.length ? 'editar etiquetas' : 'adicionar etiquetas'}
-        </button>
-      </span>
-    );
-  }
-  return (
-    <div className="tag-edit">
-      <TagInput value={value} onChange={setValue} suggestions={suggestions.data?.items.map((item) => item.tag) ?? []} />
-      <button
-        className="small primary"
-        onClick={async () => {
-          if (
-            completed &&
-            !(await confirm('Este documento está pronto. Tem certeza de que deseja alterar as etiquetas? A mudança ficará na auditoria.'))
-          )
-            return;
-          void api('PUT', `/documents/${documentId}/tags`, { tags: value, ...(completed ? { confirmCompleted: true } : {}) })
-            .then(() => {
-              setEditing(false);
-              onSaved();
-            })
-            .catch((caught: unknown) => setError(message(caught)));
-        }}
-      >
-        Salvar
-      </button>
-      <button className="small ghost" onClick={() => setEditing(false)}>
-        Cancelar
-      </button>
-      <Feedback error={error} />
     </div>
   );
 }

@@ -376,7 +376,6 @@
   }
   .account-notification-meta {
     @apply mt-1;
-    font-variant-numeric: tabular-nums;
   }
   .account-notification-read {
     @apply min-w-0 self-start whitespace-normal;

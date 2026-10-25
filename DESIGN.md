@@ -14,7 +14,8 @@ O produto e seus papéis estão em [PRODUCT.md](PRODUCT.md). O contrato visual e
   - menu da conta: nome, e-mail, papel, Configurações e Sair.
 - **Celular** (até 800px): o menu lateral dá lugar a uma barra inferior com três áreas e "Mais". "Mais" abre uma folha com as demais áreas, Notificações, Configurações e Sair. A pesquisa vira um ícone na barra superior.
 - **Carregando**: uma linha fina sob a barra superior, sem caixa, aparece enquanto há requisições visíveis. A consulta periódica de notificações não aciona a linha. Onde antes havia "Carregando…", fica um indicativo pequeno de três pontos, com `role="status"`.
-- **Ajustes, Administração e Configurações** usam um menu secundário à esquerda. As demais áreas usam abas com sublinhado que desliza.
+- **Ajustes, Administração, Tutorial e Configurações** usam um menu secundário à esquerda. As demais áreas usam abas com sublinhado que desliza.
+- **Tutorial** (em "Minha conta", para todos os papéis): uma seção por assunto, com "Para que serve", passos numerados, fotos reais das telas (`apps/web/public/tutorial/`) e o botão "Abrir esta tela". As seções seguem o papel da pessoa.
 
 ## Cor e temas
 
@@ -117,6 +118,7 @@ Tailwind CSS 4.3.3 entra pelo `@tailwindcss/vite`. A única entrada de estilos �
 | `styles/documents.css`      | Envio, lista, fases, linha do fluxo, comparação e entrega                         |
 | `styles/administration.css` | Equipes, tradutores, numeração e administração                                    |
 | `styles/analytics.css`      | Início, gráficos, "Agora", relatórios e minha fila                                |
+| `styles/tutorial.css`       | Tutorial: passos, fotos e problemas comuns                                        |
 
 Componentes de estrutura:
 
@@ -124,7 +126,9 @@ Componentes de estrutura:
 - `CommandPalette.tsx`: Ctrl+K;
 - `BellPanel.tsx`: sino;
 - `LoadingLine` e `LoadingHint` em `ui.tsx`;
-- `FlowGlyph` em `Flow.tsx`.
+- `FlowGlyph` em `Flow.tsx`;
+- `Tutorial.tsx` e `styles/tutorial.css`;
+- `pdf-polyfills.ts` e `pdf-worker.ts`: complementos para o PDF.js 6 em navegadores sem os recursos mais novos do JavaScript.
 
 ## Acessibilidade e preservação funcional
 

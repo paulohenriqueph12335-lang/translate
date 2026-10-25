@@ -322,6 +322,9 @@
     font-size: 0.8125rem;
     overflow-wrap: anywhere;
   }
+  .popover.profile {
+    min-width: 18.5rem;
+  }
   /* Carregando: linha fina sob a barra superior e um indicativo pequeno, sem caixa. */
   .loading-line {
     position: fixed;
@@ -1183,9 +1186,6 @@
     font-size: 0.8125rem;
     font-weight: 650;
     white-space: nowrap;
-  }
-  td {
-    font-variant-numeric: tabular-nums;
   }
   tbody tr:last-child > td:not(:where(.paper *)),
   tbody tr:last-child > th:not(:where(.paper *)) {
