@@ -38,8 +38,22 @@ export function useBatchProtocol(fileCount: number) {
   const validProtocol = withoutProtocol
     ? reason.trim().length >= 10 && /[\p{L}]/u.test(reason)
     : /^[\p{L}\p{N}][\p{L}\p{N} ._-]{2,79}$/u.test(protocol.trim());
+  const reasonLength = reason.trim().length;
+  // O que falta, em palavras: o botão apagado sozinho não explica nada.
+  const missing = withoutProtocol
+    ? reasonLength < 10
+      ? `Escreva por que não há protocolo (faltam ${10 - reasonLength} caracteres).`
+      : !/[\p{L}]/u.test(reason)
+        ? 'A justificativa precisa ter palavras, não só números ou símbolos.'
+        : null
+    : !protocol.trim()
+      ? 'Digite o protocolo ou marque "Esta remessa não possui protocolo".'
+      : !validProtocol
+        ? 'O protocolo precisa ter de 3 a 80 caracteres: letras, números, espaço, ponto, hífen ou sublinhado.'
+        : null;
   return {
     ready: validProtocol && (fileCount < 20 || !!inspection),
+    missing: missing ?? (fileCount >= 20 && !inspection ? 'Escolha como inspecionar esta remessa.' : null),
     description: withoutProtocol ? `Sem protocolo: ${reason.trim()}` : protocol.trim(),
     payload: {
       ...(withoutProtocol ? { protocolOmissionReason: reason.trim() } : { protocol: protocol.trim() }),
@@ -65,8 +79,9 @@ export function useBatchProtocol(fileCount: number) {
               maxLength={1000}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              placeholder="Informe uma justificativa para a auditoria (mínimo 10 caracteres)."
+              placeholder="Ex.: o cliente não informou protocolo para este pedido."
             />
+            <small className="muted">Fica registrado na auditoria. Mínimo de 10 caracteres.</small>
           </label>
         ) : (
           <label>
@@ -77,7 +92,7 @@ export function useBatchProtocol(fileCount: number) {
               maxLength={80}
               value={protocol}
               onChange={(event) => setProtocol(event.target.value)}
-              placeholder="ABC-10003"
+              placeholder="Ex.: ABC-10003"
             />
             <small className="muted">Use letras, números, espaços, ponto, hífen ou sublinhado.</small>
           </label>
@@ -150,6 +165,15 @@ export function NewTranslation({
     files.every((file) => !fileProblem(file));
   const readyToSend = filesReady && protocol.ready && (isDirector || !!teamId);
   const nextReady = [filesReady, protocol.ready, isDirector || !!teamId, readyToSend][step];
+  const blocker = nextReady
+    ? null
+    : step === 0
+      ? 'Escolha pelo menos um arquivo válido (veja os avisos na lista).'
+      : step === 1
+        ? protocol.missing
+        : step === 2
+          ? 'Escolha a equipe.'
+          : (protocol.missing ?? (!filesReady ? 'Volte à etapa 1: há arquivos com problema.' : 'Escolha a equipe na etapa 3.'));
   const advance = () => {
     if (!nextReady || busy || locked) return;
     setError(null);
@@ -449,6 +473,11 @@ export function NewTranslation({
         <button type="button" className="ghost" disabled={busy} onClick={onCancel}>
           Cancelar
         </button>
+        {blocker && !busy && !locked && (
+          <p className="step-blocker" role="status">
+            {blocker}
+          </p>
+        )}
       </div>
     </div>
   );
