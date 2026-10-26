@@ -230,6 +230,19 @@ function NewBatch({
   const filesReady = valid.length > 0 && !tooMany && !tooBig;
   const ready = filesReady && protocol.ready && (isDirector || !!teamId);
   const nextReady = [filesReady, protocol.ready, isDirector || !!teamId, ready][step];
+  const blocker = nextReady
+    ? null
+    : step === 0
+      ? tooMany
+        ? `Um envio aceita no máximo ${limits.maxBatchFiles} arquivos.`
+        : tooBig
+          ? `O envio passa de ${limits.maxBatchMb} MB.`
+          : 'Escolha pelo menos um arquivo válido.'
+      : step === 1
+        ? protocol.missing
+        : step === 2
+          ? 'Escolha a equipe.'
+          : (protocol.missing ?? (!filesReady ? 'Volte à etapa 1: há arquivos com problema.' : 'Escolha a equipe na etapa 3.'));
   const advance = () => {
     if (!nextReady || busy) return;
     setError(null);
@@ -497,6 +510,11 @@ function NewBatch({
         <button type="button" className="ghost" disabled={busy} onClick={onCancel}>
           Cancelar
         </button>
+        {blocker && !busy && (
+          <p className="step-blocker" role="status">
+            {blocker}
+          </p>
+        )}
       </div>
     </form>
   );

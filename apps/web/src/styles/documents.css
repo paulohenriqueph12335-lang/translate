@@ -75,6 +75,24 @@
     @apply gap-4;
   }
 
+  /* O que falta para continuar, ao lado dos botões: o botão apagado sozinho não explica. */
+  .step-blocker {
+    @apply m-0 flex items-center gap-2;
+    flex-basis: 100%;
+    color: var(--warn);
+    font-size: 0.875rem;
+    font-weight: 560;
+  }
+
+  .step-blocker::before {
+    content: '';
+    flex: none;
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
   .doc-form-footer {
     @apply mt-1 flex flex-wrap items-center gap-2 pt-4;
     border-top: 1px solid var(--rule);
