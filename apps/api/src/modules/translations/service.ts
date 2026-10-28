@@ -1,3 +1,4 @@
+import { insertDraft, learnMemory, sealJson } from '@tradutor/core/crypto';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -168,8 +169,8 @@ const JOB_SELECT = `
          (SELECT edition FROM sworn_translator_masks WHERE id = j.mask_id) AS mask_edition,
          (SELECT nr.id FROM numbering_requests nr WHERE nr.job_id = j.id AND nr.status = 'pending') AS pending_request_id,
          to_char(j.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
-         (SELECT count(*)::int FROM jsonb_array_elements(r.issues) i WHERE i->>'severity' = 'error') AS error_count,
-         (SELECT count(*)::int FROM jsonb_array_elements(r.issues)) AS issue_count,
+         r.error_count,
+         r.issue_count,
          greatest(1,coalesce(est.seconds * greatest(coalesce(j.page_count, 1), 1), 300 + 120 * greatest(coalesce(j.page_count, 1), 1))::int) AS estimated_seconds,
          coalesce(est.samples, 0)::int AS estimate_samples,
          (b.inspection_mode = 'all' OR d.id IN (
@@ -655,13 +656,7 @@ export function createTranslationService({
         await glossaryFor(db, row),
         await loadRules(db, row.translation_mode, row.target_language),
       );
-      await db.query(`INSERT INTO translation_drafts(job_id,revision,content,issues,origin,author_id) VALUES($1,$2,$3,$4,'human',$5)`, [
-        jobId,
-        revisionNumber,
-        JSON.stringify(content),
-        JSON.stringify(issues),
-        ctx.actor.id,
-      ]);
+      await insertDraft(db, { jobId, revision: revisionNumber, content, issues, origin: 'human', authorId: ctx.actor.id });
       const registered = await db.query<{ id: string }>(
         `INSERT INTO translation_format_registrations(job_id,generation,name,explanation,source_revision,revision,draft,registered_by)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
@@ -672,7 +667,7 @@ export function createTranslationService({
           input.explanation.trim(),
           input.baseRevision,
           revisionNumber,
-          JSON.stringify(content),
+          sealJson(content),
           ctx.actor.id,
         ],
       );
@@ -988,7 +983,7 @@ export function createTranslationService({
     await loadJob(pool, ctx, jobId);
     const result = await pool.query<{ revision: number; origin: string; created_at: Date; author_name: string | null; errors: number }>(
       `SELECT r.revision, r.origin, r.created_at, u.display_name AS author_name,
-              (SELECT count(*)::int FROM jsonb_array_elements(r.issues) i WHERE i->>'severity' = 'error') AS errors
+              r.error_count AS errors
          FROM translation_drafts r LEFT JOIN users u ON u.id = r.author_id
         WHERE r.job_id = $1 ORDER BY r.revision DESC`,
       [jobId],
@@ -1027,10 +1022,7 @@ export function createTranslationService({
       const rules = await loadRules(db, row.translation_mode, row.target_language);
       const issues = checkDraft(input.draft, row.extracted_text, await glossaryFor(db, row), rules);
       const next = (row.current_revision ?? 0) + 1;
-      await db.query(
-        `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, author_id) VALUES ($1, $2, $3, $4, 'human', $5)`,
-        [jobId, next, JSON.stringify(input.draft), JSON.stringify(issues), ctx.actor.id],
-      );
+      await insertDraft(db, { jobId, revision: next, content: input.draft, issues, origin: 'human', authorId: ctx.actor.id });
       await db.query(
         `UPDATE translation_jobs SET current_revision = $2, source_title = nullif($3, ''), document_type = nullif($4, ''), updated_at = now()
           WHERE id = $1`,
@@ -1069,11 +1061,15 @@ export function createTranslationService({
     const issues = checkDraft(review.draft, row.extracted_text, glossary, rules);
     if (!review.corrections.length) return { revision: row.current_revision, corrections: [], unresolved: review.unresolved, issues };
     const next = (row.current_revision ?? 0) + 1;
-    await db.query(
-      `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, author_id, corrections)
-       VALUES ($1, $2, $3, $4, 'review', $5, $6)`,
-      [row.id, next, JSON.stringify(review.draft), JSON.stringify(issues), ctx.actor.id, JSON.stringify(review.corrections)],
-    );
+    await insertDraft(db, {
+      jobId: row.id,
+      revision: next,
+      content: review.draft,
+      issues,
+      origin: 'review',
+      authorId: ctx.actor.id,
+      corrections: review.corrections,
+    });
     await db.query(`UPDATE translation_jobs SET current_revision = $2, document_type = nullif($3, ''), updated_at = now() WHERE id = $1`, [
       row.id,
       next,
@@ -1669,21 +1665,12 @@ export function createTranslationService({
         // Memória de tradução (ADR-008): só aprende com aprovações sem justificativa de exceção.
         if (!errors.length) {
           const pairs = memoryPairs(content);
-          if (pairs.size) {
-            await db.query(
-              `INSERT INTO translation_memory (source_language, target_language, source_text, target_text, last_job_id)
-               SELECT $1, $2, pair.source, pair.target, $3 FROM jsonb_to_recordset($4::jsonb) AS pair(source text, target text)
-               ON CONFLICT (source_language, target_language, source_text)
-               DO UPDATE SET target_text = EXCLUDED.target_text, last_job_id = EXCLUDED.last_job_id,
-                             uses = translation_memory.uses + 1, updated_at = now()`,
-              [
-                row.source_language,
-                row.target_language,
-                row.id,
-                JSON.stringify([...pairs].map(([source, target]) => ({ source: source.slice(0, 4000), target: target.slice(0, 8000) }))),
-              ],
-            );
-          }
+          await learnMemory(db, {
+            sourceLanguage: row.source_language,
+            targetLanguage: row.target_language,
+            jobId: row.id,
+            pairs: [...pairs].map(([source, target]) => [source.slice(0, 4000), target.slice(0, 8000)] as const),
+          });
         }
         await audit(db, ctx, row, 'translation.approved', {
           revision: row.current_revision,

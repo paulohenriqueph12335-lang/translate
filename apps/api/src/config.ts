@@ -1,3 +1,4 @@
+import { withFileSecrets } from '@tradutor/core/crypto';
 import { z } from 'zod';
 
 const booleanFlag = z
@@ -60,4 +61,5 @@ const schema = z.object({
 
 export type Config = z.infer<typeof schema>;
 
-export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => schema.parse(env);
+/** Segredos podem vir de arquivo (`NOME_FILE`), como os segredos do Docker e do Kubernetes (ADR-032). */
+export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => schema.parse(withFileSecrets(env));

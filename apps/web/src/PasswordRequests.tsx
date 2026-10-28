@@ -65,7 +65,12 @@ export function PasswordRequests({ isDirector, onChange }: { isDirector: boolean
               {item.leaderUnlocks > 0 && (
                 <span className="muted small-text block-line">
                   Liberada pelo Líder {item.leaderUnlocks} de 3 vezes
-                  {item.accessExpiresAt ? `; o último acesso terminou em ${dateTime(item.accessExpiresAt)}` : ''}.
+                  {item.accessExpiresAt
+                    ? new Date(item.accessExpiresAt).getTime() > Date.now()
+                      ? `; o acesso atual vale até ${dateTime(item.accessExpiresAt)}`
+                      : `; o último acesso terminou em ${dateTime(item.accessExpiresAt)}`
+                    : ''}
+                  .
                 </span>
               )}
               {!item.authorizeAs && (

@@ -93,8 +93,52 @@ Com o Token do Diretor, a própria tela "Esqueci a senha" troca a senha na hora.
 
 ## Persistência e recuperação
 
-Volumes atuais: `postgres_data` e `object_storage_data`. Eles sobrevivem a `docker compose down`. Não existe rotina automatizada de backup/restore ainda. Antes de atualizar volumes com dados importantes, exporte cópia independente; a estratégia formal entra na fase 8.
+Volumes atuais: `postgres_data`, `object_storage_data` e `encryption_keys`. Eles sobrevivem a `docker compose down`. Não existe rotina automatizada de backup/restore ainda. Antes de atualizar volumes com dados importantes, exporte cópia independente; a estratégia formal entra na fase 8.
 
-## Segredos locais
+## Criptografia
 
-`.env` deve permanecer fora do Git. Os valores exemplo são públicos e não devem ser reutilizados em máquina compartilhada, rede ou implantação. Rotacione valores se houver exposição.
+Os documentos ficam cifrados em repouso (ADR-032): os arquivos no armazenamento e, no banco, o texto extraído, os rascunhos e a memória de tradução.
+
+Na primeira subida, o `migrate` cria a chave no volume `encryption_keys` e avisa no log. Faça uma cópia dela fora deste computador. **Sem a chave, os documentos e os backups não podem ser lidos.**
+
+```powershell
+docker compose run --rm migrate cat /run/tradutor-keys/encryption.keys
+```
+
+Guarde a saída num cofre de senhas ou num pendrive guardado à parte. Não guarde junto do backup do banco.
+
+**Para usar uma chave sua** (um cofre de segredos ou outro servidor), coloque em `ENCRYPTION_KEYS` no `.env` uma linha `id:base64` com 32 bytes. Ela tem prioridade sobre o arquivo do volume.
+
+**Para trocar a chave (rotação):**
+
+```powershell
+docker compose run --rm migrate pnpm --filter @tradutor/api encryption add-key
+docker compose up -d --force-recreate
+```
+
+A chave nova passa a ser a ativa. Na subida, o `migrate` recifra o banco e os arquivos com ela. A chave antiga fica no arquivo e só pode sair depois disso. Com `ENCRYPTION_KEYS`, use `encryption new-key` e cole a chave nova no início da variável.
+
+A cada subida, o `migrate` também cifra o que ainda estiver aberto, como os dados de antes desta versão. Pode ser repetido sem risco.
+
+## Segredos e novas instalações
+
+O `.env` deve ficar fora do Git. Os valores do `.env.example` são públicos e não devem ser usados em máquina compartilhada, rede ou implantação.
+
+**Para instalar o sistema em outro lugar**, gere um `.env` com segredos próprios:
+
+- senha do banco;
+- chaves do armazenamento;
+- chave de criptografia;
+- tokens do Diretor e do Líder daquela instalação.
+
+```powershell
+docker run --rm -v "${PWD}:/w" -w /w node:22-bookworm-slim node scripts/nova-instalacao.mjs
+```
+
+Os tokens aparecem uma vez na tela: anote. Com HTTPS, acrescente `--https`.
+
+O script recusa sobrescrever um `.env` existente. Trocar a senha do banco num volume que já existe não muda a senha dentro do PostgreSQL.
+
+**Cofre de segredos.** Cada segredo pode vir de um arquivo, com `NOME_FILE`, como `S3_SECRET_KEY_FILE` ou `DATABASE_URL_FILE`. Isso funciona com Docker secrets, Kubernetes secrets ou um cofre que monta arquivos. A chave de criptografia usa `ENCRYPTION_KEYS_FILE`.
+
+Se algum segredo vazar, troque-o. Para a chave de criptografia, faça a rotação acima.

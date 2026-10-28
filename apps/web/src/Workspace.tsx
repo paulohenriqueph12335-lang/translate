@@ -1,3 +1,4 @@
+import { shortcutProps } from './shortcuts';
 import { useState } from 'react';
 import {
   api,
@@ -60,7 +61,7 @@ export function Workspace({
     <div className="analytics-view workspace-view">
       <Section title="Meu workspace" subtitle="Seus documentos, o que espera por você e o que a equipe pode assumir.">
         <div className="stat-row">
-          <button className="card stat-tile action-tile" onClick={onUpload}>
+          <button className="card stat-tile action-tile" {...shortcutProps('N')} data-shortcut-label="Nova tradução" onClick={onUpload}>
             <span className="muted small-text">Começar</span>
             <strong>Nova tradução</strong>
             <span className="muted small-text">PDF, DOCX, PPTX ou imagem</span>

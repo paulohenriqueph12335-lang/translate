@@ -62,8 +62,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      object-storage:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-tradutor}:${POSTGRES_PASSWORD:-dev-only-change-me}@postgres:5432/${POSTGRES_DB:-tradutor}
+      # Criptografia em repouso (ADR-032): sem ENCRYPTION_KEYS, a chave fica no volume encryption_keys, criada na primeira vez.
+      ENCRYPTION_KEYS: ${ENCRYPTION_KEYS:-}
+      ENCRYPTION_KEYS_FILE: /run/tradutor-keys/encryption.keys
+      # O migrate cifra o que ainda estiver aberto no armazenamento.
+      S3_ENDPOINT: http://object-storage:8333
+      S3_BUCKET: ${S3_BUCKET:-documents}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-tradutor-local}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-dev-only-change-this-s3-secret}
+    volumes:
+      - encryption_keys:/run/tradutor-keys
     command: ["pnpm", "--filter", "@tradutor/api", "migrate"]
     restart: "no"
 
@@ -93,8 +106,12 @@ services:
       # Tokens fixos do Diretor e do Líder (ADR-031). Vazios, valem os tokens entregues com o sistema.
       DIRECTOR_TOKEN: ${DIRECTOR_TOKEN:-}
       LEADER_TOKEN: ${LEADER_TOKEN:-}
+      ENCRYPTION_KEYS: ${ENCRYPTION_KEYS:-}
+      ENCRYPTION_KEYS_FILE: /run/tradutor-keys/encryption.keys
       # Word → PDF para ver e baixar a prévia e a tradução em PDF (ADR-017).
       CONVERTER_URL: http://converter:3000
+    volumes:
+      - encryption_keys:/run/tradutor-keys:ro
     ports:
       - "127.0.0.1:${API_PORT:-3000}:3000"
     depends_on:
@@ -125,6 +142,10 @@ services:
       LIBRETRANSLATE_URL: http://translator:5000
       DEEPL_API_KEY: ${DEEPL_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ENCRYPTION_KEYS: ${ENCRYPTION_KEYS:-}
+      ENCRYPTION_KEYS_FILE: /run/tradutor-keys/encryption.keys
+    volumes:
+      - encryption_keys:/run/tradutor-keys:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -152,3 +173,5 @@ volumes:
   postgres_data:
   object_storage_data:
   translator_models:
+  # Chave de criptografia em repouso (ADR-032). Faça uma cópia fora deste computador.
+  encryption_keys:

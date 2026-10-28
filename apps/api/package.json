@@ -9,6 +9,7 @@
     "lint": "prettier --check src package.json tsconfig.json",
     "test": "node --env-file-if-exists=../../.env --import tsx --test \"src/**/*.test.ts\"",
     "migrate": "tsx src/scripts/migrate.ts",
+    "encryption": "tsx src/scripts/encryption.ts",
     "bootstrap:director": "tsx src/scripts/bootstrap-director.ts"
   },
   "dependencies": {

@@ -31,6 +31,7 @@ Decisões que mudam limites, dependências ou operação ficam registradas como 
 - [ADR-029 — Notificações por interesse, canal e responsabilidade](029-smart-notifications.md)
 - [ADR-030 — Tipos documentais e isolamento das tentativas de processamento](030-document-categories-and-queue-fencing.md)
 - [ADR-031 — Tokens fixos, recuperação de senha, conclusão pelo responsável e nomes no ZIP](031-tokens-recovery-conclusion.md)
+- [ADR-032 — Criptografia em repouso, gestão de segredos e instalação em outros lugares](032-encryption-at-rest.md)
 
 ## Modelo para novas decisões
 

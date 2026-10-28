@@ -1528,3 +1528,84 @@
     }
   }
 }
+
+/* Atalhos de teclado: dica ao passar o mouse e lista (tecla ?). */
+@layer components {
+  .shortcut-tip {
+    @apply pointer-events-none fixed flex items-center gap-2;
+    z-index: calc(var(--layer-popover) + 10);
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8125rem;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-control);
+    box-shadow: var(--shadow-window);
+    transform: translateX(-50%);
+    white-space: nowrap;
+    animation: fade-in var(--duration-fast) var(--ease-out) both;
+  }
+  .shortcut-tip.right {
+    transform: translateY(-50%);
+  }
+  .shortcut-tip-label {
+    font-weight: 600;
+  }
+  .keys {
+    @apply inline-flex items-center gap-1;
+  }
+  .keys > span {
+    @apply inline-flex items-center gap-1;
+  }
+  .keys kbd {
+    min-width: 1.5rem;
+    text-align: center;
+    color: var(--ink-2);
+  }
+  .keys-joiner {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .shortcuts-dialog {
+    padding: 1.25rem 1.5rem 1.5rem;
+    overflow-y: auto;
+  }
+  .shortcuts-head {
+    @apply flex items-center justify-between gap-4;
+  }
+  .shortcuts-head h2 {
+    @apply m-0;
+    font-size: 1.25rem;
+  }
+  .shortcuts-note {
+    margin: 0.5rem 0 1rem;
+  }
+  .shortcuts-body {
+    @apply grid gap-6;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  }
+  .shortcuts-body h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+  .shortcuts-body dl {
+    @apply m-0 grid;
+  }
+  .shortcuts-body dl > div {
+    @apply flex items-center justify-between gap-4;
+    padding: 0.4375rem 0;
+    border-top: 1px solid var(--rule);
+  }
+  .shortcuts-body dt {
+    font-size: 0.875rem;
+  }
+  .shortcuts-body dd {
+    @apply m-0;
+  }
+  @media (hover: none) {
+    .shortcut-tip {
+      display: none;
+    }
+  }
+}

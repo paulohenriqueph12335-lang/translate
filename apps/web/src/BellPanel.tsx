@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api, notificationKindLabel, type NotificationItem, type Page } from './api';
 import { Icon } from './icons';
+import { shortcutProps } from './shortcuts';
 import { LoadingHint, message } from './ui';
+
+/** Evento do atalho B: abre ou fecha o sino. */
+export const BELL_TOGGLE = 'tradutor:bell-toggle';
 
 /** Assuntos que pedem uma ação de quem recebe; o resto é atualização. */
 const NEEDS_ACTION = new Set([
@@ -51,6 +55,11 @@ export function BellPanel({
   onChange: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const toggle = () => setOpen((value) => !value);
+    window.addEventListener(BELL_TOGGLE, toggle);
+    return () => window.removeEventListener(BELL_TOGGLE, toggle);
+  }, []);
   const [tab, setTab] = useState<'need' | 'updates'>('need');
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +124,8 @@ export function BellPanel({
         aria-label={unread ? `Notificações, ${unread} novas` : 'Notificações'}
         aria-haspopup="dialog"
         aria-expanded={open}
+        {...shortcutProps('B')}
+        data-shortcut-label="Notificações"
         onClick={() => setOpen((value) => !value)}
       >
         <Icon name="bell" />

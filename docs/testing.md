@@ -55,9 +55,9 @@ Na mesma data, um ensaio local de migração partiu do schema até `0024`, com t
 
 Depois dos tokens fixos, da recuperação de senha, da conclusão pelo responsável, dos nomes no ZIP e da atualização de Fastify, Zod, Vite e do SDK da AWS (ADR-031):
 
-- API: 324 aprovados. Inclui `password-recovery.integration.test.ts` com 7 casos e `archive-names.test.ts`.
-- Core: 73 aprovados e 1 pulado (o provedor real, que é opt-in).
-- Web: 25 aprovados.
+- API: 324 aprovados. Inclui `password-recovery.integration.test.ts` com 7 casos e `archive-names.test.ts`. A fase 3 confere que o texto extraído, o rascunho e a memória ficam cifrados no banco.
+- Core: 81 aprovados e 1 pulado (o provedor real, que é opt-in). Inclui `crypto/values.test.ts` e `crypto/at-rest.integration.test.ts`, que cobre arquivos cifrados no SeaweedFS, dados antigos cifrados pelo migrate e rotação de chave (ADR-032).
+- Web: 26 aprovados, com os atalhos de teclado.
 - `pnpm audit --prod` não encontrou vulnerabilidades.
 
 ### Registro final de QA automatizado — 24/10/2026

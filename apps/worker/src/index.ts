@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { configureEncryption, loadKeyring, withFileSecrets } from '@tradutor/core/crypto';
 import { createPool } from '@tradutor/core/db';
 import { processNextJob, recordHeartbeat } from '@tradutor/core/processing';
 import { createS3Storage } from '@tradutor/core/storage';
@@ -32,7 +33,10 @@ const config = z
       .optional()
       .transform((value) => value || undefined),
   })
-  .parse(process.env);
+  .parse(withFileSecrets(process.env));
+
+// Documentos cifrados em repouso (ADR-032): sem as chaves, o worker não sobe.
+configureEncryption(loadKeyring(process.env));
 
 const silent = config.LOG_LEVEL === 'silent';
 const log = (level: 'info' | 'warn' | 'error', message: string, details: Record<string, unknown> = {}) => {

@@ -165,7 +165,7 @@ export const TUTORIAL: TutorialSectionData[] = [
   {
     key: 'navigate',
     title: 'Navegar pelo sistema',
-    summary: 'Menu, pesquisa com Ctrl+K, sino de avisos, tema claro ou escuro e o uso no celular.',
+    summary: 'Menu, pesquisa com Ctrl+K, atalhos de teclado, sino de avisos, tema claro ou escuro e o uso no celular.',
     roles: ['user', 'leader', 'director'],
     body: () => (
       <>
@@ -187,7 +187,26 @@ export const TUTORIAL: TutorialSectionData[] = [
               <strong>Lua / sol</strong>: troca entre o tema claro e o escuro. A escolha fica salva na sua conta.
             </li>
             <li>
-              <strong>Suas iniciais</strong>: o seu nome, o seu papel, Configurações e Sair.
+              <strong>Suas iniciais</strong>: o seu nome, o seu papel, Configurações, Atalhos de teclado e Sair.
+            </li>
+          </ul>
+          <p>
+            <strong>Atalhos de teclado</strong> têm no máximo duas teclas. Passe o mouse numa ação para ver o atalho dela. Os principais:
+          </p>
+          <ul className="tutorial-list">
+            <li>
+              <kbd>G</kbd> e depois a letra da área: <kbd>I</kbd> Início, <kbd>T</kbd> Traduções, <kbd>E</kbd> Equipe, <kbd>A</kbd> Ajustes,{' '}
+              <kbd>D</kbd> Administração, <kbd>H</kbd> Meu histórico, <kbd>N</kbd> Notificações, <kbd>U</kbd> Tutorial, <kbd>C</kbd>{' '}
+              Configurações e <kbd>Z</kbd> Entregas e ZIP.
+            </li>
+            <li>
+              <kbd>N</kbd> Nova tradução, <kbd>/</kbd> ou <kbd>Ctrl</kbd> + <kbd>K</kbd> pesquisa, <kbd>B</kbd> sino e <kbd>T</kbd> tema.
+            </li>
+            <li>
+              <kbd>[</kbd> e <kbd>]</kbd> trocam de aba. Na revisão, <kbd>Ctrl</kbd> + <kbd>S</kbd> salva as alterações.
+            </li>
+            <li>
+              <kbd>?</kbd> mostra a lista completa. Os atalhos de uma tecla não valem enquanto você digita num campo.
             </li>
           </ul>
         </Theory>
@@ -198,6 +217,9 @@ export const TUTORIAL: TutorialSectionData[] = [
               para escolher. <kbd>Enter</kbd> abre e <kbd>Esc</kbd> fecha.
             </>,
             <>Clique no sino para ver o que precisa de você. Clicar numa notificação abre o documento e a marca como lida.</>,
+            <>
+              Aperte <kbd>?</kbd> para ver todos os atalhos. Experimente <kbd>G</kbd> e depois <kbd>T</kbd> para ir às traduções.
+            </>,
             <>No celular, as áreas principais ficam na barra de baixo; o restante (Notificações, Configurações, Sair) fica em Mais.</>,
           ]}
         />
@@ -212,7 +234,13 @@ export const TUTORIAL: TutorialSectionData[] = [
             alt="Painel de notificações aberto pelo sino"
             caption="O sino separa o que precisa de você das atualizações."
           />
-          <Figure src="conta" alt="Menu da conta aberto" caption="Menu da conta: quem está conectado, Configurações e Sair." />
+          <Figure src="conta" alt="Menu da conta aberto" caption="Menu da conta: quem está conectado, Configurações, atalhos e Sair." />
+          <Figure
+            src="atalho-dica"
+            alt="Dica de atalho ao passar o mouse no menu"
+            caption="Passe o mouse numa ação: a dica mostra o atalho."
+          />
+          <Figure src="atalhos" alt="Lista de atalhos de teclado" caption="A lista completa de atalhos, com a tecla ?." />
           <Figure src="tema-escuro" alt="Sistema no tema escuro" caption="O mesmo sistema no tema escuro." />
           <Figure
             src="celular"
@@ -461,6 +489,11 @@ export const TUTORIAL: TutorialSectionData[] = [
             <strong>Entregas e ZIP</strong> reúne as traduções concluídas e os documentos enviados, sempre ligados entre si. Cada tradução
             tem os botões para salvar o Word e o PDF. Para várias de uma vez, o ZIP organiza os arquivos em pastas por protocolo, par de
             idiomas e formato.
+          </p>
+          <p>
+            No ZIP, cada arquivo leva o <strong>número da tradução e o protocolo</strong>, por exemplo "0012-2026 – ABC-1". Sem número, leva
+            o protocolo e a referência da tradução, como "ABC-1 – Tradução 7"; sem os dois, só "Tradução 7". Para achar depois, pesquise
+            "Tradução 7" (ou só "7") nas listas e na pesquisa.
           </p>
         </Theory>
         <Practice
@@ -728,9 +761,87 @@ export const TUTORIAL: TutorialSectionData[] = [
             </>,
           ]}
         />
+        <Tip>
+          Os documentos ficam guardados cifrados: os arquivos, o texto lido dos originais e os rascunhos. Quem copiar o banco ou o
+          armazenamento sem a chave do sistema não consegue lê-los. Dentro do sistema, cada pessoa só vê o que a equipe dela pode ver, e
+          cada download fica registrado.
+        </Tip>
         <div className="tutorial-figures">
           <Figure src="notificacoes" alt="Tela de notificações" caption="Notificações: não lidas em destaque, com filtros." />
           <Figure src="configuracoes" alt="Configurações da conta" caption="Configurações: avisos e aparência." />
+        </div>
+      </>
+    ),
+  },
+  {
+    key: 'password',
+    title: 'Esqueci a senha',
+    summary: 'Pedir uma senha nova e, para a liderança, autorizar com o token.',
+    roles: ['user', 'leader', 'director'],
+    body: (role) => (
+      <>
+        <Theory>
+          <p>
+            O sistema não manda e-mail. Quem esqueceu a senha escolhe uma nova na entrada, e uma pessoa da liderança confirma quem pediu e
+            autoriza:
+          </p>
+          <ul className="tutorial-list">
+            <li>
+              <strong>Líder da equipe</strong>: libera a senha nova por <strong>24 horas</strong>, com o Token do Líder. Pode liberar até 3
+              vezes seguidas. Depois das 24 horas, a entrada é bloqueada até nova liberação.
+            </li>
+            <li>
+              <strong>Diretor</strong>: autoriza a senha nova de vez, com o Token do Diretor. Depois de 3 liberações do Líder, só o Diretor
+              troca a senha.
+            </li>
+          </ul>
+          {role !== 'user' && (
+            <p>
+              Os pedidos aparecem no sino e em <strong>Equipe › Pedidos de senha</strong>. Confirme com a pessoa, por telefone ou
+              pessoalmente, antes de autorizar: quem tem o pedido aprovado entra com a senha que escolheu.
+            </p>
+          )}
+        </Theory>
+        <Practice
+          steps={[
+            <>
+              Na entrada, clique em <strong>Esqueci a senha</strong>, digite o seu e-mail e a senha nova duas vezes e use{' '}
+              <strong>Pedir senha nova</strong>.
+            </>,
+            <>Avise o Líder da sua equipe ou o Diretor. Quando autorizarem, entre com a senha nova.</>,
+            <>
+              Se o Líder liberou, um aviso no topo mostra até quando o acesso vale. Para voltar ao acesso normal, peça uma senha nova e que
+              o Diretor autorize.
+            </>,
+            ...(role === 'user'
+              ? []
+              : [
+                  <>
+                    Para autorizar, abra <strong>Equipe › Pedidos de senha</strong>, clique em{' '}
+                    <strong>{role === 'director' ? 'Autorizar' : 'Liberar 24 h'}</strong>, digite o seu token e confirme. Para negar, use{' '}
+                    <strong>Recusar</strong>.
+                  </>,
+                ]),
+            ...(role === 'director'
+              ? [
+                  <>
+                    Se você é Diretor e esqueceu a sua senha, abra <strong>Tenho o Token do Diretor</strong> na tela Esqueci a senha: com o
+                    token, a senha nova vale na hora.
+                  </>,
+                ]
+              : []),
+          ]}
+        />
+        <div className="tutorial-figures">
+          <Figure src="esqueci-senha" alt="Tela Esqueci a senha" caption="Esqueci a senha: e-mail e a senha nova, duas vezes." />
+          {role !== 'user' && (
+            <Figure src="pedidos-senha" alt="Pedidos de senha na tela Equipe" caption="Pedidos de senha: liberar, autorizar ou recusar." />
+          )}
+          <Figure
+            src="acesso-temporario"
+            alt="Aviso de acesso liberado pelo Líder"
+            caption="Liberado pelo Líder: o aviso mostra até quando o acesso vale."
+          />
         </div>
       </>
     ),
@@ -742,6 +853,20 @@ export const TUTORIAL: TutorialSectionData[] = [
     roles: ['user', 'leader', 'director'],
     body: (role) => (
       <dl className="tutorial-faq">
+        <div>
+          <dt>Aparece "O acesso liberado pelo Líder terminou"</dt>
+          <dd>
+            A senha liberada pelo Líder vale 24 horas. Peça uma senha nova em <strong>Esqueci a senha</strong>. Depois de 3 liberações
+            seguidas, só o Diretor autoriza.
+          </dd>
+        </div>
+        <div>
+          <dt>Aparece "Token incorreto"</dt>
+          <dd>
+            Confira o token do seu papel: o Líder usa o Token do Líder, e o Diretor, o Token do Diretor. Maiúsculas, espaços e hífens não
+            importam. Errar muitas vezes bloqueia novas tentativas por alguns minutos.
+          </dd>
+        </div>
         <div>
           <dt>Aparece "Tradução automática indisponível"</dt>
           <dd>

@@ -4,6 +4,9 @@ import type { Pool } from 'pg';
 import { recordAudit } from '../db/audit.js';
 import { notify } from '../db/notifications.js';
 import { withTransaction, type Queryable } from '../db/pool.js';
+import { insertDraft } from '../crypto/drafts.js';
+import { lookupMemory } from '../crypto/memory.js';
+import { sealNullable } from '../crypto/values.js';
 import type { ObjectStorage } from '../storage/object-storage.js';
 import type { GlossaryTerm } from '../translation/checks.js';
 import type { Draft, Language } from '../translation/draft.js';
@@ -225,14 +228,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
   const extraction = await extractFile(data, format, job.source_language);
   const extractedText = extraction?.hasTextLayer ? extraction.text : null;
   // Memória de tradução (ADR-008): trechos aprovados antes, usados com ou sem provedor.
-  const memory: MemoryLookup = async (segments) => {
-    const rows = await pool.query<{ source_text: string; target_text: string }>(
-      `SELECT source_text, target_text FROM translation_memory
-        WHERE source_language = $1 AND target_language = $2 AND source_text = ANY($3::text[])`,
-      [job.source_language, job.target_language, segments],
-    );
-    return new Map(rows.rows.map((row) => [row.source_text, row.target_text]));
-  };
+  const memory: MemoryLookup = (segments) => lookupMemory(pool, job.source_language, job.target_language, segments);
 
   // Regras da modalidade e do idioma de destino (ADR-015): datas, números e marcadores de elementos visuais.
   const rules = await loadRules(pool, job.translation_mode ?? 'sworn', job.target_language);
@@ -330,10 +326,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
     // Outro worker assumiu o trabalho (lease vencido): descarta este resultado.
     if (!owned.rowCount) return false;
     const revision = owned.rows[0]!.next;
-    await db.query(
-      `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, corrections) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [job.id, revision, JSON.stringify(draft), JSON.stringify(issues), origin, JSON.stringify(corrections)],
-    );
+    await insertDraft(db, { jobId: job.id, revision, content: draft, issues, origin, corrections });
     await db.query(
       `UPDATE translation_jobs SET status = 'in_review', current_revision = $2, extracted_text = $3, source_title = nullif($4, ''),
               assist_notice = $5, pattern_known = $6, document_type = nullif($7, ''), failure_code = NULL,
@@ -345,7 +338,7 @@ async function processJob(deps: ProcessingDeps, job: ClaimedJob) {
       [
         job.id,
         revision,
-        extractedForReview,
+        sealNullable(extractedForReview),
         draft.sourceTitle,
         notice,
         patternKnown,

@@ -1,3 +1,4 @@
+import { lookupMemory } from '@tradutor/core/crypto';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, describe, it } from 'node:test';
@@ -140,6 +141,13 @@ describe('início e rascunho', () => {
     assert.equal(response.body.translation.permissions.approve, true);
     assert.equal(response.body.translation.permissions.authorizeNumbering, false);
     assert.match(response.body.frame.draftMark, /DRAFT/);
+    // No banco, o texto extraído e o rascunho ficam cifrados (ADR-032); a API devolve abertos.
+    const stored = await pool.query<{ text: string; content: boolean; issues: boolean }>(
+      `SELECT left(j.extracted_text, 7) AS text, r.content ? '$enc' AS content, r.issues ? '$enc' AS issues
+         FROM translation_jobs j JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision WHERE j.id = $1`,
+      [ids.job],
+    );
+    assert.deepEqual(stored.rows[0], { text: 'enc:v1:', content: true, issues: true });
     assert.equal(await processNextJob(processing()), false);
   });
 
@@ -458,10 +466,10 @@ describe('tradução automática gratuita (ADR-008)', () => {
       [],
     );
     assert.equal((await translator.conclude(c.lider!, firstJob)).status, 200);
-    const learned = await pool.query<{ target_text: string }>(
-      `SELECT target_text FROM translation_memory WHERE source_language = 'pt' AND target_language = 'en' AND source_text = 'HISTÓRICO ESCOLAR'`,
-    );
-    assert.equal(learned.rows[0]?.target_text, 'SCHOOL TRANSCRIPT');
+    // A memória guarda cifrado (ADR-032) e acha o trecho pelo índice cego.
+    assert.equal((await lookupMemory(pool, 'pt', 'en', ['HISTÓRICO ESCOLAR'])).get('HISTÓRICO ESCOLAR'), 'SCHOOL TRANSCRIPT');
+    const stored = await pool.query<{ prefix: string }>(`SELECT left(source_text, 7) AS prefix FROM translation_memory LIMIT 1`);
+    assert.equal(stored.rows[0]!.prefix, 'enc:v1:');
 
     fakeMachine.calls.length = 0;
     const second = await autoDocument('gratuito-2.pdf', 'free2');

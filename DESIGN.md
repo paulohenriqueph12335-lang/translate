@@ -8,12 +8,17 @@ O produto e seus papéis estão em [PRODUCT.md](PRODUCT.md). O contrato visual e
 
 - **Menu lateral grafite fixo** (15,5rem), com os grupos Visão geral, Operação e Gestão. Cada área tem um ícone de traço fino. A área ativa tem fundo grafite claro e ícone azul-aço. "Minha conta" (Notificações, Configurações e Sair) fica no pé do menu.
 - **Barra superior compacta**:
-  - pesquisa global (**Ctrl+K** ou ⌘K), que abre a paleta de telas e documentos;
+  - pesquisa global (**Ctrl+K**, ⌘K ou **/**), que abre a paleta de telas e documentos;
   - sino com painel suspenso, em duas abas: "Precisa de você" e "Atualizações", com link para a lista completa;
   - alternância de tema;
   - menu da conta: nome, e-mail, papel, Configurações e Sair.
 - **Celular** (até 800px): o menu lateral dá lugar a uma barra inferior com três áreas e "Mais". "Mais" abre uma folha com as demais áreas, Notificações, Configurações e Sair. A pesquisa vira um ícone na barra superior.
 - **Carregando**: uma linha fina sob a barra superior, sem caixa, aparece enquanto há requisições visíveis. A consulta periódica de notificações não aciona a linha. Onde antes havia "Carregando…", fica um indicativo pequeno de três pontos, com `role="status"`.
+- **Atalhos de teclado** (`shortcuts.tsx`): no máximo duas teclas.
+  - **G** e depois a letra da área: I, T, H, E, A, D, N, U, C e Z.
+  - **N** para Nova tradução, **B** para o sino, **T** para o tema, **[** e **]** para trocar de aba.
+  - **Ctrl+S** salva na revisão; **?** mostra a lista.
+  - Ao passar o mouse ou focar uma ação com atalho, uma dica mostra as teclas. No menu lateral, a dica fica ao lado.
 - **Ajustes, Administração, Tutorial e Configurações** usam um menu secundário à esquerda. As demais áreas usam abas com sublinhado que desliza.
 - **Tutorial** (em "Minha conta", para todos os papéis): uma seção por assunto, com "Para que serve", passos numerados, fotos reais das telas (`apps/web/public/tutorial/`) e o botão "Abrir esta tela". As seções seguem o papel da pessoa.
 
@@ -124,6 +129,7 @@ Componentes de estrutura:
 
 - `icons.tsx`: ícones de traço fino;
 - `CommandPalette.tsx`: Ctrl+K;
+- `shortcuts.tsx` e `shortcut-keys.ts`: atalhos, dica e lista de atalhos;
 - `BellPanel.tsx`: sino;
 - `LoadingLine` e `LoadingHint` em `ui.tsx`;
 - `FlowGlyph` em `Flow.tsx`;
