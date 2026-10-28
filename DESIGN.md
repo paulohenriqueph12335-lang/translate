@@ -94,8 +94,11 @@ Uma família só: **Schibsted Grotesk Variable**, instalada como dependência lo
   - título grande e a linha do fluxo com a etapa atual em azul-aço;
   - original e Word lado a lado, com a moldura da própria folha;
   - módulos recolhíveis com seta que gira;
-  - entrega final em fundo azul-aço suave.
+  - entrega final em fundo azul-aço suave;
+  - barra **Próximo passo** (`NextStepBar.tsx`) presa no pé da tela, com filete azul-aço. Ela mostra a etapa atual, o que falta e as ações: conferência, Reprovar…, Aprovar e concluir, Concluir, Assumir, Salvar e baixar o Word final. Os botões que levam a outra parte da tela rolam até ela.
 - **Nova tradução**: quatro etapas numeradas, ligadas por uma linha. A sequência é real.
+  - Os botões Voltar, Continuar e Cancelar ficam presos no pé da tela, com "Etapa X de 4" e o que falta.
+  - A cada etapa, a tela volta para o topo do formulário e o foco vai para a etapa atual.
 - **Notificações**: lista corrida. As não lidas levam um ponto azul-aço e título mais forte.
 - **Entrada**: tela dividida. A metade da marca, em grafite, traz o nome, a frase do produto e a linha do fluxo. A outra metade traz o formulário na mesa.
 

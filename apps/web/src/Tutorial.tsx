@@ -285,6 +285,11 @@ export const TUTORIAL: TutorialSectionData[] = [
             O <strong>protocolo</strong> identifica a remessa: ele entra no começo do nome dos arquivos de Word e PDF e pode ser pesquisado
             depois. Se a remessa não tem protocolo, marque a opção e escreva o motivo.
           </p>
+          <p>
+            Os botões <strong>Voltar</strong>, <strong>Continuar</strong> e <strong>Cancelar</strong> ficam presos no pé da tela, com a
+            etapa em que você está (por exemplo, "Etapa 2 de 4") e o que falta para continuar. A cada etapa, a tela volta sozinha para o
+            topo do formulário, já na etapa nova.
+          </p>
         </Theory>
         <Practice
           title="Na prática: as quatro etapas"
@@ -309,6 +314,7 @@ export const TUTORIAL: TutorialSectionData[] = [
             </>,
           ]}
         />
+        <Tip>Se Continuar estiver apagado, leia a linha logo abaixo dos botões: ela diz o que falta nesta etapa.</Tip>
         <Tip>
           Remessas com 20 arquivos ou mais pedem que você escolha a inspeção: de todos os documentos ou de uma amostra com os 10 primeiros.
         </Tip>
@@ -375,17 +381,27 @@ export const TUTORIAL: TutorialSectionData[] = [
             diagramação ou revisão) e escreva um comentário. Depois de três reprovações seguidas, o sistema bloqueia novas tentativas até
             alguém registrar uma nova forma de formatação.
           </p>
+          <p>
+            A barra <strong>Próximo passo</strong>, presa no pé da tela, acompanha você enquanto compara. Ela mostra a etapa atual (por
+            exemplo, "Etapa 4 de 6 · Prévia em Word"), o que falta e os botões que levam adiante: a caixa{' '}
+            <strong>Comparei o original e o Word</strong>, <strong>Reprovar…</strong> e <strong>Aprovar e concluir</strong>. Quando a
+            tradução está pronta, ela mostra <strong>Concluir</strong>; depois de concluída, os botões para baixar o Word e o PDF.
+          </p>
         </Theory>
         <Practice
           steps={[
-            <>Abra a tradução e compare o original com o Word, página por página.</>,
+            <>Abra a tradução e compare o original com o Word, página por página. Não precisa rolar até o fim para agir.</>,
             <>
-              Se estiver certo, marque <strong>Comparei o original e o Word desta revisão</strong> e use <strong>Aprovar e concluir</strong>
-              . Em seguida, escolha como concluir (veja Concluir e numerar).
+              Se estiver certo, marque <strong>Comparei o original e o Word</strong> na barra Próximo passo e use{' '}
+              <strong>Aprovar e concluir</strong>. Em seguida, escolha como concluir (veja Concluir e numerar).
             </>,
             <>
-              Se algo estiver errado, use <strong>Reprovar e indicar as fases com falha</strong>, marque as fases e escreva o que precisa
-              mudar.
+              Se algo estiver errado, use <strong>Reprovar…</strong> na barra: a tela vai até a conferência, já com o formulário aberto.
+              Marque as fases e escreva o que precisa mudar.
+            </>,
+            <>
+              Se a barra mostrar "pontos para conferir", clique no aviso para ver a lista. Com alterações não salvas, a barra mostra{' '}
+              <strong>Salvar alterações</strong> (ou use <kbd>Ctrl</kbd> + <kbd>S</kbd>).
             </>,
             <>
               Para corrigir você mesmo, abra <strong>Ajustes manuais</strong>: editar o texto, confirmar o checklist das etapas, rodar a
@@ -399,8 +415,13 @@ export const TUTORIAL: TutorialSectionData[] = [
         </Tip>
         <Figure
           src="detalhe-topo"
-          alt="Topo da tradução com a linha do fluxo"
-          caption="O topo da tradução: título, situação, responsável e a linha do fluxo."
+          alt="Topo da tradução com a linha do fluxo e a barra Próximo passo"
+          caption="O topo da tradução: título, situação, responsável, a linha do fluxo e, no pé, a barra Próximo passo."
+        />
+        <Figure
+          src="proximo-passo"
+          alt="Barra Próximo passo durante a comparação"
+          caption="Comparando o original e o Word: a barra Próximo passo fica à vista, com a conferência e a aprovação."
         />
         <Figure src="comparacao" alt="Original e Word lado a lado" caption="Original e prévia em Word lado a lado, com páginas e zoom." />
         <Figure
@@ -456,7 +477,8 @@ export const TUTORIAL: TutorialSectionData[] = [
           steps={[
             <>Abra a tradução em Aguardando conclusão (fase 3. Aprovação, na lista de Traduções).</>,
             <>
-              Use <strong>Aprovar e concluir</strong> ou, em Ajustes manuais, <strong>Concluir</strong>.
+              Use <strong>Concluir</strong> na barra Próximo passo, no pé da tela. A tela vai até o painel de conclusão. Também dá para usar{' '}
+              <strong>Aprovar e concluir</strong> ou, em Ajustes manuais, <strong>Concluir</strong>.
             </>,
             <>Na juramentada, escolha com ou sem tradutor; com tradutor, confira o número, o livro e a folha sugeridos.</>,
             <>

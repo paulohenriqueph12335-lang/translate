@@ -93,9 +93,30 @@
     background: currentColor;
   }
 
+  /* Botões de cada etapa presos no pé da tela: ninguém precisa rolar para continuar. */
   .doc-form-footer {
-    @apply mt-1 flex flex-wrap items-center gap-2 pt-4;
+    @apply sticky bottom-0 mt-1 flex flex-wrap items-center gap-2 pt-3 pb-3;
+    z-index: calc(var(--layer-navigation) - 2);
+    background: var(--canvas);
     border-top: 1px solid var(--rule);
+  }
+
+  .doc-form-footer .step-count {
+    @apply mr-2 text-muted;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A cada etapa a tela volta para cá, logo abaixo da barra superior. */
+  .doc-setup-steps {
+    scroll-margin-top: 4.75rem;
+  }
+
+  @media (max-width: 800px) {
+    .doc-form-footer {
+      bottom: calc(3.875rem + env(safe-area-inset-bottom));
+    }
   }
 
   /* Área de arrastar: a única moldura tracejada do envio, porque é um alvo. */
@@ -1148,6 +1169,47 @@
   @media (prefers-reduced-motion: reduce) {
     details.doc-module[open] > :not(summary) {
       animation: none;
+    }
+  }
+}
+
+/* Próximo passo: presa no pé da tela da tradução, com a etapa atual, o que falta e a ação que leva adiante. */
+@layer components {
+  .next-step-bar {
+    @apply sticky bottom-0 mt-6 flex flex-wrap items-center gap-x-6 gap-y-3;
+    z-index: calc(var(--layer-navigation) - 2);
+    padding: 0.875rem 0;
+    background: var(--canvas);
+    border-top: 2px solid var(--accent);
+  }
+  .next-step-text {
+    @apply grid min-w-0 gap-0.5;
+    flex: 1 1 18rem;
+    font-size: 0.9375rem;
+  }
+  .next-step-stage {
+    color: var(--accent);
+    font-size: 0.8125rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .next-step-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .next-step-check {
+    @apply mr-2;
+    font-weight: 600;
+  }
+  /* Quem chega por um botão do Próximo passo vê o alvo logo abaixo da barra superior. */
+  .panel-anchor,
+  #inspection-heading,
+  #tr-format,
+  #tr-issues {
+    scroll-margin-top: 4.75rem;
+  }
+  @media (max-width: 800px) {
+    .next-step-bar {
+      bottom: calc(3.875rem + env(safe-area-inset-bottom));
     }
   }
 }

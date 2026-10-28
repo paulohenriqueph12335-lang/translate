@@ -79,6 +79,7 @@ export function InspectionGate({
   onReviewed,
   busy,
   onDone,
+  openRejectSignal = 0,
 }: {
   t: TranslationSummary;
   revision: number;
@@ -86,9 +87,14 @@ export function InspectionGate({
   onReviewed: (value: boolean) => void;
   busy: boolean;
   onDone: () => void;
+  /** Muda quando o Próximo passo pede para reprovar: o formulário de reprovação abre. */
+  openRejectSignal?: number;
 }) {
   const confirm = useConfirm();
   const [rejecting, setRejecting] = useState(false);
+  useEffect(() => {
+    if (openRejectSignal) setRejecting(true);
+  }, [openRejectSignal]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [comment, setComment] = useState('');
   const [reprocess, setReprocess] = useState(false);
@@ -290,6 +296,7 @@ export function RegisterFormat({
   onDraft,
   onEdit,
   onDone,
+  anchorId,
 }: {
   t: TranslationSummary;
   revision: number;
@@ -297,6 +304,8 @@ export function RegisterFormat({
   onDraft: (draft: DraftContent) => void;
   onEdit: () => void;
   onDone: () => void;
+  /** Alvo do Próximo passo, quando é preciso registrar uma nova forma. */
+  anchorId?: string;
 }) {
   const [name, setName] = useState('');
   const [explanation, setExplanation] = useState('');
@@ -341,7 +350,7 @@ export function RegisterFormat({
     }
   }
   return (
-    <details className="card format-registration doc-domain doc-module" open={t.reviewLifecycle.blocked}>
+    <details id={anchorId} className="card format-registration doc-domain doc-module" open={t.reviewLifecycle.blocked}>
       <summary>Registrar nova forma de formatação</summary>
       <p className="muted">
         Corrija a estrutura, o alinhamento, os estilos ou as tabelas no editor. Alterar somente o texto ou o nome do formato não remove o

@@ -1,3 +1,4 @@
+import { NextStepBar } from './NextStepBar';
 import { shortcutProps, useShortcuts } from './shortcuts';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -428,6 +429,12 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   const dirty = useMemo(() => !!data?.draft && JSON.stringify(draft) !== JSON.stringify(data.draft.content), [draft, data]);
   // Ctrl+S salva o rascunho, mesmo com o cursor no texto.
   const saveShortcut = useRef<() => void>(undefined);
+  // Próximo passo: abrir a reprovação e levar a tela até o painel aberto.
+  const [rejectSignal, setRejectSignal] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (panel) panelRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [panel]);
   useShortcuts([{ keys: 'Ctrl+S', label: 'Salvar alterações', group: 'Nesta tela', run: () => saveShortcut.current?.() }]);
 
   if (!data)
@@ -651,10 +658,12 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           onReviewed={setReviewedComparison}
           busy={busy || dirty}
           onDone={reload}
+          openRejectSignal={rejectSignal}
         />
       )}
       {draft && data.draft && (
         <RegisterFormat
+          anchorId="tr-format"
           t={t}
           revision={data.draft.revision}
           draft={draft}
@@ -671,7 +680,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
       {data.draft && !editing && <AiAssist translationId={id} status={t.status} onApplied={reload} />}
       <Feedback error={feedback.error ?? null} ok={feedback.ok ?? null} />
       {data.draft && t.status !== 'approved' && (errors.length > 0 || warnings.length > 0) && (
-        <details className="checks" open={errors.length > 0}>
+        <details id="tr-issues" className="checks" open={errors.length > 0}>
           <summary>
             {errors.length ? `${errors.length} ponto(s) para conferir` : 'Nenhum problema'}
             {warnings.length ? ` · ${warnings.length} aviso(s)` : ''}
@@ -779,6 +788,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
         </div>
 
         <CorrectionsPanel corrections={data.draft?.corrections ?? []} unresolved={review?.unresolved ?? []} />
+        <div ref={panelRef} className="panel-anchor" />
         {panel === 'conclude' && (
           <ConcludePanel
             id={id}
@@ -869,6 +879,36 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           t.status !== 'queued' && t.status !== 'processing' && <p className="empty">Ainda não há rascunho para este documento.</p>
         )}
       </details>
+      <NextStepBar
+        t={t}
+        busy={busy}
+        dirty={dirty}
+        errors={errors.length}
+        reviewed={reviewedComparison}
+        needsComparison={!sampleExempt}
+        onReviewed={setReviewedComparison}
+        actions={{
+          onClaim: () => void claimDocument(),
+          onSave: () => void save(),
+          onAccept: () => void acceptWord(),
+          onReject: () => {
+            setRejectSignal((value) => value + 1);
+            document.getElementById('inspection-heading')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+          },
+          onConclude: () => setPanel('conclude'),
+          onRegisterFormat: () => {
+            const target = document.getElementById('tr-format');
+            if (target instanceof HTMLDetailsElement) target.open = true;
+            target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+          },
+          onReprocess: () => void run('Documento voltou para a fila.', () => api('POST', `/translations/${id}/reprocess`)).then(reload),
+          onShowIssues: () => {
+            const target = document.getElementById('tr-issues');
+            if (target instanceof HTMLDetailsElement) target.open = true;
+            target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          },
+        }}
+      />
     </section>
   );
 }

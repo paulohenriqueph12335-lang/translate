@@ -26,30 +26,37 @@ try {
   // Glossário das skills de tradução (ADR-015): entra uma vez, quando já existe um Diretor.
   const seeded = await seedSkillGlossary(pool);
   if (seeded) log(`${seeded} termo(s) do glossário das skills adicionados`);
-  // Cifra o que ainda estiver aberto e recifra o que usar chave antiga (ADR-032).
-  const storage =
-    env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY && env.S3_SECRET_KEY
-      ? createS3Storage({
-          S3_ENDPOINT: env.S3_ENDPOINT,
-          S3_BUCKET: env.S3_BUCKET,
-          S3_ACCESS_KEY: env.S3_ACCESS_KEY,
-          S3_SECRET_KEY: env.S3_SECRET_KEY,
-          S3_REGION: env.S3_REGION ?? 'us-east-1',
-        })
-      : undefined;
-  if (storage) {
-    // O armazenamento pode subir depois do banco no Compose.
-    for (let attempt = 1; ; attempt += 1) {
-      try {
-        await storage.ensureReady();
-        break;
-      } catch (error) {
-        if (attempt >= 15) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+  // Cifra o que ainda estiver aberto e recifra o que usar chave antiga (ADR-032). O que ainda está aberto continua
+  // legível: uma falha aqui não impede o sistema de subir e é tentada de novo na próxima subida.
+  try {
+    const storage =
+      env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY && env.S3_SECRET_KEY
+        ? createS3Storage({
+            S3_ENDPOINT: env.S3_ENDPOINT,
+            S3_BUCKET: env.S3_BUCKET,
+            S3_ACCESS_KEY: env.S3_ACCESS_KEY,
+            S3_SECRET_KEY: env.S3_SECRET_KEY,
+            S3_REGION: env.S3_REGION ?? 'us-east-1',
+          })
+        : undefined;
+    if (storage) {
+      // O armazenamento pode subir depois do banco no Compose.
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          await storage.ensureReady();
+          break;
+        } catch (error) {
+          if (attempt >= 15) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       }
     }
+    await encryptAtRest({ pool, ...(storage ? { storage } : {}), log });
+  } catch (error) {
+    process.stderr.write(
+      `Aviso: a criptografia dos dados antigos não terminou e será tentada na próxima subida.\n${String(error)}\n${String((error as Error).cause ?? '')}\n`,
+    );
   }
-  await encryptAtRest({ pool, ...(storage ? { storage } : {}), log });
 } catch (error) {
   process.stderr.write(`${String(error)}\n${String((error as Error).cause ?? '')}\n`);
   process.exitCode = 1;
