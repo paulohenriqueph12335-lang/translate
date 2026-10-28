@@ -1481,9 +1481,24 @@
   .password-field input {
     flex: 1;
   }
-  /* Senha à mostra nunca sai no papel nem no PDF da impressão. */
+  /* Senha à mostra em pontos que se movem: na tela, as cores do texto; nunca no papel nem no PDF da impressão. */
+  .password-field {
+    flex-wrap: wrap;
+  }
+  .password-noise {
+    flex-basis: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .password-noise canvas {
+    display: block;
+    color: var(--ink);
+    background: var(--surface);
+    image-rendering: pixelated;
+  }
   @media print {
-    .password-field input[data-revealed] {
+    .password-field input[data-revealed],
+    .password-noise {
       visibility: hidden;
     }
   }
