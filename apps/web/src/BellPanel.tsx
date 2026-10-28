@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api, notificationKindLabel, type NotificationItem, type Page } from './api';
 import { Icon } from './icons';
+import { shortcutProps } from './shortcuts';
 import { LoadingHint, message } from './ui';
+
+/** Evento do atalho B: abre ou fecha o sino. */
+export const BELL_TOGGLE = 'tradutor:bell-toggle';
 
 /** Assuntos que pedem uma ação de quem recebe; o resto é atualização. */
 const NEEDS_ACTION = new Set([
@@ -19,6 +23,7 @@ const NEEDS_ACTION = new Set([
   'quota_warning',
   'quota_exhausted',
   'numbering_request',
+  'password_reset_requested',
 ]);
 
 const when = (iso: string) => {
@@ -37,6 +42,7 @@ export function BellPanel({
   version,
   onOpenTranslation,
   onOpenDocuments,
+  onOpenPasswords,
   onSeeAll,
   onChange,
 }: {
@@ -44,10 +50,16 @@ export function BellPanel({
   version: number;
   onOpenTranslation: (id: string) => void;
   onOpenDocuments: (batchId?: string) => void;
+  onOpenPasswords: () => void;
   onSeeAll: () => void;
   onChange: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const toggle = () => setOpen((value) => !value);
+    window.addEventListener(BELL_TOGGLE, toggle);
+    return () => window.removeEventListener(BELL_TOGGLE, toggle);
+  }, []);
   const [tab, setTab] = useState<'need' | 'updates'>('need');
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +108,7 @@ export function BellPanel({
     if (!item.readAt) void markRead([item.id]);
     if (item.translationId) onOpenTranslation(item.translationId);
     else if (item.batchId) onOpenDocuments(item.batchId);
+    else if (item.kind === 'password_reset_requested') onOpenPasswords();
     else onSeeAll();
   }
 
@@ -111,6 +124,8 @@ export function BellPanel({
         aria-label={unread ? `Notificações, ${unread} novas` : 'Notificações'}
         aria-haspopup="dialog"
         aria-expanded={open}
+        {...shortcutProps('B')}
+        data-shortcut-label="Notificações"
         onClick={() => setOpen((value) => !value)}
       >
         <Icon name="bell" />

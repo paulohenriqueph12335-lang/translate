@@ -1,3 +1,4 @@
+import { insertDraft } from '@tradutor/core/crypto';
 import { recordAudit, withTransaction } from '@tradutor/core/db';
 import {
   AI_TASK_LABEL,
@@ -543,10 +544,15 @@ export function createAiService({ pool, ai = null }: ServiceDeps & { ai?: AiFact
           { code: 'layout', block: 0, message: 'Combinação de diagramação da IA aprovada na prévia', before: '', after: '' },
           ...changes.map((change) => ({ code: 'layout', ...change })),
         ];
-        await db.query(
-          `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, author_id, corrections) VALUES ($1, $2, $3, $4, 'review', $5, $6)`,
-          [job.id, next, JSON.stringify(draft), JSON.stringify(issues), ctx.actor.id, JSON.stringify(corrections)],
-        );
+        await insertDraft(db, {
+          jobId: job.id,
+          revision: next,
+          content: draft,
+          issues,
+          origin: 'review',
+          authorId: ctx.actor.id,
+          corrections,
+        });
         await db.query(`UPDATE translation_jobs SET current_revision = $2, updated_at = now() WHERE id = $1`, [job.id, next]);
       }
       await recordAudit(db, {

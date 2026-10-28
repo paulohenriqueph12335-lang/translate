@@ -2,18 +2,17 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
-import { createTestApp, TestClient } from './test/helpers.js';
+import { createTestApp, TEST_TOKENS, TestClient } from './test/helpers.js';
 
-/** Configuração inicial pela interface e conta de teste que pode ser excluída (ADR-004, revisão de 2026-10-22). */
+/** Configuração inicial com o Token do Diretor e conta de teste que pode ser excluída (ADR-004, revisões de 2026-10-22 e 2026-10-28). */
 const PASSWORD = 'senha-de-teste-123';
-const codes: string[] = [];
-const code = () => codes.at(-1)!;
+const code = () => TEST_TOKENS.director;
 
 let app: FastifyInstance;
 let pool: Pool;
 
 before(async () => {
-  ({ app, pool } = await createTestApp('setup', { announceSetupCode: (value) => codes.push(value) }));
+  ({ app, pool } = await createTestApp('setup'));
 });
 
 after(async () => {
@@ -22,13 +21,11 @@ after(async () => {
 });
 
 describe('configuração inicial', () => {
-  it('sem Diretor, a API anuncia um código e a tela de configuração aparece', async () => {
-    assert.equal(codes.length, 1);
-    assert.match(code(), /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  it('sem Diretor, a tela de configuração aparece', async () => {
     assert.deepEqual((await new TestClient(app).get('/api/v1/setup')).body, { needed: true });
   });
 
-  it('código errado é recusado; dados inválidos também', async () => {
+  it('token errado é recusado, inclusive o do Líder; dados inválidos também', async () => {
     const client = new TestClient(app);
     const wrong = await client.post('/api/v1/setup', {
       code: 'AAAA-AAAA',
@@ -37,7 +34,14 @@ describe('configuração inicial', () => {
       password: PASSWORD,
     });
     assert.equal(wrong.status, 403);
-    assert.match(wrong.body.error.message, /Código de configuração incorreto/);
+    assert.match(wrong.body.error.message, /Token do Diretor incorreto/);
+    const leader = await client.post('/api/v1/setup', {
+      code: TEST_TOKENS.leader,
+      email: 'teste@exemplo.test',
+      displayName: 'Teste',
+      password: PASSWORD,
+    });
+    assert.equal(leader.status, 403);
     const short = await client.post('/api/v1/setup', {
       code: code(),
       email: 'teste@exemplo.test',
@@ -48,11 +52,11 @@ describe('configuração inicial', () => {
     assert.deepEqual((await client.get('/api/v1/setup')).body, { needed: true });
   });
 
-  it('com o código, cria o Diretor de teste e já entra', async () => {
+  it('com o token, cria o Diretor de teste e já entra', async () => {
     const client = new TestClient(app);
-    // O código vale com minúsculas e sem hífen, como a pessoa digitar.
+    // O token vale com minúsculas e sem hífens, como a pessoa digitar.
     const created = await client.post('/api/v1/setup', {
-      code: code().replace('-', '').toLowerCase(),
+      code: code().replaceAll('-', '').toLowerCase(),
       email: 'teste@exemplo.test',
       displayName: 'Diretor de Teste',
       password: PASSWORD,
@@ -65,7 +69,7 @@ describe('configuração inicial', () => {
     assert.equal(me.body.user.email, 'teste@exemplo.test');
     assert.deepEqual((await client.get('/api/v1/setup')).body, { needed: false });
 
-    // Com Diretor, ninguém mais usa a configuração inicial, nem com o código antigo.
+    // Com Diretor, ninguém mais usa a configuração inicial, nem com o token.
     const again = await new TestClient(app).post('/api/v1/setup', {
       code: code(),
       email: 'outro@exemplo.test',
@@ -90,18 +94,16 @@ describe('configuração inicial', () => {
     assert.equal((await director.post(`/api/v1/users/${memberId}/delete-test-account`)).status, 403);
   });
 
-  it('excluída, a conta some, o e-mail fica livre, a sessão cai e a configuração inicial volta com código novo', async () => {
+  it('excluída, a conta some, o e-mail fica livre, a sessão cai e a configuração inicial volta', async () => {
     const client = new TestClient(app);
     await client.post('/api/v1/auth/login', { email: 'teste@exemplo.test', password: PASSWORD });
     const id = (await client.get('/api/v1/auth/me')).body.user.id as string;
-    const before = codes.length;
 
     const removed = await client.post(`/api/v1/users/${id}/delete-test-account`);
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     assert.deepEqual(removed.body, { setupNeeded: true });
     assert.equal((await client.get('/api/v1/auth/me')).status, 401);
     assert.equal((await new TestClient(app).post('/api/v1/auth/login', { email: 'teste@exemplo.test', password: PASSWORD })).status, 401);
-    assert.equal(codes.length, before + 1);
 
     const row = (await pool.query(`SELECT email, display_name, org_role, status FROM users WHERE id = $1`, [id])).rows[0];
     assert.match(row.email, /@conta-de-teste\.invalid$/);

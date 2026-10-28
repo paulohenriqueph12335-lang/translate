@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { configureEncryption, parseKeyring } from '../crypto/index.js';
 import { createPool, migrate } from '../db/index.js';
 import { createS3Storage, type S3Config } from '../storage/object-storage.js';
 
@@ -15,8 +16,18 @@ export function testDatabaseUrl(name: string) {
   return `postgres://${user}:${password}@${host}:${port}/tradutor_test_${name}`;
 }
 
+/**
+ * Chaves só dos testes (ADR-032): a primeira é a ativa; a segunda simula uma chave antiga, para os testes de rotação.
+ * TEST_ENCRYPTION_KEYS troca as duas.
+ */
+export const TEST_ENCRYPTION_KEYS =
+  process.env.TEST_ENCRYPTION_KEYS ?? `teste:${Buffer.alloc(32, 7).toString('base64')},antiga:${Buffer.alloc(32, 3).toString('base64')}`;
+
+export const configureTestEncryption = (spec = TEST_ENCRYPTION_KEYS) => configureEncryption(parseKeyring(spec));
+
 /** Recria o schema do banco de teste do zero e aplica todas as migrações. */
 export async function createTestDatabase(name: string) {
+  configureTestEncryption();
   const url = testDatabaseUrl(name);
   if (!process.env.TEST_DATABASE_URL) {
     const admin = new pg.Client({ connectionString: url.replace(/\/[^/]+$/, '/postgres') });
@@ -41,6 +52,7 @@ export const testStorageEnv = (name: string): S3Config => ({
 });
 
 export async function createTestStorage(name: string) {
+  configureTestEncryption();
   const storage = createS3Storage(testStorageEnv(name));
   await storage.ensureReady();
   return storage;

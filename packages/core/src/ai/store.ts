@@ -1,3 +1,4 @@
+import { sealJson } from '../crypto/values.js';
 import type { Queryable } from '../db/pool.js';
 import { notify } from '../db/notifications.js';
 import { Draft } from '../translation/draft.js';
@@ -107,7 +108,7 @@ export async function proposeLayoutCombination(
   if (outcome.status !== 'ok') return { status: outcome.status, reason: outcome.reason };
   const created = await db.query<{ id: string }>(
     `INSERT INTO ai_layout_combinations (translation_id, revision, sample, rationale, requested_by) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [jobId, row.revision, JSON.stringify(outcome.output.sample), outcome.output.rationale.slice(0, 600), userId],
+    [jobId, row.revision, sealJson(outcome.output.sample), outcome.output.rationale.slice(0, 600), userId],
   );
   return { status: 'ok', combinationId: created.rows[0]!.id };
 }

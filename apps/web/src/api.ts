@@ -11,6 +11,18 @@ export interface User {
   createdAt: string;
   /** Conta criada como teste na configuração inicial: pode ser excluída. */
   testAccount: boolean;
+  /** Acesso liberado pelo Líder: termina nesta hora, até o Diretor trocar a senha. */
+  accessExpiresAt?: string | null;
+}
+
+/** Pedido de senha nova que a pessoa pode decidir (Diretor: de vez; Líder: libera por 24 horas). */
+export interface PasswordResetItem {
+  id: string;
+  createdAt: string;
+  user: { id: string; name: string; email: string; role: string; teams: string[] };
+  leaderUnlocks: number;
+  accessExpiresAt: string | null;
+  authorizeAs: 'director' | 'leader' | null;
 }
 
 export interface Membership {
@@ -436,7 +448,10 @@ export interface TranslationSummary {
   permissions: {
     edit: boolean;
     submit: boolean;
+    /** Concluir: o responsável ou a liderança. */
     approve: boolean;
+    /** Exceções de numeração: só a liderança. */
+    authorizeNumbering?: boolean;
     returnForChanges: boolean;
     cancel: boolean;
     reprocess: boolean;
@@ -640,6 +655,7 @@ export const notificationKindLabel: Record<string, string> = {
   quota_changed: 'Cota alterada',
   numbering_request: 'Pedido de numeração',
   numbering_decided: 'Decisão de numeração',
+  password_reset_requested: 'Pedido de senha',
 };
 
 // ---------- Numeração e painéis (plano de hierarquia) ----------

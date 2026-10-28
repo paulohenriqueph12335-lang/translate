@@ -1,3 +1,4 @@
+import { lookupMemory } from '@tradutor/core/crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -63,8 +64,8 @@ export function createPatternService(deps: ServiceDeps & { machine?: Partial<Rec
          SELECT j.*, upper(coalesce(nullif(j.source_title, ''), nullif(j.document_type, ''), '(sem título)')) AS key,
                 coalesce(nullif(j.source_title, ''), nullif(j.document_type, ''), '(sem título)') AS title,
                 v.format,
-                (SELECT count(*)::int FROM jsonb_array_elements(r.issues) i WHERE i->>'severity' = 'error') AS errors,
-                jsonb_array_length(coalesce(r.corrections, '[]'::jsonb)) AS corrections
+                r.error_count AS errors,
+                r.correction_count AS corrections
            FROM translation_jobs j
            JOIN documents d ON d.id = j.document_id
            JOIN batches b ON b.id = d.batch_id
@@ -197,14 +198,7 @@ export function createPatternService(deps: ServiceDeps & { machine?: Partial<Rec
       targetLanguage: input.targetLanguage,
       rules,
       glossary,
-      memory: async (segments) => {
-        const rows = await pool.query<{ source_text: string; target_text: string }>(
-          `SELECT source_text, target_text FROM translation_memory
-            WHERE source_language = $1 AND target_language = $2 AND source_text = ANY($3::text[])`,
-          [input.sourceLanguage, input.targetLanguage, segments],
-        );
-        return new Map(rows.rows.map((row) => [row.source_text, row.target_text]));
-      },
+      memory: (segments) => lookupMemory(pool, input.sourceLanguage, input.targetLanguage, segments),
       known: example ? { documentType: example.content.documentType, sourceTitle: example.content.sourceTitle } : null,
       translator,
       knowledge: await loadLayoutKnowledge(pool),

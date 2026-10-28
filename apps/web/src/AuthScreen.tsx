@@ -44,29 +44,62 @@ function AuthBrand() {
   );
 }
 
+type AuthMode = 'login' | 'signup' | 'forgot';
+
+const AUTH_HEADINGS: Record<AuthMode, { title: string; text: string; submit: string }> = {
+  login: { title: 'Entrar', text: 'Use o e-mail e a senha da sua conta aprovada.', submit: 'Entrar' },
+  signup: { title: 'Solicitar acesso', text: 'Seu cadastro ficará pendente até a aprovação de um Diretor.', submit: 'Enviar cadastro' },
+  forgot: {
+    title: 'Esqueci a senha',
+    text: 'Escolha uma senha nova. Ela passa a valer quando o Diretor autorizar, ou por 24 horas quando o Líder da sua equipe liberar.',
+    submit: 'Pedir senha nova',
+  },
+};
+
 export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [directorToken, setDirectorToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const switchMode = (next: 'login' | 'signup') => {
+  const switchMode = (next: AuthMode) => {
     setMode(next);
+    setPassword('');
+    setConfirm('');
+    setDirectorToken('');
     setError(null);
     setNotice(null);
   };
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (mode === 'forgot' && password !== confirm) {
+      setError('As senhas não conferem.');
+      return;
+    }
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
       if (mode === 'login') {
         onLogin(await api<Me>('POST', '/auth/login', { email, password }));
+      } else if (mode === 'forgot') {
+        const result = await api<{ status: 'pending' | 'changed' }>('POST', '/auth/password-reset', {
+          email,
+          newPassword: password,
+          ...(directorToken.trim() ? { directorToken } : {}),
+        });
+        switchMode('login');
+        setNotice(
+          result.status === 'changed'
+            ? 'Senha trocada com o Token do Diretor. Entre com a senha nova.'
+            : 'Pedido enviado. Avise o Diretor ou o Líder da sua equipe: quando autorizarem, entre com a senha nova.',
+        );
       } else {
         await api('POST', '/auth/signup', { email, displayName, password });
         setPassword('');
@@ -86,12 +119,8 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
       <main className="auth account-auth">
         <header className="account-auth-heading">
           <Wordmark />
-          <h1 className="auth-title">{mode === 'login' ? 'Entrar' : 'Solicitar acesso'}</h1>
-          <p className="muted">
-            {mode === 'login'
-              ? 'Use o e-mail e a senha da sua conta aprovada.'
-              : 'Seu cadastro ficará pendente até a aprovação de um Diretor.'}
-          </p>
+          <h1 className="auth-title">{AUTH_HEADINGS[mode].title}</h1>
+          <p className="muted">{AUTH_HEADINGS[mode].text}</p>
         </header>
 
         <form className="card form account-auth-form" onSubmit={submit}>
@@ -106,17 +135,50 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
             </label>
           )}
           <label>
-            Senha
+            {mode === 'forgot' ? 'Senha nova' : 'Senha'}
             <PasswordInput
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               required
-              minLength={mode === 'signup' ? 12 : 1}
+              minLength={mode === 'login' ? 1 : 12}
               maxLength={256}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            {mode === 'signup' && <small className="muted">Mínimo de 12 caracteres.</small>}
+            {mode !== 'login' && <small className="muted">Mínimo de 12 caracteres.</small>}
           </label>
+          {mode === 'login' && (
+            <button type="button" className="link small-text account-forgot" onClick={() => switchMode('forgot')}>
+              Esqueci a senha
+            </button>
+          )}
+          {mode === 'forgot' && (
+            <>
+              <label>
+                Confirme a senha nova
+                <PasswordInput
+                  autoComplete="new-password"
+                  required
+                  minLength={12}
+                  maxLength={256}
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                />
+              </label>
+              <details className="secondary-options">
+                <summary>Tenho o Token do Diretor</summary>
+                <label>
+                  Token do Diretor
+                  <PasswordInput
+                    autoComplete="off"
+                    maxLength={100}
+                    value={directorToken}
+                    onChange={(e) => setDirectorToken(e.target.value)}
+                  />
+                  <small className="muted">Com o token, a senha nova vale na hora, para qualquer conta.</small>
+                </label>
+              </details>
+            </>
+          )}
           {error && (
             <div className="alert error" role="alert">
               {error}
@@ -128,7 +190,7 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
             </div>
           )}
           <button className="primary" disabled={busy}>
-            {busy ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Enviar cadastro'}
+            {busy ? 'Aguarde…' : directorToken.trim() && mode === 'forgot' ? 'Trocar a senha agora' : AUTH_HEADINGS[mode].submit}
           </button>
         </form>
 
@@ -138,6 +200,13 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
               Não tem conta?{' '}
               <button className="link" onClick={() => switchMode('signup')}>
                 Solicitar acesso
+              </button>
+            </>
+          ) : mode === 'forgot' ? (
+            <>
+              Lembrou a senha?{' '}
+              <button className="link" onClick={() => switchMode('login')}>
+                Entrar
               </button>
             </>
           ) : (
@@ -155,8 +224,8 @@ export function AuthScreen({ onLogin }: { onLogin: (me: Me) => void }) {
 }
 
 /**
- * Configuração inicial (ADR-004): enquanto o sistema não tem Diretor, cria o primeiro pela interface. O código de
- * configuração aparece só no log da API, então só quem tem acesso ao computador onde o sistema roda consegue usar.
+ * Configuração inicial (ADR-004, revisão de 2026-10-28): enquanto o sistema não tem Diretor, quem tem o Token do
+ * Diretor cria o primeiro pela interface.
  */
 export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
   const [form, setForm] = useState({
@@ -210,19 +279,9 @@ export function SetupScreen({ onLogin }: { onLogin: (me: Me) => void }) {
 
         <form className="card form account-auth-form" onSubmit={submit}>
           <label>
-            Código de configuração
-            <input
-              required
-              autoComplete="off"
-              placeholder="ABCD-1234"
-              maxLength={20}
-              value={form.code}
-              onChange={(e) => set('code')(e.target.value)}
-            />
-            <small className="muted">
-              Está no log da API: no Docker Desktop, abra Containers → translate → api → Logs e procure "CÓDIGO DE CONFIGURAÇÃO INICIAL". Ou
-              rode <code>docker compose logs api</code>.
-            </small>
+            Token do Diretor
+            <PasswordInput autoComplete="off" required maxLength={100} value={form.code} onChange={(e) => set('code')(e.target.value)} />
+            <small className="muted">O token fixo entregue com o sistema. Maiúsculas, minúsculas e hífens não importam.</small>
           </label>
           <label>
             Nome

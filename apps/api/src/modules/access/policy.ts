@@ -118,9 +118,16 @@ export const canAssignBatch = isDirector;
 /** Trabalhar na tradução (iniciar, revisar, enviar para aprovação): quem vê o lote. */
 export const canWorkOnTranslation = canViewBatch;
 
-/** Aprovação final, devolução e cancelamento: Diretor ou Líder da equipe do lote. Ninguém mais aprova. */
+/** Liderança da tradução (devolver, cancelar, reprocessar, autorizar exceções de numeração): Diretor ou Líder da equipe. */
 export const canApproveTranslation = (actor: Actor, batch: BatchRef) =>
   isDirector(actor) || (batch.teamId !== null && teamRoleOf(actor, batch.teamId) === 'leader');
+
+/**
+ * Conclusão (pedido do produto, 2026-10-28): o responsável conclui a própria tradução, de qualquer modalidade.
+ * Supervisor e Diretor continuam podendo concluir e só precisam agir em problemas de numeração.
+ */
+export const canConcludeTranslation = (actor: Actor, batch: BatchRef, assigneeId: string | null) =>
+  canApproveTranslation(actor, batch) || (assigneeId !== null && assigneeId === actor.id && canViewBatch(actor, batch));
 
 const supervises = (actor: Actor, batch: BatchRef) => batch.teamId !== null && teamRoleOf(actor, batch.teamId) === 'leader';
 
@@ -147,6 +154,13 @@ export const canManageNumberingLimits = isDirector;
 /** Cota de um usuário (1 a 1000 por ano): Diretor, ou Supervisor de uma equipe em que a pessoa é Usuário. */
 export const canSetUserQuota = (actor: Actor, targetMemberships: ReadonlyMap<string, TeamRole>) =>
   isDirector(actor) || ledTeams(actor).some((teamId) => targetMemberships.get(teamId) === 'operator');
+
+/**
+ * Pedido de senha nova (2026-10-28): o Diretor autoriza de qualquer pessoa, menos o próprio; o Líder libera por 24 horas
+ * só quem é Usuário numa equipe que ele supervisiona.
+ */
+export const canAuthorizePasswordReset = (actor: Actor, target: { id: string; memberships: ReadonlyMap<string, TeamRole> }) =>
+  actor.id !== target.id && (isDirector(actor) || ledTeams(actor).some((teamId) => target.memberships.get(teamId) === 'operator'));
 
 /** Pedidos de alteração/anulação de número: decide o Supervisor da equipe ou o Diretor. */
 export const canDecideNumberingRequest = (actor: Actor, batch: BatchRef) => isDirector(actor) || supervises(actor, batch);

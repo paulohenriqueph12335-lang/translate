@@ -1,7 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AiComparisonPanel } from './AiComparison';
 import { AiManagement } from './AiManagement';
-import { api, statusLabel, type Me, type Page, type Session, type User, type UserStatus, setUnauthorizedHandler } from './api';
+import {
+  api,
+  statusLabel,
+  type Me,
+  type Page,
+  type PasswordResetItem,
+  type Session,
+  type User,
+  type UserStatus,
+  setUnauthorizedHandler,
+} from './api';
 import { Audit } from './Audit';
 import { AutoTranslationNotice } from './AutoTranslationNotice';
 import { BellPanel } from './BellPanel';
@@ -11,6 +21,7 @@ import { Downloads } from './Downloads';
 import { LiveNotifications } from './LiveNotifications';
 import { Notifications, useUnreadCount } from './Notifications';
 import { Numbering } from './Numbering';
+import { PasswordRequests } from './PasswordRequests';
 import { OrganizationPanel, TeamPanel } from './Panels';
 import { History, Workspace } from './Workspace';
 import { TranslationRulesEditor } from './Modes';
@@ -26,6 +37,8 @@ import { PerformancePanel } from './PerformancePanel';
 import { Icon, type IconName } from './icons';
 import { tutorialFor, TutorialSection } from './Tutorial';
 import { setThemePreference } from './theme';
+import { BELL_TOGGLE } from './BellPanel';
+import { keyParts, shortcutProps, ShortcutsDialog, ShortcutTip, useShortcuts, type Shortcut } from './shortcuts';
 import { dateTime, EmbeddedSection, Wordmark, Feedback, LoadingLine, message, Section, useLoad } from './ui';
 
 /**
@@ -65,6 +78,23 @@ const areaIcon: Record<AreaKey, IconName> = {
   account: 'gear',
 };
 
+/** Atalho de cada área: G e depois a letra. */
+const areaShortcut: Record<AreaKey, string> = {
+  home: 'G I',
+  work: 'G T',
+  history: 'G H',
+  team: 'G E',
+  settings: 'G A',
+  admin: 'G D',
+  notifications: 'G N',
+  help: 'G U',
+  account: 'G C',
+};
+
+/** Abas com atalho próprio. */
+const tabShortcut = (area: AreaKey, tab: string) =>
+  area === 'work' && tab === 'send' ? shortcutProps('N') : area === 'work' && tab === 'done' ? shortcutProps('G Z') : {};
+
 /** Áreas de configuração usam um menu secundário à esquerda em vez de abas. */
 const sideMenuAreas = new Set<AreaKey>(['settings', 'admin', 'help', 'account']);
 
@@ -93,11 +123,17 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const unread = useUnreadCount(notificationsVersion);
   const preferences = useUserPreferences(me.user.id);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(resolvedTheme);
   const pending = useLoad(
     () => (isDirector ? api<Page<User>>('GET', '/users?status=pending&limit=100') : Promise.resolve(null)),
     [isDirector, place.area],
+  );
+  // Pedidos de senha: o Diretor decide todos; o Líder, os dos Usuários das equipes dele.
+  const passwordRequests = useLoad(
+    () => (manages ? api<{ items: PasswordResetItem[] }>('GET', '/password-resets') : Promise.resolve(null)),
+    [manages, place.area, notificationsVersion],
   );
   const go = (area: AreaKey, tab = '') => {
     setOpenTranslation(null);
@@ -116,18 +152,6 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   // Sessão revogada/expirada em qualquer chamada leva de volta ao login.
   useEffect(() => setUnauthorizedHandler(onUnauthorized), [onUnauthorized]);
 
-  // Ctrl+K (ou ⌘K) abre a pesquisa de qualquer tela.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setPaletteOpen((open) => !open);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
-
   // O tema pode mudar em Configurações ou em outra aba; a barra superior acompanha.
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(resolvedTheme()));
@@ -142,6 +166,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   }
 
   const pendingCount = pending.data?.items.length ?? 0;
+  const passwordCount = passwordRequests.data?.items.length ?? 0;
   const translationNotice = <AutoTranslationNotice isDirector={isDirector} />;
   const translations = () => (
     <>
@@ -248,9 +273,16 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       key: 'team',
       label: isDirector ? 'Equipes' : 'Equipe',
       title: isDirector ? 'Equipes' : 'Equipe',
-      subtitle: 'Pessoas, numeração, tradutores juramentados e o registro do que foi feito.',
+      subtitle: 'Pessoas, pedidos de senha, numeração, tradutores juramentados e o registro do que foi feito.',
+      count: passwordCount,
       tabs: [
         { key: 'people', label: 'Pessoas', render: () => <Teams isDirector={isDirector} selfId={me.user.id} /> },
+        {
+          key: 'passwords',
+          label: 'Pedidos de senha',
+          count: passwordCount,
+          render: () => <PasswordRequests isDirector={isDirector} onChange={passwordRequests.reload} />,
+        },
         { key: 'numbering', label: 'Numeração', render: () => <Numbering me={me} onOpenTranslation={goToTranslation} /> },
         { key: 'translators', label: 'Tradutores juramentados', render: () => <Translators canManage={supervises} /> },
         {
@@ -318,6 +350,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
                 setDocumentTarget(batchId ? { batchId } : {});
                 goToUpload();
               }}
+              onOpenPasswords={() => go('team', 'passwords')}
               onChange={() => setNotificationsVersion((current) => current + 1)}
             />
           ),
@@ -394,8 +427,40 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
     },
   ];
 
+  // Atalhos (2026-10-28): no máximo duas teclas; a dica aparece ao passar o mouse na ação.
+  const allAreas = [...visible, ...footer];
+  const tabIndex = current.tabs.findIndex((item) => item.key === tab.key);
+  const shortcutList: Shortcut[] = [
+    ...allAreas.map((area) => ({ keys: areaShortcut[area.key], label: area.label, group: 'Ir para' as const, run: () => go(area.key) })),
+    ...(visible.some((area) => area.key === 'work')
+      ? [{ keys: 'G Z', label: 'Entregas e ZIP', group: 'Ir para' as const, run: () => go('work', 'done') }]
+      : []),
+    { keys: 'Ctrl+K', label: 'Pesquisar', group: 'Ações', run: () => setPaletteOpen((open) => !open) },
+    { keys: '/', label: 'Pesquisar (uma tecla)', group: 'Ações', run: () => setPaletteOpen(true) },
+    { keys: 'N', label: 'Nova tradução', group: 'Ações', run: goToUpload },
+    { keys: 'B', label: 'Abrir o sino', group: 'Ações', run: () => window.dispatchEvent(new Event(BELL_TOGGLE)) },
+    { keys: 'T', label: theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro', group: 'Ações', run: toggleTheme },
+    { keys: '?', label: 'Ver os atalhos', group: 'Ações', run: () => setShortcutsOpen(true) },
+    {
+      keys: '[',
+      label: 'Aba anterior',
+      group: 'Nesta tela',
+      run: () => tabIndex > 0 && go(current.key, current.tabs[tabIndex - 1]!.key),
+    },
+    {
+      keys: ']',
+      label: 'Próxima aba',
+      group: 'Nesta tela',
+      run: () => tabIndex < current.tabs.length - 1 && go(current.key, current.tabs[tabIndex + 1]!.key),
+    },
+    { keys: 'Ctrl+S', label: 'Salvar alterações na revisão', group: 'Nesta tela' },
+  ];
+  useShortcuts(shortcutList);
+
   const navButton = (area: Area) => (
     <button
+      {...shortcutProps(areaShortcut[area.key])}
+      data-shortcut-label={area.label}
       aria-label={area.count ? `${area.label}, ${area.count}` : area.label}
       aria-current={current.key === area.key ? 'page' : undefined}
       className={current.key === area.key ? 'active' : ''}
@@ -445,13 +510,26 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       <div className="main-col">
         <header className="topbar">
           <span className="topbar-brand">Tradutor Documental</span>
-          <button type="button" className="search-trigger" aria-haspopup="dialog" onClick={() => setPaletteOpen(true)}>
+          <button
+            type="button"
+            className="search-trigger"
+            aria-haspopup="dialog"
+            {...shortcutProps('Ctrl+K')}
+            data-shortcut-label="Pesquisar"
+            onClick={() => setPaletteOpen(true)}
+          >
             <Icon name="search" />
             <span>{manages ? 'Pesquisar protocolos, documentos, pessoas e telas' : 'Pesquisar suas traduções e telas'}</span>
-            <kbd>Ctrl K</kbd>
+            <kbd>{keyParts('Ctrl+K').join(' ')}</kbd>
           </button>
           <div className="topbar-actions">
-            <button type="button" className="icon-button search-icon" aria-label="Pesquisar" onClick={() => setPaletteOpen(true)}>
+            <button
+              type="button"
+              className="icon-button search-icon"
+              aria-label="Pesquisar"
+              {...shortcutProps('Ctrl+K')}
+              onClick={() => setPaletteOpen(true)}
+            >
               <Icon name="search" />
             </button>
             <BellPanel
@@ -459,6 +537,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
               version={notificationsVersion}
               onOpenTranslation={goToTranslation}
               onOpenDocuments={(batchId) => openDocuments(batchId ? { batchId } : {})}
+              onOpenPasswords={() => go('team', 'passwords')}
               onSeeAll={() => go('notifications')}
               onChange={() => setNotificationsVersion((value) => value + 1)}
             />
@@ -466,12 +545,18 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
               type="button"
               className="icon-button theme-toggle"
               aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
-              title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+              {...shortcutProps('T')}
               onClick={toggleTheme}
             >
               <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
             </button>
-            <ProfileMenu me={me} role={role} onSettings={() => go('account')} onLogout={onLogout} />
+            <ProfileMenu
+              me={me}
+              role={role}
+              onSettings={() => go('account')}
+              onShortcuts={() => setShortcutsOpen(true)}
+              onLogout={onLogout}
+            />
           </div>
         </header>
         <LoadingLine />
@@ -483,6 +568,14 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
             onNew={() => setNotificationsVersion((value) => value + 1)}
           />
           {me.user.testAccount && <TestAccountBanner me={me} onDeleted={onLogout} />}
+          {me.user.accessExpiresAt && (
+            <div className="alert warning temporary-access" role="status">
+              <span>
+                <strong>Acesso liberado pelo Líder até {dateTime(me.user.accessExpiresAt)}.</strong> Depois disso o sistema bloqueia a
+                entrada. Para voltar ao acesso normal, peça ao Diretor para autorizar a sua senha em "Esqueci a senha".
+              </span>
+            </div>
+          )}
           {single ? (
             <div key={current.key} className="panel-enter">
               {tab.render()}
@@ -499,6 +592,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
                     {current.tabs.map((item) => (
                       <button
                         key={item.key}
+                        {...tabShortcut(current.key, item.key)}
                         aria-current={item.key === tab.key ? 'page' : undefined}
                         className={item.key === tab.key ? 'on' : ''}
                         onClick={() => go(current.key, item.key)}
@@ -516,6 +610,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
                     {current.tabs.map((item) => (
                       <button
                         key={item.key}
+                        {...tabShortcut(current.key, item.key)}
                         role="tab"
                         aria-selected={item.key === tab.key}
                         className={item.key === tab.key ? 'on' : ''}
@@ -585,6 +680,8 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
           </div>
         </>
       )}
+      <ShortcutTip />
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} list={shortcutList} />
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -610,7 +707,19 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
 }
 
 /** Menu da conta: quem está conectado, o papel, configurações e sair. */
-function ProfileMenu({ me, role, onSettings, onLogout }: { me: Me; role: string; onSettings: () => void; onLogout: () => void }) {
+function ProfileMenu({
+  me,
+  role,
+  onSettings,
+  onShortcuts,
+  onLogout,
+}: {
+  me: Me;
+  role: string;
+  onSettings: () => void;
+  onShortcuts: () => void;
+  onLogout: () => void;
+}) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -662,6 +771,10 @@ function ProfileMenu({ me, role, onSettings, onLogout }: { me: Me; role: string;
           <button role="menuitem" className="menu-item" onClick={pick(onSettings)}>
             <Icon name="gear" />
             Configurações
+          </button>
+          <button role="menuitem" className="menu-item" {...shortcutProps('?')} onClick={pick(onShortcuts)}>
+            <Icon name="book" />
+            Atalhos de teclado
           </button>
           <span className="menu-sep" />
           <button role="menuitem" className="menu-item danger" onClick={pick(onLogout)}>

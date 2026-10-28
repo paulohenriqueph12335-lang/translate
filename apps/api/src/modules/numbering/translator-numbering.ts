@@ -613,8 +613,9 @@ export function createTranslatorNumberingService({ pool }: ServiceDeps) {
           ])
         ).rows[0]!.revision;
         await db.query(
-          `INSERT INTO translation_drafts(job_id,revision,content,issues,origin,author_id)
-           SELECT job_id,$3,content,issues,'human',$4 FROM translation_drafts WHERE job_id=$1 AND revision=$2`,
+          `INSERT INTO translation_drafts(job_id,revision,content,issues,origin,author_id,corrections,error_count,issue_count,correction_count)
+           SELECT job_id,$3,content,issues,'human',$4,corrections,error_count,issue_count,correction_count
+             FROM translation_drafts WHERE job_id=$1 AND revision=$2`,
           [jobId, job.current_revision, next, ctx.actor.id],
         );
         await db.query(`UPDATE translation_jobs SET current_revision=$2,inspection_revision=NULL,updated_at=now() WHERE id=$1`, [

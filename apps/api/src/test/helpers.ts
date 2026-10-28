@@ -8,6 +8,9 @@ import { loadConfig } from '../config.js';
 
 export { createTestDatabase, testStorageEnv };
 
+/** Tokens fixos só dos testes: os de verdade não ficam no repositório (só o hash deles). */
+export const TEST_TOKENS = { director: 'DIR-TEST-TEST-TEST-TEST', leader: 'LID-TEST-TEST-TEST-TEST' };
+
 const relaxedLimits = { login: { limit: 10_000, windowMs: 60_000 }, signup: { limit: 10_000, windowMs: 60_000 } };
 
 export async function createTestApp(
@@ -16,7 +19,14 @@ export async function createTestApp(
 ) {
   const { url, pool } = await createTestDatabase(name);
   const { env, ...appOptions } = options;
-  const config = loadConfig({ DATABASE_URL: url, LOG_LEVEL: 'silent', ...testStorageEnv(name), ...env });
+  const config = loadConfig({
+    DATABASE_URL: url,
+    LOG_LEVEL: 'silent',
+    DIRECTOR_TOKEN: TEST_TOKENS.director,
+    LEADER_TOKEN: TEST_TOKENS.leader,
+    ...testStorageEnv(name),
+    ...env,
+  });
   const storage = createS3Storage(config);
   await storage.ensureReady();
   const build = (overrides: Omit<Partial<AppDeps>, 'config' | 'pool'> = {}) =>

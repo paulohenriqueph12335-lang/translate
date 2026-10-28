@@ -1,3 +1,4 @@
+import { lookupMemory } from '@tradutor/core/crypto';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, describe, it } from 'node:test';
@@ -136,8 +137,17 @@ describe('início e rascunho', () => {
     // O modelo de corpo (ADR-019) preenche o tipo pelo título do original; o texto continua sem tradução.
     assert.ok(codes.includes('untranslated') && !codes.includes('missing_document_type'));
     assert.equal(response.body.draft.content.documentType, 'SCHOOL TRANSCRIPT');
-    assert.equal(response.body.translation.permissions.approve, false);
+    // O responsável conclui a própria tradução (2026-10-28).
+    assert.equal(response.body.translation.permissions.approve, true);
+    assert.equal(response.body.translation.permissions.authorizeNumbering, false);
     assert.match(response.body.frame.draftMark, /DRAFT/);
+    // No banco, o texto extraído e o rascunho ficam cifrados (ADR-032); a API devolve abertos.
+    const stored = await pool.query<{ text: string; content: boolean; issues: boolean }>(
+      `SELECT left(j.extracted_text, 7) AS text, r.content ? '$enc' AS content, r.issues ? '$enc' AS issues
+         FROM translation_jobs j JOIN translation_drafts r ON r.job_id = j.id AND r.revision = j.current_revision WHERE j.id = $1`,
+      [ids.job],
+    );
+    assert.deepEqual(stored.rows[0], { text: 'enc:v1:', content: true, issues: true });
     assert.equal(await processNextJob(processing()), false);
   });
 
@@ -190,9 +200,13 @@ describe('revisão humana', () => {
 });
 
 describe('aprovação', () => {
-  it('Operador envia para aprovação, mas não aprova nem devolve', async () => {
+  it('Operador marca como pronta e pode concluir, mas não devolve a pronta; colega de outra equipe não conclui', async () => {
     assert.equal((await submitReady(c.op!, ids.job)).body.translation.status, 'awaiting_approval');
-    assert.equal((await c.op!.post(`/api/v1/translations/${ids.job}/approve`)).status, 403);
+    // Pode concluir: o que barra aqui é a numeração ainda vazia, não a permissão.
+    const approve = await c.op!.post(`/api/v1/translations/${ids.job}/approve`);
+    assert.equal(approve.status, 409, JSON.stringify(approve.body));
+    assert.match(approve.body.error.message, /numeração/);
+    assert.equal((await c.opb!.post(`/api/v1/translations/${ids.job}/approve`)).status, 404);
     assert.equal((await c.op!.post(`/api/v1/translations/${ids.job}/return`, { comment: 'revisar' })).status, 403);
     assert.equal(
       (await c.op!.request('PUT', `/api/v1/translations/${ids.job}/draft`, { baseRevision: 2, draft: approvedTranscriptDraft })).status,
@@ -452,10 +466,10 @@ describe('tradução automática gratuita (ADR-008)', () => {
       [],
     );
     assert.equal((await translator.conclude(c.lider!, firstJob)).status, 200);
-    const learned = await pool.query<{ target_text: string }>(
-      `SELECT target_text FROM translation_memory WHERE source_language = 'pt' AND target_language = 'en' AND source_text = 'HISTÓRICO ESCOLAR'`,
-    );
-    assert.equal(learned.rows[0]?.target_text, 'SCHOOL TRANSCRIPT');
+    // A memória guarda cifrado (ADR-032) e acha o trecho pelo índice cego.
+    assert.equal((await lookupMemory(pool, 'pt', 'en', ['HISTÓRICO ESCOLAR'])).get('HISTÓRICO ESCOLAR'), 'SCHOOL TRANSCRIPT');
+    const stored = await pool.query<{ prefix: string }>(`SELECT left(source_text, 7) AS prefix FROM translation_memory LIMIT 1`);
+    assert.equal(stored.rows[0]!.prefix, 'enc:v1:');
 
     fakeMachine.calls.length = 0;
     const second = await autoDocument('gratuito-2.pdf', 'free2');

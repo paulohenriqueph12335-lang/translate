@@ -1,42 +1,46 @@
-# Modelo de dados proposto
+# Modelo de dados
 
-Este é um mapa de domínio para guiar o desenho das migrações. **Existem hoje**: `users`, `sessions`, `teams`, `team_memberships` e `audit_events` (`0002`, [ADR-005](decisions/005-role-hierarchy.md)); `batches` (equipe opcional até o direcionamento, `0006`), `documents` e `document_versions` (`0005`, [ADR-006](decisions/006-batch-upload-and-storage.md)). Tradução juramentada (`0007`, [ADR-007](decisions/007-assisted-sworn-translation.md)): `translation_settings` (tradutor público e numeração), `translation_counters`, `translation_jobs` (fila e ciclo de revisão/aprovação), `translation_drafts` (revisões imutáveis) e `glossary_entries`. Tradução gratuita (`0009`): `translation_memory` e `machine_translation_settings`. Fluxo do ADR-010 (`0010`): `documents.tags`, `translation_jobs.pattern_known` e `document_type`, `notifications`; `teams.claude_enabled` removida. Hierarquia (`0011`, ADR-011): `translation_jobs.assignee_id`, `processed_at`, `redo_count`, `annulled_at`/`annulled_reason`, `numbering_quotas` e `numbering_requests`. Tradutores (`0012`, ADR-012): `sworn_translators` (PDF de referência no S3), `sworn_translator_masks` (edições numeradas da máscara, `0013`), `translation_jobs.mask_id`, `translation_jobs.translator_id`, `number_label`, `book_label`, `sheet_label`; `translation_settings` e `translation_counters` ficam só como histórico. As demais entidades ainda não existem. Ajustar cardinalidades e estados ao implementar as fases, e refletir alterações em migrações novas e testes.
+Atualizado em 28/10/2026. As migrações ficam em `packages/database/migrations` (`0001` a `0034`). Cada uma é aplicada uma vez, em ordem, com trava e transação. São 42 tabelas, contando `schema_migrations`.
 
-## Entidades e relações
+## Por domínio
 
-| Entidade | Responsabilidade | Relações/observações |
-| --- | --- | --- |
-| `User` | Identidade, estado e dados mínimos | Estado pendente/ativo/suspenso; credenciais e sessões protegidas |
-| `Team` | Unidade de isolamento/delegação | Pertence à organização futura; possui associações com função e escopo |
-| `Membership` | Usuário em equipe e função contextual | A função precisa ter escopo; não presumir um único papel global |
-| `AuditEvent` | Ações administrativas e documentais relevantes | Ator, ação, alvo, instante, correlation ID; sem payload sensível |
-| `Batch` | Solicitação criada pelo usuário | Dono, equipe, idiomas, totais e estado agregado calculado |
-| `Document` | Item de entrada individual | Batch, dono/equipe, nome exibido, formato detectado, tamanho, hash e estado |
-| `DocumentVersion` | Originais e resultados imutáveis | Chave de objeto interna, checksum, formato, tamanho, criado em; sem conteúdo binário no PostgreSQL |
-| `TranslationJob` | Trabalho assíncrono por documento | Estado, etapa, tentativas limitadas, lease/checkpoint e erro tipado |
-| `TranslationSegment` | Unidade de texto/rastreio no documento | Ordem, referência estrutural, texto protegido e resultado conforme retenção definida |
-| `ProviderConfig` | Configuração de provedor por escopo | Referenciar segredo seguro; não guardar API key em texto/logs |
-| `Glossary` / `GlossaryEntry` | Termos preferenciais por escopo/idioma | Opcional, introduzido após fluxo DOCX e contrato de tradução |
+| Domínio                | Tabelas                                                                                                                                                                 | Observações                                                                                                                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identidade             | `users`, `sessions`, `password_reset_requests`                                                                                                                          | Senha com scrypt e sessão opaca com prazo e inatividade (ADR-003). Em `users`, `access_expires_at` e `leader_unlocks` controlam o acesso liberado pelo Líder. O pedido de senha guarda só o hash, até ser decidido (ADR-031). |
+| Equipes                | `teams`, `team_memberships`                                                                                                                                             | Papel na equipe: `leader` ou `operator`. O Diretor fica em `users.org_role` e não ocupa cargo de equipe (ADR-005).                                                                                                            |
+| Auditoria              | `audit_events`                                                                                                                                                          | Somente inserção, com ator, ação, alvo, equipe, correlation ID e metadados sem conteúdo de documento.                                                                                                                         |
+| Remessas e arquivos    | `batches`, `documents`, `document_versions`                                                                                                                             | Remessa com protocolo ou justificativa, equipe opcional até o direcionamento e inspeção integral ou por amostra. Versões imutáveis com SHA-256; os binários ficam no S3 (ADR-006).                                            |
+| Tradução               | `translation_jobs`, `translation_drafts`, `translation_inspections`, `translation_format_registrations`, `translation_completed_versions`, `translation_profiles`       | Fila (estado, tentativas, lease e token por tentativa), responsável, modalidade, checklist, conferências, reprovações e Word final. `reference_number` é a referência sequencial "Tradução N" (ADR-031).                      |
+| Tradução automática    | `machine_translation_settings`, `translation_memory`, `glossary_entries`, `worker_heartbeats`                                                                           | Provedor escolhido pelo Diretor, memória que aprende com as conclusões e glossário da organização ou da equipe.                                                                                                               |
+| Tradutores e numeração | `sworn_translators`, `sworn_translator_masks`, `numbering_imports`, `numbering_stock`, `numbering_books`, `numbering_entries`, `numbering_quotas`, `numbering_requests` | Máscaras em edições numeradas, regras de numeração por tradutor, estoque, livros, cotas anuais e pedidos de alteração ou anulação (ADR-012 e ADR-014).                                                                        |
+| Formatos novos         | `pattern_trials`, `pattern_trial_reviews`, `pattern_trial_formats`                                                                                                      | Ensaios de tipos de documento ainda desconhecidos (ADR-028).                                                                                                                                                                  |
+| Notificações           | `notifications`, `notification_preferences`, `notification_delivery_state`                                                                                              | Categorias, canais e frequência por pessoa (ADR-029).                                                                                                                                                                         |
+| Gerenciamento AI       | `ai_settings`, `ai_skills`, `ai_user_access`, `ai_requests`, `ai_layout_combinations`, `ai_user_choice`                                                                 | Gemini opcional, com escopo restrito e escolha por pessoa (ADR-021 e ADR-022).                                                                                                                                                |
+| Histórico              | `translation_settings`, `translation_counters`                                                                                                                          | Só como histórico: a numeração passou para os tradutores (ADR-012).                                                                                                                                                           |
 
-## Escopos e integridade
+## Regras de integridade
 
-- Toda linha documental carrega ou herda organização, equipe e proprietário; escopo é aplicado em consultas e autorização.
-- Não confiar em `team_id`, `owner_id`, função ou chave de objeto enviados pelo cliente.
-- Definir chaves estrangeiras, restrições de estado, índices por consultas reais e política de exclusão/retention.
-- Eventos de auditoria não devem ser alteráveis pela interface comum.
-- Binários vivem no armazenamento S3; PostgreSQL guarda metadados, estados, checksums e referências não adivinháveis.
+- Toda linha documental herda a equipe e o dono da remessa. O escopo é aplicado nas consultas e nas políticas, nunca pelo que o cliente envia.
+- Chaves estrangeiras, `CHECK` de estados e índices seguem as consultas reais.
+- A auditoria não é alterada pela aplicação.
+- O PostgreSQL guarda metadados, estados, checksums e chaves de objeto geradas no servidor. O conteúdo binário fica no S3.
+- O conteúdo dos documentos fica cifrado pela aplicação (ADR-032):
+  - `extracted_text`;
+  - em `translation_drafts`, as colunas `content`, `issues` e `corrections`;
+  - `translation_format_registrations.draft`;
+  - `ai_layout_combinations.sample`;
+  - o texto da memória de tradução.
 
-## Estados iniciais sugeridos
+  As contagens dos rascunhos ficam abertas em `error_count`, `issue_count` e `correction_count`. A memória é buscada pelo índice cego `source_digest`.
 
-Revisar cada transição como uma máquina explícita. Um job pode usar:
+## Estados de uma tradução
 
 ```text
-queued → validating → extracting → translating → rebuilding → completed
-   │          │             │             │              │
-   └──────────┴─────────────┴─────────────┴────→ failed / needs_review
-queued ou etapa cancelável → cancelled
+queued → processing → in_review → awaiting_approval → approved
+   │          │            │              │
+   └──────────┴────────────┴──────────────┴──→ failed / cancelled
 ```
 
-`retrying`/tentativas devem preservar a etapa e classificar erro temporário versus permanente. Não marcar lote concluído enquanto houver itens pendentes ou em andamento. `needs_review` comunica baixa confiança OCR ou incompatibilidade estrutural sem disfarçar como sucesso pleno.
-
-O banco ainda não implementa esse modelo nem a fila; o diagrama é orientação para as fases 1–4.
+- O worker leva `queued` a `processing` e depois a `in_review`, com o rascunho pronto.
+- Ao ser marcada como pronta, a tradução vai para `awaiting_approval`. Quando o responsável conclui direto, ela passa por esse estado na mesma ação.
+- `approved` grava o Word final. Uma tradução concluída pode ser anulada por pedido de numeração (`annulled_at`).

@@ -116,6 +116,29 @@
   .account-auth-form input {
     @apply min-w-0 max-w-full;
   }
+  .account-auth-form .account-forgot {
+    @apply -mt-2 justify-self-start;
+  }
+  .account-auth-form details > label {
+    @apply mt-3 grid min-w-0 gap-1.5;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .account-auth-form details label > small {
+    @apply font-normal leading-relaxed text-muted;
+    font-size: 0.8125rem;
+  }
+  .password-request-form {
+    @apply mt-3 grid max-w-md gap-3;
+  }
+  .password-request-form > label {
+    @apply grid gap-1.5;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .password-request-form small {
+    @apply font-normal text-muted;
+  }
   .account-auth-form input::placeholder,
   .account-password-form input::placeholder,
   .account-settings-grid input::placeholder {

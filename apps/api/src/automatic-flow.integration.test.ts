@@ -135,12 +135,9 @@ describe('fluxo automático até o Word', () => {
     assert.match(pdf.body, /^%PDF/);
   });
 
-  it('o Usuário aprova o Word e a liderança conclui; o número sai pela regra do tradutor', async () => {
+  it('o Usuário responsável aprova o Word e já conclui; o número sai pela regra do tradutor', async () => {
     assert.equal((await inspectReady(c.op!, ids.sworn)).status, 200);
-    const accepted = await c.op!.post(`/api/v1/translations/${ids.sworn}/accept`);
-    assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
-    assert.equal(accepted.body.translation.status, 'awaiting_approval');
-    const concluded = await c.lider!.post(`/api/v1/translations/${ids.sworn}/accept`);
+    const concluded = await c.op!.post(`/api/v1/translations/${ids.sworn}/accept`);
     assert.equal(concluded.status, 200, JSON.stringify(concluded.body));
     assert.equal(concluded.body.translation.status, 'approved');
     assert.equal(concluded.body.translation.number, '501 – Livro 12 – Folha 1');

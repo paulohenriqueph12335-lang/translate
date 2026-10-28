@@ -1,3 +1,4 @@
+import { shortcutProps, useShortcuts } from './shortcuts';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   api,
@@ -425,6 +426,9 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   }, [status]);
 
   const dirty = useMemo(() => !!data?.draft && JSON.stringify(draft) !== JSON.stringify(data.draft.content), [draft, data]);
+  // Ctrl+S salva o rascunho, mesmo com o cursor no texto.
+  const saveShortcut = useRef<() => void>(undefined);
+  useShortcuts([{ keys: 'Ctrl+S', label: 'Salvar alterações', group: 'Nesta tela', run: () => saveShortcut.current?.() }]);
 
   if (!data)
     return (
@@ -481,6 +485,10 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
     const result = await run('Agora esta tradução é sua.', () => api('POST', `/translations/${id}/claim`, { confirmCompleted: completed }));
     if (result) reload();
   }
+
+  saveShortcut.current = () => {
+    if (dirty && !busy && !t.reviewLifecycle?.blocked) void save();
+  };
 
   /** Grava as edições como nova revisão; devolve `false` se não conseguiu. */
   async function save() {
@@ -707,7 +715,12 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
           )}
           {editing && (
             <>
-              <button className="primary" onClick={() => void save()} disabled={busy || !dirty || t.reviewLifecycle?.blocked}>
+              <button
+                className="primary"
+                {...shortcutProps('Ctrl+S')}
+                onClick={() => void save()}
+                disabled={busy || !dirty || t.reviewLifecycle?.blocked}
+              >
                 Salvar alterações
               </button>
               <button
@@ -778,7 +791,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
                 key={`${id}-${t.status}-numbering`}
                 translationId={id}
                 editable={t.permissions.approve}
-                canAuthorize={t.permissions.approve}
+                canAuthorize={!!t.permissions.authorizeNumbering}
                 defaultTranslatorId={t.preferredTranslator?.id ?? null}
                 defaultPages={t.pageCount}
                 completed={t.status === 'awaiting_approval'}

@@ -1,47 +1,44 @@
 # Arquitetura
 
-## Estado atual e arquitetura desejada
+Atualizado em 28/10/2026.
 
-O código atual é uma fundação de monólito modular em um monorepositório; ainda não é o fluxo funcional do produto. A tabela diferencia o que existe do que o plano exige.
+## Componentes
 
-| Componente | Implementado agora | Direção planejada |
-| --- | --- | --- |
-| `apps/web` | React + TypeScript/Vite; login, cadastro, documentos (novo lote, envio com progresso, histórico), aprovações, usuários, equipes, auditoria e sessões; proxy `/api` | Painéis, autenticação, equipes, upload e resultados |
-| `apps/api` | Fastify + TypeScript; saúde, identidade, sessões, equipes, políticas de acesso, auditoria, lotes, upload validado e download (`src/modules/*`) | Autenticação, autorização, lotes, arquivos e histórico |
-| `apps/worker` | Consome a fila de traduções (`@tradutor/core/processing`): extrai o texto, lê o layout, traduz trecho a trecho e deixa o rascunho para revisão, notificando a equipe | OCR, outros formatos, checkpoints por etapa |
-| `packages/core` | Banco (pool, migrações, auditoria), armazenamento S3, rascunho, checagens, extração de PDF, leitura do layout, tradução automática, gerador do DOCX juramentado, notificações e processamento | Contratos compartilhados entre API e worker |
-| LibreTranslate | Serviço `translator` (modelos PT/EN), tradução automática gratuita e local (ADR-008); a estrutura do original vem da leitura do layout no worker (ADR-009) | Outros pares de idiomas conforme a demanda |
-| PostgreSQL | Identidade, equipes, `audit_events` (somente inserção), `batches`, `documents` e `document_versions` (imutável) | Usuários, equipes, documentos, tarefas, eventos e auditoria |
-| Armazenamento S3 | SeaweedFS local; a API grava os originais por uma interface `ObjectStorage` em bucket privado criado ao iniciar | Adaptador de objetos privados com políticas e retenção |
-| Migrações | Serviço `migrate` roda `pnpm --filter @tradutor/api migrate`: arquivos em ordem, uma vez cada, com lock e transação | Migrações ordenadas e rastreadas com validação de versão |
-| Worker documental | PDF digital via pdf.js, DOCX/PPTX via leitura do XML; imagens aguardam o OCR; imagem inclui Tesseract (por/eng) e LibreOffice Writer | OCR local, adaptadores DOCX e PPTX |
+| Componente          | O que faz                                                                                                                                                                                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web`          | React 19, Vite 7 e Tailwind 4. Telas de entrada, Início, Traduções, Equipe, Ajustes, Administração, Notificações, Tutorial e Configurações. Proxy `/api` na mesma origem, para o cookie `SameSite=Strict` (ADR-003).                                                        |
+| `apps/api`          | Fastify 5 e Zod 4. Identidade, sessões, tokens fixos e recuperação de senha, equipes, remessas, upload, traduções, numeração, tradutores, entregas e ZIP, painéis, notificações, auditoria e Gerenciamento AI. Rotas em `src/http/routes.ts` e serviços em `src/modules/*`. |
+| `apps/worker`       | Consome a fila de traduções (`@tradutor/core/processing`): OCR, leitura do layout, tradução automática, revisão automática e rascunho para revisão. Também envia batimentos de saúde (`worker_heartbeats`).                                                                 |
+| `packages/core`     | Banco (pool, migrações, auditoria e notificações), armazenamento S3, extração de PDF, DOCX e PPTX, OCR, modelos de corpo e de moldura, gerador do Word e processamento da fila.                                                                                             |
+| `packages/database` | 34 migrações SQL em ordem, aplicadas uma vez cada pelo serviço `migrate`.                                                                                                                                                                                                   |
+| PostgreSQL 17       | Fonte da verdade de estados e metadados. A fila usa `FOR UPDATE SKIP LOCKED`, com lease renovado.                                                                                                                                                                           |
+| SeaweedFS (S3)      | Bucket privado para originais, máscaras e Word finais, cifrados pela aplicação (ADR-032).                                                                                                                                                                                   |
+| LibreTranslate      | Tradução automática gratuita e local (PT, EN, FR, IT e ES).                                                                                                                                                                                                                 |
+| Gotenberg           | Conversão de Word para PDF, para a prévia e para as entregas em PDF.                                                                                                                                                                                                        |
 
 ## Limites entre módulos
 
-- A API autentica, valida, aplica políticas e coordena persistência; não deve processar documentos pesados durante uma requisição HTTP.
-- O worker executa tarefas demoradas e deve ser seguro para reiniciar e escalar para mais de uma instância.
-- PostgreSQL é a fonte de verdade para estados e metadados; objetos ficam no armazenamento S3.
-- Pacotes compartilhados devem conter contratos/regras independentes dos frameworks. Criar pacotes quando a fase os exigir, evitando diretórios e abstrações vazios.
-- Cada formato tem adaptador próprio sobre um modelo documental intermediário; segmentos devem manter referências suficientes para reconstrução.
+- A API autentica, valida e aplica as políticas. Não processa documentos pesados durante a requisição; a conclusão gera o Word final.
+- O worker executa as tarefas demoradas e pode ser reiniciado e escalado: cada tentativa leva um token próprio e um lease.
+- O PostgreSQL guarda estados e metadados; os arquivos ficam no S3.
+- As regras de acesso ficam em funções puras (`policy.ts`), testadas à parte.
 
-## Fluxo alvo
+## Fluxo de um documento
 
 ```text
-Browser → API → PostgreSQL
-              ↘ armazenamento S3 (originais e resultados)
-PostgreSQL/fila → worker → extração/OCR → provedor de tradução
-                                  └────→ reconstrução → S3
+Browser → API → PostgreSQL (remessa, documento, trabalho na fila)
+              ↘ S3 (original)
+worker → OCR / leitura do layout → LibreTranslate → revisão automática → rascunho
+Browser → revisão lado a lado → conclusão (responsável ou liderança) → Word final no S3 → download ou ZIP
 ```
-
-A fila de traduções vive no PostgreSQL (`translation_jobs`, `FOR UPDATE SKIP LOCKED` e lease com prazo). O DOCX final é gerado pela API no momento da aprovação. Não anunciar processamento assíncrono ou recuperação como existente até os critérios da fase correspondente passarem.
 
 ## Serviços locais e portas
 
-| Serviço | Endereço no host | Uso |
-| --- | --- | --- |
-| Web | `http://localhost:5173` | Interface de desenvolvimento |
-| API | `http://localhost:3000` | HTTP e saúde |
-| PostgreSQL | `localhost:5433` | Porta do host; dentro da rede Compose usa `postgres:5432` |
-| S3 SeaweedFS | `http://localhost:8333` | Endpoint compatível com S3 |
+| Serviço      | Endereço no host        | Uso                                            |
+| ------------ | ----------------------- | ---------------------------------------------- |
+| Web          | `http://localhost:5173` | Interface                                      |
+| API          | `http://localhost:3000` | HTTP e saúde (`/health/live`, `/health/ready`) |
+| PostgreSQL   | `localhost:5433`        | Na rede do Compose, `postgres:5432`            |
+| S3 SeaweedFS | `http://localhost:8333` | Endpoint compatível com S3                     |
 
-As portas publicadas são vinculadas a `127.0.0.1`. As portas externas podem ser alteradas no `.env` quando suportadas pelo Compose.
+As portas publicadas ficam presas a `127.0.0.1`. Os serviços do Compose rodam em modo de desenvolvimento (`tsx watch` e o servidor do Vite). Imagens de produção ainda estão no roadmap.

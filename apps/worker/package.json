@@ -12,7 +12,7 @@
   "dependencies": {
     "@tradutor/core": "workspace:*",
     "pg": "8.16.3",
-    "zod": "4.1.12"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "24.8.1",

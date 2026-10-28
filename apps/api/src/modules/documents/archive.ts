@@ -4,7 +4,7 @@ import type { ServiceDeps, AuthenticatedContext } from '../context.js';
 import type { FinalArtifactReceipt, TranslationService } from '../translations/service.js';
 import { canViewBatch } from '../access/policy.js';
 import { AppError, notFound, conflict } from '../../http/errors.js';
-import { docxToPdf, pdfName } from '../../http/pdf.js';
+import { docxToPdf } from '../../http/pdf.js';
 
 export const ARCHIVE_LIMITS = { maxFiles: 100, maxBytes: 128 * 1024 * 1024, maxFileBytes: 50 * 1024 * 1024 };
 
@@ -27,6 +27,15 @@ const originalStem = (name: string) =>
     .replace(/\.[^.]+$/, '')
     .normalize('NFC')
     .toLocaleLowerCase('pt-BR');
+/**
+ * Nome de cada tradução no ZIP (pedido do produto, 2026-10-28): número da tradução e protocolo, quando houver; sem
+ * número, entra a referência sequencial ("Tradução 123"), que também serve para buscar depois.
+ */
+export function archiveBaseName(row: { number_label: string | null; protocol: string | null; reference_number: string | number }) {
+  const parts = [row.number_label?.replace(/\//g, '-'), row.protocol, row.number_label ? null : `Tradução ${row.reference_number}`];
+  return safeArchiveSegment(parts.filter(Boolean).join(' – '), `Tradução ${row.reference_number}`, 170);
+}
+
 const withOrdinal = (name: string, ordinal: number) =>
   ordinal ? name.replace(/(\.[^.]*)$/, ` (${String(ordinal).padStart(2, '0')})$1`) : name;
 
@@ -90,12 +99,15 @@ export function createArchiveService(
       team_id: string | null;
       owner_id: string;
       protocol: string | null;
+      number_label: string | null;
+      reference_number: string;
       source_language: string;
       target_language: string;
       status: string;
       annulled_at: Date | null;
     }>(
-      `SELECT j.id, b.team_id, b.owner_id, b.protocol, j.source_language, j.target_language, j.status, j.annulled_at
+      `SELECT j.id, b.team_id, b.owner_id, b.protocol, j.number_label, j.reference_number, j.source_language, j.target_language,
+              j.status, j.annulled_at
          FROM translation_jobs j JOIN documents d ON d.id = j.document_id JOIN batches b ON b.id = d.batch_id
         WHERE ${input.batchId ? "b.id = $1 AND j.status = 'approved' AND j.annulled_at IS NULL" : 'j.id = ANY($1::uuid[])'}
         ORDER BY b.created_at, b.id, d.position, j.target_language, j.id LIMIT 101`,
@@ -137,7 +149,7 @@ export function createArchiveService(
       if (content.length > ARCHIVE_LIMITS.maxFileBytes || bytes > ARCHIVE_LIMITS.maxBytes)
         throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Os PDFs excedem o limite de 128 MB por ZIP ou 50 MB por arquivo');
       const directory = `${safeArchiveSegment(row.protocol ?? 'Sem protocolo')}/${safeArchiveSegment(`${row.source_language.toUpperCase()}-${row.target_language.toUpperCase()}`)}/${input.format === 'docx' ? 'Word' : 'PDF'}`;
-      const name = safeArchiveSegment(input.format === 'pdf' ? pdfName(file.name) : file.name);
+      const name = `${archiveBaseName(row)}.${input.format}`;
       let path = `${directory}/${name}`;
       let ordinal = 1;
       while (paths.has(path.toLocaleLowerCase('pt-BR'))) path = `${directory}/${withOrdinal(name, ordinal++)}`;
@@ -155,10 +167,18 @@ export function createArchiveService(
         archive: { ...(input.batchId ? { batchId: input.batchId } : {}), bytes: buffer.length },
       },
     );
-    const protocol = input.batchId ? found.rows[0]!.protocol : null;
+    // Uma tradução: o nome dela. Um protocolo só: o protocolo. Protocolos misturados: "Traduções N", em sequência.
+    const protocols = new Set(found.rows.map((row) => row.protocol));
+    const [only] = protocols;
+    const base =
+      found.rows.length === 1
+        ? archiveBaseName(found.rows[0]!)
+        : protocols.size === 1 && only
+          ? safeArchiveSegment(only)
+          : `Traduções ${(await pool.query<{ n: string }>(`SELECT nextval('translation_archive_seq') AS n`)).rows[0]!.n}`;
     return {
       buffer,
-      name: `${safeArchiveSegment(protocol ?? 'Traduções')} – ${input.format === 'docx' ? 'Word' : 'PDF'}.zip`,
+      name: `${base} – ${input.format === 'docx' ? 'Word' : 'PDF'}.zip`,
       contentType: 'application/zip',
       size: buffer.length,
       count: found.rows.length,

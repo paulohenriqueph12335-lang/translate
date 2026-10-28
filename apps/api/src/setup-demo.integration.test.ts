@@ -2,17 +2,16 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
-import { createTestApp, TestClient } from './test/helpers.js';
+import { createTestApp, TEST_TOKENS, TestClient } from './test/helpers.js';
 
 /** Contas de demonstração: Diretor, Líder e Usuário de teste criados juntos e excluídos juntos (ADR-004). */
 const PASSWORD = 'senha-de-teste-123';
-const codes: string[] = [];
 
 let app: FastifyInstance;
 let pool: Pool;
 
 before(async () => {
-  ({ app, pool } = await createTestApp('setupdemo', { announceSetupCode: (value) => codes.push(value) }));
+  ({ app, pool } = await createTestApp('setupdemo'));
 });
 
 after(async () => {
@@ -30,7 +29,7 @@ describe('contas de demonstração', () => {
   it('cria Diretor, Líder e Usuário de teste com a mesma senha, na Equipe de Teste', async () => {
     const director = new TestClient(app);
     const created = await director.post('/api/v1/setup', {
-      code: codes.at(-1),
+      code: TEST_TOKENS.director,
       email: 'diretor.teste@exemplo.com',
       displayName: 'Diretor de Teste',
       password: PASSWORD,
@@ -82,7 +81,7 @@ describe('contas de demonstração', () => {
 
     // Dá para recriar tudo com os mesmos e-mails.
     const again = await new TestClient(app).post('/api/v1/setup', {
-      code: codes.at(-1),
+      code: TEST_TOKENS.director,
       email: 'diretor.teste@exemplo.com',
       displayName: 'Diretor de Teste',
       password: PASSWORD,

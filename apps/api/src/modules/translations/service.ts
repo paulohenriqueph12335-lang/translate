@@ -1,3 +1,4 @@
+import { insertDraft, learnMemory, sealJson } from '@tradutor/core/crypto';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -36,6 +37,7 @@ import {
 } from '@tradutor/core/translation';
 import {
   canApproveTranslation,
+  canConcludeTranslation,
   canClaimTranslation,
   canDecideNumberingRequest,
   canEditTranslation,
@@ -62,6 +64,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface JobRow {
   id: string;
+  /** Referência sequencial ("Tradução 123"): nome no ZIP sem número nem protocolo e busca. */
+  reference_number: string;
   /** Modalidade (ADR-015): juramentada, certificada, técnica ou simples. */
   translation_mode: Mode;
   /** Juramentada com a máscara do tradutor (padrão) ou sem máscara (ADR-017). */
@@ -165,8 +169,8 @@ const JOB_SELECT = `
          (SELECT edition FROM sworn_translator_masks WHERE id = j.mask_id) AS mask_edition,
          (SELECT nr.id FROM numbering_requests nr WHERE nr.job_id = j.id AND nr.status = 'pending') AS pending_request_id,
          to_char(j.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
-         (SELECT count(*)::int FROM jsonb_array_elements(r.issues) i WHERE i->>'severity' = 'error') AS error_count,
-         (SELECT count(*)::int FROM jsonb_array_elements(r.issues)) AS issue_count,
+         r.error_count,
+         r.issue_count,
          greatest(1,coalesce(est.seconds * greatest(coalesce(j.page_count, 1), 1), 300 + 120 * greatest(coalesce(j.page_count, 1), 1))::int) AS estimated_seconds,
          coalesce(est.samples, 0)::int AS estimate_samples,
          (b.inspection_mode = 'all' OR d.id IN (
@@ -209,6 +213,7 @@ const withMask = (row: Pick<JobRow, 'translation_mode' | 'use_mask'>) => row.tra
 function summary(row: JobRow, actor: Actor, at = new Date()) {
   const batch = { teamId: row.team_id, ownerId: row.owner_id };
   const canApprove = canApproveTranslation(actor, batch);
+  const canConclude = canConcludeTranslation(actor, batch, row.assignee_id);
   const canEdit = canEditTranslation(actor, batch, row.assignee_id);
   const open = !['approved', 'cancelled', 'failed'].includes(row.status);
   const sworn = withMask(row);
@@ -217,6 +222,7 @@ function summary(row: JobRow, actor: Actor, at = new Date()) {
   const seconds = (from: Date, to = at) => Math.max(0, Math.floor((to.getTime() - from.getTime()) / 1000));
   return {
     id: row.id,
+    reference: Number(row.reference_number),
     translationMode: row.translation_mode,
     modeLabel: modeLabel[row.translation_mode],
     stages: MODE_STAGES[row.translation_mode],
@@ -299,9 +305,12 @@ function summary(row: JobRow, actor: Actor, at = new Date()) {
       submit: row.status === 'in_review' && canEdit && !blocked,
       claim: open && canClaimTranslation(actor, batch, row.assignee_id),
       reassign: open && canReassignTranslation(actor, batch),
-      approve: (row.status === 'in_review' || row.status === 'awaiting_approval') && canApprove && !blocked,
+      /** Concluir: o responsável ou a liderança (2026-10-28). */
+      approve: (row.status === 'in_review' || row.status === 'awaiting_approval') && canConclude && !blocked,
       /** Aprovar o Word (ADR-017): leva à próxima fase — pronta para conclusão, ou concluída por quem pode concluir. */
-      accept: !blocked && ((row.status === 'in_review' && (canEdit || canApprove)) || (row.status === 'awaiting_approval' && canApprove)),
+      accept: !blocked && ((row.status === 'in_review' && (canEdit || canApprove)) || (row.status === 'awaiting_approval' && canConclude)),
+      /** Exceções de numeração (protocolo zero): só a liderança autoriza. */
+      authorizeNumbering: canApprove,
       returnForChanges: ['in_review', 'awaiting_approval'].includes(row.status) && (canEdit || canApprove) && !blocked,
       cancel: !['approved', 'cancelled', 'failed'].includes(row.status) && canApprove,
       reprocess: ['in_review', 'awaiting_approval', 'failed', 'approved'].includes(row.status) && canApprove && !blocked,
@@ -647,13 +656,7 @@ export function createTranslationService({
         await glossaryFor(db, row),
         await loadRules(db, row.translation_mode, row.target_language),
       );
-      await db.query(`INSERT INTO translation_drafts(job_id,revision,content,issues,origin,author_id) VALUES($1,$2,$3,$4,'human',$5)`, [
-        jobId,
-        revisionNumber,
-        JSON.stringify(content),
-        JSON.stringify(issues),
-        ctx.actor.id,
-      ]);
+      await insertDraft(db, { jobId, revision: revisionNumber, content, issues, origin: 'human', authorId: ctx.actor.id });
       const registered = await db.query<{ id: string }>(
         `INSERT INTO translation_format_registrations(job_id,generation,name,explanation,source_revision,revision,draft,registered_by)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
@@ -664,7 +667,7 @@ export function createTranslationService({
           input.explanation.trim(),
           input.baseRevision,
           revisionNumber,
-          JSON.stringify(content),
+          sealJson(content),
           ctx.actor.id,
         ],
       );
@@ -850,7 +853,11 @@ export function createTranslationService({
         `(unaccent(d.display_name) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern})
           OR unaccent(coalesce(b.protocol,'')) ILIKE unaccent(${pattern})
           OR unaccent(coalesce(j.document_type, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(j.source_title, '')) ILIKE unaccent(${pattern})
-          OR coalesce(j.number_label, '') ILIKE ${pattern})`,
+          OR coalesce(j.number_label, '') ILIKE ${pattern}${
+            /^(tradu[cç][aã]o\s*)?\d{1,15}$/i.test(query.q.trim())
+              ? ` OR j.reference_number = ${param(query.q.trim().replace(/\D/g, ''))}::bigint`
+              : ''
+          })`,
       );
     }
     if (after) conditions.push(`(j.created_at, j.id) < (${param(after[0])}::timestamptz, ${param(after[1])}::uuid)`);
@@ -976,7 +983,7 @@ export function createTranslationService({
     await loadJob(pool, ctx, jobId);
     const result = await pool.query<{ revision: number; origin: string; created_at: Date; author_name: string | null; errors: number }>(
       `SELECT r.revision, r.origin, r.created_at, u.display_name AS author_name,
-              (SELECT count(*)::int FROM jsonb_array_elements(r.issues) i WHERE i->>'severity' = 'error') AS errors
+              r.error_count AS errors
          FROM translation_drafts r LEFT JOIN users u ON u.id = r.author_id
         WHERE r.job_id = $1 ORDER BY r.revision DESC`,
       [jobId],
@@ -1015,10 +1022,7 @@ export function createTranslationService({
       const rules = await loadRules(db, row.translation_mode, row.target_language);
       const issues = checkDraft(input.draft, row.extracted_text, await glossaryFor(db, row), rules);
       const next = (row.current_revision ?? 0) + 1;
-      await db.query(
-        `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, author_id) VALUES ($1, $2, $3, $4, 'human', $5)`,
-        [jobId, next, JSON.stringify(input.draft), JSON.stringify(issues), ctx.actor.id],
-      );
+      await insertDraft(db, { jobId, revision: next, content: input.draft, issues, origin: 'human', authorId: ctx.actor.id });
       await db.query(
         `UPDATE translation_jobs SET current_revision = $2, source_title = nullif($3, ''), document_type = nullif($4, ''), updated_at = now()
           WHERE id = $1`,
@@ -1057,11 +1061,15 @@ export function createTranslationService({
     const issues = checkDraft(review.draft, row.extracted_text, glossary, rules);
     if (!review.corrections.length) return { revision: row.current_revision, corrections: [], unresolved: review.unresolved, issues };
     const next = (row.current_revision ?? 0) + 1;
-    await db.query(
-      `INSERT INTO translation_drafts (job_id, revision, content, issues, origin, author_id, corrections)
-       VALUES ($1, $2, $3, $4, 'review', $5, $6)`,
-      [row.id, next, JSON.stringify(review.draft), JSON.stringify(issues), ctx.actor.id, JSON.stringify(review.corrections)],
-    );
+    await insertDraft(db, {
+      jobId: row.id,
+      revision: next,
+      content: review.draft,
+      issues,
+      origin: 'review',
+      authorId: ctx.actor.id,
+      corrections: review.corrections,
+    });
     await db.query(`UPDATE translation_jobs SET current_revision = $2, document_type = nullif($3, ''), updated_at = now() WHERE id = $1`, [
       row.id,
       next,
@@ -1088,14 +1096,15 @@ export function createTranslationService({
 
   /**
    * Aprovar o Word (ADR-017): tradução e revisão já foram automáticas; quem aprova leva o documento à próxima fase.
-   * O responsável (ou o Supervisor) confirma o que faltar do checklist e marca como pronta; quem pode concluir conclui
-   * na hora, com o tradutor e a numeração escolhidos. Um Usuário aprova e a liderança conclui.
+   * O responsável (ou o Supervisor) confirma o que faltar do checklist e marca como pronta; quem pode concluir (o
+   * responsável ou a liderança, desde 2026-10-28) conclui na hora, com o tradutor e a numeração escolhidos.
    */
   async function accept(ctx: AuthenticatedContext, jobId: string) {
     const row = await loadJob(pool, ctx, jobId);
     requireUnblocked(row);
     const batch = { teamId: row.team_id, ownerId: row.owner_id };
     const canApprove = canApproveTranslation(ctx.actor, batch);
+    const canConclude = canConcludeTranslation(ctx.actor, batch, row.assignee_id);
     const canEdit = canEditTranslation(ctx.actor, batch, row.assignee_id);
     if (row.status === 'in_review') {
       if (!canEdit && !canApprove) throw forbidden('Somente o responsável ou a liderança da equipe aprova esta tradução');
@@ -1104,11 +1113,12 @@ export function createTranslationService({
         .filter((item) => !item.checked)
         .map((item) => item.key);
       if (pending.length && canEdit) await setChecks(ctx, jobId, { keys: pending, checked: true });
-      if (canEdit) await submit(ctx, jobId);
+      // Quem vai concluir em seguida não avisa a liderança de que está pronta.
+      if (canEdit) await submit(ctx, jobId, { quiet: canConclude });
     } else if (row.status !== 'awaiting_approval') {
       throw conflict(`Ação não permitida no estado "${row.status}"`);
     }
-    if (!canApprove) return get(ctx, jobId);
+    if (!canConclude) return get(ctx, jobId);
     // Juramentada sem tradutor decidido: fica pronta, e quem conclui escolhe o tradutor (ou nenhum) na conclusão.
     if (withMask(row) && !row.preferred_translator_id) {
       const entry = await pool.query(`SELECT 1 FROM numbering_entries WHERE job_id = $1 AND status <> 'void'`, [jobId]);
@@ -1156,7 +1166,7 @@ export function createTranslationService({
     return get(ctx, jobId);
   }
 
-  const submit = (ctx: AuthenticatedContext, jobId: string) =>
+  const submit = (ctx: AuthenticatedContext, jobId: string, options: { quiet?: boolean } = {}) =>
     transition(
       ctx,
       jobId,
@@ -1193,7 +1203,8 @@ export function createTranslationService({
           [jobId, ctx.actor.id],
         );
         await audit(db, ctx, row, 'translation.submitted', { revision: row.current_revision });
-        // Pronto pelo Operador: a decisão final é do Líder da equipe ou do Diretor.
+        if (options.quiet) return;
+        // Pronto sem concluir: o responsável ou a liderança conclui; a liderança é avisada.
         await notify(
           db,
           { teamId: row.team_id, leaders: true, directors: true, exclude: ctx.actor.id },
@@ -1478,15 +1489,24 @@ export function createTranslationService({
     });
   }
 
+  /** Concluir: o responsável pela tradução ou a liderança da equipe (2026-10-28). */
+  async function requireConcluder(ctx: AuthenticatedContext, jobId: string) {
+    const row = await loadJob(pool, ctx, jobId);
+    if (!canConcludeTranslation(ctx.actor, { teamId: row.team_id, ownerId: row.owner_id }, row.assignee_id)) {
+      throw forbidden('Somente o responsável pela tradução, o Líder da equipe ou o Diretor conclui');
+    }
+  }
+
   /**
-   * Conclusão (ADR-007, ADR-012): só Supervisor da equipe ou Diretor; problemas de checagem em aberto exigem justificativa.
+   * Conclusão (ADR-007, ADR-012; revisão de 2026-10-28): o responsável, o Supervisor da equipe ou o Diretor; problemas
+   * de checagem em aberto exigem justificativa.
    * Quem conclui escolhe o tradutor juramentado e digita o número (e, se usar, livro e folha) conforme as regras dele;
    * o DOCX final é a máscara do tradutor preenchida, gravado imutável. Nada é concluído automaticamente.
    */
   async function approve(ctx: AuthenticatedContext, jobId: string, input: ApproveInput) {
     if (input.withoutTranslator && (input.translatorId || input.number || input.book || input.sheet))
       throw new AppError(400, 'VALIDATION_FAILED', 'Sem tradutor, a conclusão não leva tradutor nem número');
-    await requireApprover(ctx, jobId);
+    await requireConcluder(ctx, jobId);
     const keyHolder: { key?: string } = {};
     try {
       await withTransaction(pool, async (db) => {
@@ -1645,21 +1665,12 @@ export function createTranslationService({
         // Memória de tradução (ADR-008): só aprende com aprovações sem justificativa de exceção.
         if (!errors.length) {
           const pairs = memoryPairs(content);
-          if (pairs.size) {
-            await db.query(
-              `INSERT INTO translation_memory (source_language, target_language, source_text, target_text, last_job_id)
-               SELECT $1, $2, pair.source, pair.target, $3 FROM jsonb_to_recordset($4::jsonb) AS pair(source text, target text)
-               ON CONFLICT (source_language, target_language, source_text)
-               DO UPDATE SET target_text = EXCLUDED.target_text, last_job_id = EXCLUDED.last_job_id,
-                             uses = translation_memory.uses + 1, updated_at = now()`,
-              [
-                row.source_language,
-                row.target_language,
-                row.id,
-                JSON.stringify([...pairs].map(([source, target]) => ({ source: source.slice(0, 4000), target: target.slice(0, 8000) }))),
-              ],
-            );
-          }
+          await learnMemory(db, {
+            sourceLanguage: row.source_language,
+            targetLanguage: row.target_language,
+            jobId: row.id,
+            pairs: [...pairs].map(([source, target]) => [source.slice(0, 4000), target.slice(0, 8000)] as const),
+          });
         }
         await audit(db, ctx, row, 'translation.approved', {
           revision: row.current_revision,

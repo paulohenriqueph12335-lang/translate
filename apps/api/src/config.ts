@@ -1,3 +1,4 @@
+import { withFileSecrets } from '@tradutor/core/crypto';
 import { z } from 'zod';
 
 const booleanFlag = z
@@ -42,6 +43,15 @@ const schema = z.object({
     .string()
     .optional()
     .transform((value) => value || undefined),
+  // Tokens fixos do Diretor e do Líder: sem valor, valem os tokens entregues com o sistema (só o hash fica no código).
+  DIRECTOR_TOKEN: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
+  LEADER_TOKEN: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
   // Gerenciamento AI (ADR-021): sem chave, a IA fica indisponível e o sistema segue normalmente.
   GEMINI_API_KEY: z
     .string()
@@ -51,4 +61,5 @@ const schema = z.object({
 
 export type Config = z.infer<typeof schema>;
 
-export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => schema.parse(env);
+/** Segredos podem vir de arquivo (`NOME_FILE`), como os segredos do Docker e do Kubernetes (ADR-032). */
+export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => schema.parse(withFileSecrets(env));

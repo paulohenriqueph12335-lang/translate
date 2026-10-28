@@ -1,24 +1,15 @@
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
+import { configureEncryption, loadKeyring } from '@tradutor/core/crypto';
 import { createPool } from '@tradutor/core/db';
 import { createS3Storage } from '@tradutor/core/storage';
 
 const config = loadConfig();
+// Documentos cifrados em repouso (ADR-032): sem as chaves, a API não sobe.
+configureEncryption(loadKeyring(process.env));
 const database = createPool(config.DATABASE_URL);
 const storage = createS3Storage(config);
-// Em texto simples, para achar fácil no Docker Desktop (Containers → api → Logs) ou em `docker compose logs api`.
-const announceSetupCode = (code: string) =>
-  process.stdout.write(
-    [
-      '',
-      '==============================================================',
-      `  CÓDIGO DE CONFIGURAÇÃO INICIAL: ${code}`,
-      '  Abra http://localhost:5173 e crie o Diretor com este código.',
-      '==============================================================',
-      '',
-    ].join('\n') + '\n',
-  );
-const app = await buildApp({ config, pool: database, storage, announceSetupCode });
+const app = await buildApp({ config, pool: database, storage });
 
 // O armazenamento pode subir depois da API no Compose: tenta criar/verificar o bucket algumas vezes.
 for (let attempt = 1; ; attempt += 1) {
