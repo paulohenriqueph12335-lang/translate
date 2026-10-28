@@ -35,7 +35,7 @@ import { useUserPreferences } from './preferences';
 import { type DocumentsSearchTarget } from './SmartSearch';
 import { PerformancePanel } from './PerformancePanel';
 import { Icon, type IconName } from './icons';
-import { tutorialFor, TutorialSection } from './Tutorial';
+import { TUTORIAL_VIEWS, tutorialFor, TutorialSection, type TutorialRole } from './Tutorial';
 import { setThemePreference } from './theme';
 import { BELL_TOGGLE } from './BellPanel';
 import { keyParts, shortcutProps, ShortcutsDialog, ShortcutTip, useShortcuts, type Shortcut } from './shortcuts';
@@ -147,7 +147,9 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   const goToTranslators = () => (manages ? go('team', 'translators') : undefined);
   const leads = me.memberships.filter((m) => m.role === 'leader').length;
   const role = isDirector ? 'Diretor' : leads ? 'Supervisor' : me.memberships.length ? 'Usuário' : 'Sem equipe';
-  const tutorialRole = isDirector ? 'director' : supervises ? 'leader' : 'user';
+  const tutorialRole: TutorialRole = isDirector ? 'director' : supervises ? 'leader' : 'user';
+  // A liderança pode ver o tutorial como cada papel abaixo do seu, para treinar a equipe.
+  const [tutorialView, setTutorialView] = useState<TutorialRole>(tutorialRole);
 
   // Sessão revogada/expirada em qualquer chamada leva de volta ao login.
   useEffect(() => setUnauthorizedHandler(onUnauthorized), [onUnauthorized]);
@@ -362,10 +364,19 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       label: 'Tutorial',
       title: 'Tutorial',
       subtitle: 'Como usar o sistema: para que serve cada tela, o passo a passo e fotos de cada uma.',
-      tabs: tutorialFor(tutorialRole).map((section) => ({
+      tabs: tutorialFor(tutorialView).map((section) => ({
         key: section.key,
         label: section.title,
-        render: () => <TutorialSection section={section} role={tutorialRole} onGo={(target) => go(target.area, target.tab)} />,
+        render: () => (
+          <TutorialSection
+            section={section}
+            role={tutorialView}
+            views={TUTORIAL_VIEWS[tutorialRole]}
+            onView={setTutorialView}
+            canOpen={(target) => [...visible, ...footer].some((area) => area.key === target.area)}
+            onGo={(target) => go(target.area, target.tab)}
+          />
+        ),
       })),
     },
     {
@@ -588,7 +599,20 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
               </header>
               {sideMenu ? (
                 <div className="area-body">
-                  <nav className="side-menu" aria-label={current.title}>
+                  {/* Celular: menus longos (o Tutorial) viram uma lista de escolha, para o conteúdo aparecer logo. */}
+                  {current.tabs.length > 6 && (
+                    <label className="side-menu-select">
+                      <span className="muted small-text">{current.title}: escolha a seção</span>
+                      <select value={tab.key} onChange={(event) => go(current.key, event.target.value)}>
+                        {current.tabs.map((item) => (
+                          <option key={item.key} value={item.key}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <nav className={`side-menu ${current.tabs.length > 6 ? 'many' : ''}`} aria-label={current.title}>
                     {current.tabs.map((item) => (
                       <button
                         key={item.key}
