@@ -15,6 +15,9 @@ A organização definiu o que cada nível faz (Diretor, Supervisor = Líder, Usu
 - `translation_jobs.assignee_id`: quem enviou o documento (o lote do Diretor nasce sem responsável e a equipe **assume**); quem inicia uma tradução manualmente também vira responsável.
 - **Editar e marcar como pronta**: só o responsável e o Supervisor da equipe. O Diretor só edita o que é dele; no trabalho dos outros, **autoriza** (conclui, pede para refazer) ou **reatribui** (D4).
 - **Reatribuir**: Supervisor da equipe ou Diretor, sempre para alguém da equipe do documento.
+  - Revisão de 2026-10-28: o Diretor também pode reatribuir para si ("Eu (Diretor)") e passa a editar como responsável.
+  - Quem perde o acesso ao documento deixa de ser responsável pelas traduções em aberto, que voltam a "Disponíveis para assumir". Isso vale para quem sai da equipe, para a remessa direcionada a outra equipe, para a conta suspensa e para quem deixa de ser Diretor. A auditoria registra `translation.released`.
+  - O Diretor desfaz pedidos de número do mais recente para o mais antigo. Depois que a tradução é reaberta, a decisão não se desfaz.
 - O Usuário passa a enviar documentos para a própria equipe.
 
 ### Cotas de numeração (anuais)

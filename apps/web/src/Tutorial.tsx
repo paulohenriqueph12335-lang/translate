@@ -529,7 +529,7 @@ export const TUTORIAL: TutorialSectionData[] = [
             ['Só os meus', 'Esconde os envios das outras pessoas da equipe.'],
             role === 'director' && [
               'Equipe e Aguardando direcionamento',
-              'Filtra por equipe. Nas remessas aguardando direcionamento, escolha a equipe de destino para liberar a tradução.',
+              'Filtra por equipe. Nas remessas aguardando direcionamento, escolha a equipe de destino para liberar a tradução. Ao mudar a remessa de equipe, quem era da equipe anterior deixa de ser responsável e a nova equipe assume.',
             ],
             [
               'Cancelar pendentes / Cancelar documento',
@@ -660,7 +660,13 @@ export const TUTORIAL: TutorialSectionData[] = [
           steps={[
             <>Escolha a fase na régua e use os filtros para chegar ao documento.</>,
             <>
-              Abra o documento. Para mudar o responsável, use <strong>Reatribuir…</strong> em Ajustes manuais e escolha a pessoa da equipe.
+              Abra o documento. Para mudar o responsável, use <strong>Reatribuir…</strong> em Ajustes manuais e escolha a pessoa da equipe
+              {role === 'director' ? (
+                <>
+                  , ou <strong>Eu (Diretor)</strong> para assumir e editar você mesmo
+                </>
+              ) : null}
+              .
             </>,
             <>Em "Pendências", veja o que falhou ou está parado e decida: processar de novo, pedir para refazer ou cancelar.</>,
           ]}
@@ -748,7 +754,12 @@ export const TUTORIAL: TutorialSectionData[] = [
               'Se você trabalha com IA: tire dúvidas sobre o processo e veja a sugestão de diagramação, para aceitar ou recusar.',
             ],
             ['Baixar prévia (DOCX) / Baixar original', 'Abre os arquivos no seu computador, se a prévia não carregar.'],
-            leads(role) && ['Reatribuir…', 'Passa a tradução para outra pessoa da equipe.'],
+            leads(role) && [
+              'Reatribuir…',
+              role === 'director'
+                ? 'Passa a tradução para outra pessoa da equipe ou para você ("Eu (Diretor)"), que passa a poder editá-la.'
+                : 'Passa a tradução para outra pessoa da equipe.',
+            ],
             leads(role) && ['Processar de novo', 'Manda de volta para a fila uma tradução que falhou ou que precisa ser refeita do zero.'],
           ]}
         />
@@ -1066,7 +1077,10 @@ export const TUTORIAL: TutorialSectionData[] = [
             ['Adicionar como', role === 'director' ? 'Usuário ou Supervisor (Líder).' : 'Usuário. Só o Diretor adiciona Líderes.'],
             ['Buscar por nome ou e-mail, Todas as funções, Qualquer situação', 'Filtram os membros.'],
             role === 'director' && ['Tornar Supervisor / Tornar Usuário', 'Muda o papel da pessoa nesta equipe.'],
-            ['Remover', role === 'director' ? 'Tira a pessoa da equipe.' : 'Tira um Usuário da equipe.'],
+            [
+              'Remover',
+              `${role === 'director' ? 'Tira a pessoa da equipe.' : 'Tira um Usuário da equipe.'} As traduções em aberto dela ficam sem responsável e aparecem em "Disponíveis para assumir".`,
+            ],
           ]}
         />
         <Fields
@@ -1121,7 +1135,7 @@ export const TUTORIAL: TutorialSectionData[] = [
             [
               'Pedidos de alteração e anulação',
               role === 'director'
-                ? 'Aprove ou recuse os pedidos. Só o Diretor desfaz uma decisão e volta a numeração anterior.'
+                ? 'Aprove ou recuse os pedidos. Só o Diretor desfaz uma decisão e volta a numeração anterior: com mais de um pedido autorizado no mesmo número, desfaça do mais recente para o mais antigo. Depois que a tradução é reaberta, a decisão não se desfaz.'
                 : 'Aprove ou recuse os pedidos das suas equipes.',
             ],
           ]}
@@ -1309,7 +1323,10 @@ export const TUTORIAL: TutorialSectionData[] = [
             ['Usuários: situação', 'Filtra por Todos, Pendente, Ativo ou Suspenso.'],
             ['Tornar Diretor', 'Dá o papel de Diretor. A pessoa sai das equipes, porque o Diretor já acompanha todas.'],
             ['Revogar sessões', 'Encerra os acessos abertos da pessoa, sem suspender a conta.'],
-            ['Suspender / Reativar', 'Bloqueia ou libera a conta.'],
+            [
+              'Suspender / Reativar',
+              'Bloqueia ou libera a conta. Ao suspender, as traduções em aberto da pessoa ficam disponíveis para a equipe assumir.',
+            ],
           ]}
         />
         <Figure src="admin-usuarios" alt="Administração, Usuários" caption="Usuários: papéis, sessões e suspensão." />

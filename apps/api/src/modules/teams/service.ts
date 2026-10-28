@@ -12,6 +12,7 @@ import {
   type UserStatus,
 } from '../access/policy.js';
 import { recordAudit } from '../audit/audit.js';
+import { releaseUnreachableAssignments } from '../translations/release.js';
 import { withTransaction } from '@tradutor/core/db';
 import { conflict, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
@@ -268,6 +269,11 @@ export function createTeamService({ pool }: ServiceDeps) {
         correlationId: ctx.correlationId,
         metadata: { role: membership.role },
       });
+      await releaseUnreachableAssignments(
+        db,
+        { userId },
+        { actorUserId: ctx.actor.id, correlationId: ctx.correlationId, reason: 'member_removed' },
+      );
     });
   }
 

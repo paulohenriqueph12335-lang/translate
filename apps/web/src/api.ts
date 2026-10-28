@@ -930,6 +930,7 @@ export const auditActionLabel: Record<string, string> = {
   'translation.approved': 'Tradução concluída',
   'translation.claimed': 'Tradução assumida',
   'translation.reassigned': 'Tradução reatribuída',
+  'translation.released': 'Responsável liberado (perdeu o acesso)',
   'numbering.quota_set': 'Cota de numeração alterada',
   'numbering.requested': 'Pedido de alteração de número',
   'numbering.approved': 'Pedido de número autorizado',

@@ -708,9 +708,10 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
               Assumir
             </button>
           )}
-          {t.permissions.reassign && t.team && (
+          {t.permissions.reassign && (t.team || isDirector) && (
             <ReassignControl
-              teamId={t.team.id}
+              teamId={t.team?.id ?? null}
+              self={isDirector ? me.user.id : null}
               current={t.assignee?.id ?? null}
               id={id}
               completed={t.status === 'approved' || t.status === 'awaiting_approval'}
@@ -913,15 +914,18 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
   );
 }
 
-/** Reatribuir a alguém da equipe (Supervisor e Diretor). */
+/** Reatribuir a alguém da equipe (Supervisor e Diretor); o Diretor também pode passar a tradução para si. */
 function ReassignControl({
   teamId,
+  self,
   current,
   id,
   completed,
   onDone,
 }: {
-  teamId: string;
+  teamId: string | null;
+  /** Id do Diretor que reatribui: aparece como "Eu (Diretor)". */
+  self: string | null;
   current: string | null;
   id: string;
   completed: boolean;
@@ -929,7 +933,10 @@ function ReassignControl({
 }) {
   const confirm = useConfirm();
   const members = useLoad(
-    () => api<{ items: Array<{ userId: string; displayName: string; role: string }> }>('GET', `/teams/${teamId}/members`),
+    () =>
+      teamId
+        ? api<{ items: Array<{ userId: string; displayName: string; role: string }> }>('GET', `/teams/${teamId}/members`)
+        : Promise.resolve({ items: [] }),
     [teamId],
   );
   const [error, setError] = useState<string | null>(null);
@@ -952,6 +959,7 @@ function ReassignControl({
         }}
       >
         <option value="">Reatribuir…</option>
+        {self && self !== current && <option value={self}>Eu (Diretor)</option>}
         {members.data?.items
           .filter((member) => member.userId !== current)
           .map((member) => (

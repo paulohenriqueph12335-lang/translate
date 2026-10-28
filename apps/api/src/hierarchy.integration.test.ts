@@ -223,6 +223,16 @@ describe('pedidos de alteração e anulação de número', () => {
     assert.match(await docxText(final.rawPayload), /FOLHA Nº 007/);
     assert.ok((await c.director!.get('/api/v1/notifications?kind=numbering_decided')).body.items.length > 0);
     assert.equal((await c.sup!.post(`/api/v1/numbering-requests/${ids.changeRequest}/revert`)).status, 403);
+    // Com um pedido mais novo autorizado, o antigo não volta por cima dele: reverte-se do mais recente para o mais antigo.
+    const newer = await c.sup!.post(`/api/v1/translations/${ids.anaJob}/numbering-requests`, {
+      kind: 'change',
+      reason: 'Folha conferida de novo no livro.',
+      sheet: '008',
+    });
+    await c.sup!.post(`/api/v1/numbering-requests/${newer.body.request.id}/decide`, { approve: true });
+    assert.equal((await c.director!.post(`/api/v1/numbering-requests/${ids.changeRequest}/revert`)).status, 409);
+    assert.equal((await c.director!.post(`/api/v1/numbering-requests/${newer.body.request.id}/revert`)).status, 200);
+    assert.match((await c.ana!.get(`/api/v1/translations/${ids.anaJob}`)).body.translation.number, /Folha 007$/);
     const reverted = await c.director!.post(`/api/v1/numbering-requests/${ids.changeRequest}/revert`);
     assert.equal(reverted.body.request.status, 'reverted');
     assert.match((await c.ana!.get(`/api/v1/translations/${ids.anaJob}`)).body.translation.number, /Folha 001$/);

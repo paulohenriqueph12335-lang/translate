@@ -9,6 +9,7 @@ import {
   type UserStatus,
 } from '../access/policy.js';
 import { recordAudit } from '../audit/audit.js';
+import { releaseUnreachableAssignments } from '../translations/release.js';
 import { withTransaction } from '@tradutor/core/db';
 import { conflict, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, ServiceDeps } from '../context.js';
@@ -66,6 +67,11 @@ export function createUserAdminService({ pool }: ServiceDeps) {
         await db.query(`UPDATE sessions SET revoked_at = now(), revoked_reason = 'suspended' WHERE user_id = $1 AND revoked_at IS NULL`, [
           userId,
         ]);
+        await releaseUnreachableAssignments(
+          db,
+          { userId },
+          { actorUserId: ctx.actor.id, correlationId: ctx.correlationId, reason: 'user_suspended' },
+        );
       }
       await recordAudit(db, {
         actorUserId: ctx.actor.id,
@@ -116,6 +122,14 @@ export function createUserAdminService({ pool }: ServiceDeps) {
         targetId: userId,
         correlationId: ctx.correlationId,
       });
+      if (orgRole !== 'director') {
+        // Sem o papel de Diretor e ainda sem equipe, a pessoa deixa de ver o que tinha assumido fora das próprias equipes.
+        await releaseUnreachableAssignments(
+          db,
+          { userId },
+          { actorUserId: ctx.actor.id, correlationId: ctx.correlationId, reason: 'role_changed' },
+        );
+      }
       return toPublicUser(updated.rows[0]!);
     });
   }
