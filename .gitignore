@@ -16,3 +16,6 @@ Microsoft/
 
 # Contas de teste da simulação (só local)
 docs/exemplos-simulados/.credenciais-simulacao.json
+
+# Superpowers skills workspace (brainstorm mockups, SDD scratch files)
+.superpowers/
