@@ -1413,6 +1413,10 @@ export const TUTORIAL: TutorialSectionData[] = [
           items={[
             ['E-mail', 'O e-mail da sua conta.'],
             ['Senha nova e Confirmar', 'A senha que você quer usar, duas vezes.'],
+            [
+              'Mostrar / Ocultar',
+              'Mostra a senha ou o token para conferir. Eles voltam a ficar ocultos sozinhos ao apertar Print Screen ou a tecla do Windows (ou Cmd no Mac), ao trocar de janela ou de aba, ao imprimir e depois de 30 segundos. O print feito com Print Screen é apagado da área de transferência.',
+            ],
             ['Pedir senha nova', 'Envia o pedido para a liderança.'],
             role === 'director' && ['Tenho o Token do Diretor', 'Com o Token do Diretor, a senha nova vale na hora, sem pedido.'],
           ]}
