@@ -2,8 +2,9 @@ import type { ReactNode } from 'react';
 import { Icon } from './icons';
 
 /**
- * Tutorial do sistema: cada seção explica para que serve a tela (teoria), como usar (prática) e mostra fotos reais.
- * As seções aparecem conforme o papel da pessoa; o botão "Abrir esta tela" leva direto ao lugar descrito.
+ * Tutorial do sistema: cada seção explica para que serve a tela (teoria), os campos e botões dela, como usar (prática) e
+ * mostra fotos reais. As seções e o conteúdo mudam conforme o papel (Usuário, Líder, Diretor); a liderança pode ver o
+ * tutorial como os papéis abaixo do seu. O botão "Abrir esta tela" leva direto ao lugar descrito.
  */
 export type TutorialRole = 'user' | 'leader' | 'director';
 export type TutorialTarget = {
@@ -69,13 +70,117 @@ function Tip({ children }: { children: ReactNode }) {
   );
 }
 
+/** Campos e botões de uma tela, um por linha: o nome como aparece na tela e o que fazer com ele. */
+function Fields({ title = 'Campos e botões desta tela', items }: { title?: string; items: Array<[ReactNode, ReactNode] | false> }) {
+  return (
+    <div className="tutorial-block">
+      <h3>{title}</h3>
+      <dl className="tutorial-fields">
+        {items
+          .filter((item): item is [ReactNode, ReactNode] => item !== false)
+          .map(([term, description], index) => (
+            <div key={index}>
+              <dt>{term}</dt>
+              <dd>{description}</dd>
+            </div>
+          ))}
+      </dl>
+    </div>
+  );
+}
+
+/** O que muda nesta tela para o papel de quem lê. */
+function RoleNote({ role, children }: { role: TutorialRole; children: ReactNode }) {
+  return (
+    <div className="tutorial-role-note">
+      <strong>No papel de {ROLE_NAME[role]}</strong>
+      <div>{children}</div>
+    </div>
+  );
+}
+
 const leads = (role: TutorialRole) => role !== 'user';
+
+/** Quem faz o quê: cada linha é uma ação; as colunas, o que cada papel pode fazer. */
+const PERMISSIONS: Array<{ action: string; user: string; leader: string; director: string }> = [
+  {
+    action: 'Enviar documentos para traduzir',
+    user: 'Sim, para a sua equipe',
+    leader: 'Sim, para a sua equipe',
+    director: 'Sim; a remessa espera você escolher a equipe',
+  },
+  { action: 'Ver traduções', user: 'As suas e as livres da equipe', leader: 'Todas da sua equipe', director: 'Todas as equipes' },
+  { action: 'Assumir um documento sem responsável', user: 'Sim', leader: 'Sim', director: 'Sim' },
+  {
+    action: 'Editar o texto da tradução',
+    user: 'Só as suas',
+    leader: 'As suas e as da equipe',
+    director: 'Só as suas; no trabalho dos outros, você autoriza',
+  },
+  { action: 'Conferir, aprovar o Word e concluir', user: 'As suas', leader: 'As da equipe', director: 'Todas' },
+  { action: 'Pedir para refazer', user: 'As suas', leader: 'As da equipe', director: 'Todas' },
+  { action: 'Reatribuir, processar de novo ou cancelar', user: 'Não', leader: 'Na sua equipe', director: 'Em todas' },
+  {
+    action: 'Pedir alteração ou anulação de um número',
+    user: 'Das suas traduções',
+    leader: 'Das suas traduções',
+    director: 'Das suas traduções',
+  },
+  {
+    action: 'Decidir pedidos de número',
+    user: 'Não',
+    leader: 'Da sua equipe',
+    director: 'De todas, e também desfazer uma decisão',
+  },
+  {
+    action: 'Cotas de numeração',
+    user: 'Vê a sua',
+    leader: 'Define a dos Usuários da equipe',
+    director: 'Define os limites da organização, das equipes e de cada pessoa',
+  },
+  {
+    action: 'Tradutores juramentados, máscaras, planilhas e livros',
+    user: 'Não',
+    leader: 'Cadastra e mantém',
+    director: 'Consulta e baixa os arquivos',
+  },
+  {
+    action: 'Pessoas e equipes',
+    user: 'Não',
+    leader: 'Adiciona e remove Usuários da sua equipe',
+    director: 'Cria equipes e define quem é Líder ou Usuário',
+  },
+  {
+    action: 'Pedidos de senha',
+    user: 'Pede a sua',
+    leader: 'Libera Usuários da equipe por 24 horas',
+    director: 'Autoriza de vez, para qualquer pessoa',
+  },
+  { action: 'Auditoria', user: 'Não', leader: 'Das equipes que você lidera', director: 'De tudo' },
+  {
+    action: 'Glossário',
+    user: 'Usa (aplicado sozinho)',
+    leader: 'Termos da sua equipe',
+    director: 'Termos da organização e das equipes',
+  },
+  { action: 'Regras e tipos de documento', user: 'Não', leader: 'Sim', director: 'Sim' },
+  {
+    action: 'IA',
+    user: 'Escolhe trabalhar com ou sem',
+    leader: 'Modelo, habilidades e acesso da equipe',
+    director: 'Tudo isso, e ligar ou desligar',
+  },
+  { action: 'Serviço de tradução automática', user: 'Não', leader: 'Não', director: 'Sim' },
+  { action: 'Administração: cadastros e usuários', user: 'Não', leader: 'Não', director: 'Sim' },
+  { action: 'Indicadores do Início', user: 'Os seus', leader: 'Os da equipe e os seus', director: 'Da organização, das equipes e os seus' },
+  { action: 'Ver o tutorial como outro papel', user: 'Não', leader: 'Como Usuário', director: 'Como Usuário ou Líder' },
+];
 
 export const TUTORIAL: TutorialSectionData[] = [
   {
     key: 'start',
     title: 'Primeiros passos',
-    summary: 'O que o sistema faz, quem faz o quê e o caminho de cada documento.',
+    summary: 'O que o sistema faz, os três papéis e o caminho de cada documento.',
     roles: ['user', 'leader', 'director'],
     target: { area: 'home' },
     body: (role) => (
@@ -89,16 +194,21 @@ export const TUTORIAL: TutorialSectionData[] = [
           <p>Cada pessoa tem um papel, e o menu mostra só o que ela usa:</p>
           <ul className="tutorial-list">
             <li>
-              <strong>Usuário</strong>: envia documentos, confere a prévia em Word e aprova. Vê o próprio trabalho e o histórico.
+              <strong>Usuário</strong>: envia documentos, confere a prévia em Word, aprova e conclui as próprias traduções. Vê o próprio
+              trabalho, os indicadores dele e o histórico.
             </li>
             <li>
-              <strong>Supervisor</strong>: acompanha a equipe, conclui ou pede para refazer, cuida da numeração, dos tradutores
-              juramentados, do glossário, das regras e da IA.
+              <strong>Líder</strong> (nas telas de equipe aparece como Supervisor): tudo o que o Usuário faz, mais acompanhar a equipe,
+              reatribuir, pedir para refazer, cuidar da numeração, dos tradutores juramentados, do glossário da equipe, das regras e da IA.
             </li>
             <li>
-              <strong>Diretor</strong>: tudo isso para a organização inteira, mais os cadastros e os usuários.
+              <strong>Diretor</strong>: acompanha a organização inteira, direciona remessas para as equipes, cria equipes, define limites,
+              escolhe o serviço de tradução automática e administra quem entra no sistema.
             </li>
           </ul>
+          <p>
+            Você está no papel de <strong>{ROLE_NAME[role]}</strong>. A seção <strong>Quem faz o quê</strong> compara os três papéis.
+          </p>
           <p>
             Todo documento percorre a mesma <strong>linha do fluxo</strong>, em seis etapas. Ela aparece na lista de traduções (em
             miniatura), no topo de cada tradução e na tela de entrada:
@@ -133,18 +243,19 @@ export const TUTORIAL: TutorialSectionData[] = [
         <Practice
           steps={[
             <>
-              Abra o endereço do sistema no navegador e entre com o seu e-mail e a sua senha. Quem ainda não tem conta usa
-              <strong> Solicitar acesso</strong>; o cadastro fica pendente até um Diretor aprovar.
+              Abra o endereço do sistema no navegador e entre com o seu e-mail e a sua senha. Quem ainda não tem conta usa{' '}
+              <strong>Solicitar acesso</strong> (nome, e-mail e senha); o cadastro fica pendente até um Diretor aprovar.
             </>,
             <>
-              Esqueceu a senha? Use <strong>Esqueci a senha</strong>, escolha uma senha nova e avise a liderança. O Líder da sua equipe
-              libera a senha nova por 24 horas (até 3 vezes seguidas); o Diretor autoriza de vez.
+              Esqueceu a senha? Use <strong>Esqueci a senha</strong>, escolha uma senha nova e avise a liderança (veja Esqueci a senha).
             </>,
             <>
               Depois de entrar, você cai no <strong>Início</strong>.{' '}
               {role === 'user'
-                ? 'Para trabalhar, vá em Traduzir.'
-                : 'O trabalho do dia a dia fica em Traduções; a gestão, em Equipes e Ajustes.'}
+                ? 'Para trabalhar, vá em Traduzir; o que você já concluiu fica em Meu histórico.'
+                : role === 'leader'
+                  ? 'O trabalho do dia a dia fica em Traduções; a gestão da equipe, em Equipe e Ajustes.'
+                  : 'O trabalho fica em Traduções; a gestão, em Equipes, Ajustes e Administração.'}
             </>,
             <>Para sair, use o menu da sua conta (a bolinha com as suas iniciais, no canto superior direito) e escolha Sair.</>,
           ]}
@@ -163,22 +274,85 @@ export const TUTORIAL: TutorialSectionData[] = [
     ),
   },
   {
+    key: 'roles',
+    title: 'Quem faz o quê',
+    summary: 'O que o Usuário, o Líder e o Diretor podem fazer, lado a lado.',
+    roles: ['user', 'leader', 'director'],
+    body: (role) => (
+      <>
+        <Theory>
+          <p>
+            O sistema decide o que cada pessoa pode fazer pelo papel dela, e o mesmo vale na tela: um botão que não é do seu papel não
+            aparece. Esta tabela mostra as diferenças. A coluna do seu papel é a de <strong>{ROLE_NAME[role]}</strong>.
+          </p>
+        </Theory>
+        <div className="table-wrap tutorial-compare">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">O que fazer</th>
+                <th scope="col" className={role === 'user' ? 'current' : undefined}>
+                  Usuário
+                </th>
+                <th scope="col" className={role === 'leader' ? 'current' : undefined}>
+                  Líder
+                </th>
+                <th scope="col" className={role === 'director' ? 'current' : undefined}>
+                  Diretor
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {PERMISSIONS.map((row) => (
+                <tr key={row.action}>
+                  <th scope="row">{row.action}</th>
+                  <td className={role === 'user' ? 'current' : undefined}>{row.user}</td>
+                  <td className={role === 'leader' ? 'current' : undefined}>{row.leader}</td>
+                  <td className={role === 'director' ? 'current' : undefined}>{row.director}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Tip>
+          Uma pessoa pode ser Líder numa equipe e Usuário em outra: em cada equipe vale o papel que ela tem ali. O Diretor não ocupa papel
+          em equipe; ele já acompanha todas.
+        </Tip>
+        {role !== 'user' && (
+          <Tip>
+            No topo de cada seção do tutorial, <strong>Ver o tutorial como</strong> mostra o que{' '}
+            {role === 'director' ? 'um Usuário ou um Líder vê' : 'um Usuário vê'}. Use para orientar a sua equipe.
+          </Tip>
+        )}
+      </>
+    ),
+  },
+  {
     key: 'navigate',
     title: 'Navegar pelo sistema',
     summary: 'Menu, pesquisa com Ctrl+K, atalhos de teclado, sino de avisos, tema claro ou escuro e o uso no celular.',
     roles: ['user', 'leader', 'director'],
-    body: () => (
+    body: (role) => (
       <>
         <Theory>
           <p>
-            O <strong>menu lateral</strong> agrupa as áreas em Visão geral, Operação e Gestão. Dentro de cada área, as telas parecidas ficam
-            em abas logo abaixo do título. Em Ajustes, Administração e Configurações, as telas ficam num menu à esquerda.
+            O <strong>menu lateral</strong> agrupa as áreas em Visão geral, Operação e Gestão, e Minha conta no pé (Notificações, Tutorial,
+            Configurações e Sair). Dentro de cada área, as telas parecidas ficam em abas logo abaixo do título. Em Ajustes, Administração e
+            Configurações, as telas ficam num menu à esquerda.
+          </p>
+          <p>
+            O seu menu tem:{' '}
+            {role === 'user'
+              ? 'Início, Traduzir e Meu histórico.'
+              : role === 'leader'
+                ? 'Início, Traduções, Equipe e Ajustes.'
+                : 'Início, Traduções, Equipes, Ajustes e Administração.'}
           </p>
           <p>A barra superior tem quatro atalhos:</p>
           <ul className="tutorial-list">
             <li>
-              <strong>Pesquisa</strong> (ou <kbd>Ctrl</kbd> + <kbd>K</kbd> de qualquer lugar): acha telas, protocolos, documentos e, para a
-              liderança, pessoas, equipes, fases e registros. Acentos e maiúsculas não importam.
+              <strong>Pesquisa</strong> (ou <kbd>Ctrl</kbd> + <kbd>K</kbd> de qualquer lugar): acha telas, protocolos e documentos
+              {role === 'user' ? '' : ' e, para a liderança, pessoas, equipes, fases e registros'}. Acentos e maiúsculas não importam.
             </li>
             <li>
               <strong>Sino</strong>: as notificações recentes, separadas em "Precisa de você" e "Atualizações".
@@ -195,9 +369,22 @@ export const TUTORIAL: TutorialSectionData[] = [
           </p>
           <ul className="tutorial-list">
             <li>
-              <kbd>G</kbd> e depois a letra da área: <kbd>I</kbd> Início, <kbd>T</kbd> Traduções, <kbd>E</kbd> Equipe, <kbd>A</kbd> Ajustes,{' '}
-              <kbd>D</kbd> Administração, <kbd>H</kbd> Meu histórico, <kbd>N</kbd> Notificações, <kbd>U</kbd> Tutorial, <kbd>C</kbd>{' '}
-              Configurações e <kbd>Z</kbd> Entregas e ZIP.
+              <kbd>G</kbd> e depois a letra da área: <kbd>I</kbd> Início, <kbd>T</kbd> Traduções,{' '}
+              {role === 'user' ? (
+                <>
+                  <kbd>H</kbd> Meu histórico,
+                </>
+              ) : (
+                <>
+                  <kbd>E</kbd> Equipe, <kbd>A</kbd> Ajustes,
+                </>
+              )}{' '}
+              {role === 'director' && (
+                <>
+                  <kbd>D</kbd> Administração,{' '}
+                </>
+              )}
+              <kbd>N</kbd> Notificações, <kbd>U</kbd> Tutorial, <kbd>C</kbd> Configurações e <kbd>Z</kbd> Entregas e ZIP.
             </li>
             <li>
               <kbd>N</kbd> Nova tradução, <kbd>/</kbd> ou <kbd>Ctrl</kbd> + <kbd>K</kbd> pesquisa, <kbd>B</kbd> sino e <kbd>T</kbd> tema.
@@ -220,7 +407,11 @@ export const TUTORIAL: TutorialSectionData[] = [
             <>
               Aperte <kbd>?</kbd> para ver todos os atalhos. Experimente <kbd>G</kbd> e depois <kbd>T</kbd> para ir às traduções.
             </>,
-            <>No celular, as áreas principais ficam na barra de baixo; o restante (Notificações, Configurações, Sair) fica em Mais.</>,
+            <>
+              No celular, as três primeiras áreas ficam na barra de baixo; o restante (
+              {role === 'director' ? 'Ajustes, Administração, ' : role === 'leader' ? 'Ajustes, ' : ''}Notificações, Tutorial, Configurações
+              e Sair) fica em <strong>Mais</strong>.
+            </>,
             <>
               No celular, nada fica escondido na borda da tela: as abas e os submenus quebram em linhas e as tabelas aparecem como cartões,
               com o nome de cada coluna acima do valor.
@@ -252,7 +443,7 @@ export const TUTORIAL: TutorialSectionData[] = [
             caption="No celular: barra de baixo com as áreas principais."
             narrow
           />
-          <Figure src="celular-mais" alt="Folha Mais aberta no celular" caption="Em Mais: Notificações, Configurações e Sair." narrow />
+          <Figure src="celular-mais" alt="Folha Mais aberta no celular" caption="Em Mais: as demais áreas, a sua conta e Sair." narrow />
         </div>
       </>
     ),
@@ -260,7 +451,7 @@ export const TUTORIAL: TutorialSectionData[] = [
   {
     key: 'send',
     title: 'Enviar uma nova tradução',
-    summary: 'Modalidade, arquivos, protocolo, idiomas e a conferência antes de começar.',
+    summary: 'Modalidade, arquivos, protocolo, tipo, idiomas, equipe e a conferência antes de começar.',
     roles: ['user', 'leader', 'director'],
     target: { area: 'work', tab: 'send' },
     body: (role) => (
@@ -286,34 +477,82 @@ export const TUTORIAL: TutorialSectionData[] = [
             </li>
           </ul>
           <p>
-            O <strong>protocolo</strong> identifica a remessa: ele entra no começo do nome dos arquivos de Word e PDF e pode ser pesquisado
-            depois. Se a remessa não tem protocolo, marque a opção e escreva o motivo.
-          </p>
-          <p>
-            Os botões <strong>Voltar</strong>, <strong>Continuar</strong> e <strong>Cancelar</strong> ficam presos no pé da tela, com a
-            etapa em que você está (por exemplo, "Etapa 2 de 4") e o que falta para continuar. A cada etapa, a tela volta sozinha para o
-            topo do formulário, já na etapa nova.
+            A aba <strong>Nova tradução</strong> abre com a lista dos envios: o que foi enviado, quem enviou e a situação de cada documento.
+            O botão <strong>Nova tradução</strong> começa um envio novo, em quatro etapas. Os botões <strong>Voltar</strong>,{' '}
+            <strong>Continuar</strong> e <strong>Cancelar</strong> ficam presos no pé da tela, com a etapa em que você está e o que falta
+            para continuar.
           </p>
         </Theory>
+        <Fields
+          title="Campos do envio"
+          items={[
+            [
+              'Modalidade da tradução',
+              'Juramentada, Certificada, Técnica ou Simples. O tradutor juramentado e a máscara são escolhidos só na conclusão.',
+            ],
+            [
+              'Arquivos',
+              'Arraste para a área tracejada ou clique nela. Aceita PDF, Word, PowerPoint e imagens; os limites de tamanho aparecem na tela. O X tira um arquivo da lista.',
+            ],
+            ['Nome do envio (opcional)', 'Um nome para você achar a remessa depois, por exemplo o nome do cliente.'],
+            [
+              'Protocolo',
+              'Identifica a remessa: entra no começo do nome dos arquivos de Word e PDF e pode ser pesquisado. Aceita letras, números, espaço, ponto, hífen e sublinhado.',
+            ],
+            [
+              'Sem protocolo',
+              'Marque quando o pedido não tem protocolo e escreva o motivo (por exemplo, "o cliente não informou"). O motivo fica registrado.',
+            ],
+            [
+              'Tipo documental e modelo',
+              'Deixe em Automático quando a remessa tiver documentos diferentes. O sistema reconhece certidões de nascimento, casamento e óbito, CNN (certidão negativa de naturalização), antecedentes criminais, atestados médicos e outros atestados e declarações, certidões de conselho (CFM, CRM, OAB), divórcio, procuração, ementa e plano de ensino, além de identidade, CNH, histórico, diploma, apostila, contrato e fatura.',
+            ],
+            ['Traduzir de / para', 'O par de idiomas, sempre com o português de um dos lados: inglês, francês, italiano ou espanhol.'],
+            role === 'director'
+              ? [
+                  'Equipe',
+                  'Como Diretor, a remessa nasce sem equipe e fica em "Aguardando direcionamento" até você escolher a equipe de destino na lista de envios.',
+                ]
+              : ['Equipe', 'Aparece só para quem está em mais de uma equipe. Com uma equipe só, a remessa vai direto para ela.'],
+            [
+              'Inspeção',
+              'Remessas com 20 arquivos ou mais pedem a inspeção: de todos os documentos ou de uma amostra com os 10 primeiros.',
+            ],
+            ['Confira sua nova tradução', 'O resumo da etapa 4. Confira e use Iniciar tradução.'],
+          ]}
+        />
+        <Fields
+          title="Lista de envios"
+          items={[
+            ['Buscar protocolo, envio, pessoa ou arquivo', 'Acha um envio pelo que você lembra dele.'],
+            ['Todos, Envio pendente, Envio concluído', 'Mostra os envios pela situação do envio dos arquivos.'],
+            ['Só os meus', 'Esconde os envios das outras pessoas da equipe.'],
+            role === 'director' && [
+              'Equipe e Aguardando direcionamento',
+              'Filtra por equipe. Nas remessas aguardando direcionamento, escolha a equipe de destino para liberar a tradução.',
+            ],
+            [
+              'Cancelar pendentes / Cancelar documento',
+              role === 'user'
+                ? 'Cancela documentos que você enviou e que ainda não foram traduzidos.'
+                : 'Cancela documentos ainda não traduzidos; a liderança cancela os de qualquer pessoa da equipe.',
+            ],
+            ['Abrir a tradução', 'Vai para a tradução de cada documento.'],
+          ]}
+        />
         <Practice
           title="Na prática: as quatro etapas"
           steps={[
             <>
-              <strong>Modalidade e documentos</strong>: escolha a modalidade e arraste os arquivos para a área tracejada (ou clique nela).
-              Aceita PDF, Word, PowerPoint e imagens; os limites de tamanho aparecem na própria tela.
+              <strong>Modalidade e documentos</strong>: escolha a modalidade e arraste os arquivos.
             </>,
             <>
-              <strong>Identificação e protocolo</strong>: digite o protocolo (letras, números, espaço, ponto, hífen ou sublinhado), um nome
-              opcional e o tipo de documento. Deixe o tipo em Automático quando a remessa tiver documentos diferentes: o sistema reconhece
-              certidões de nascimento, casamento e óbito, CNN (certidão negativa de naturalização), antecedentes criminais, atestados
-              médicos e outros atestados e declarações, certidões de conselho (CFM, CRM, OAB), divórcio, procuração, ementa e plano de
-              ensino, além de identidade, CNH, histórico, diploma, apostila, contrato e fatura.
+              <strong>Identificação e protocolo</strong>: digite o protocolo (ou marque Sem protocolo e escreva o motivo), o nome opcional e
+              o tipo de documento.
             </>,
             <>
-              <strong>Idiomas e equipe</strong>: escolha o par de idiomas (sempre com o português de um dos lados).
-              {role === 'director'
-                ? ' Como Diretor, a remessa aguarda o direcionamento a uma equipe depois do envio.'
-                : ' Se você está em mais de uma equipe, escolha a equipe.'}
+              <strong>Idiomas e equipe</strong>: escolha o par de idiomas
+              {role === 'director' ? '. A equipe você escolhe depois de iniciar.' : ' e, se aparecer, a equipe.'}
             </>,
             <>
               <strong>Conferência do envio</strong>: confira o resumo e clique em <strong>Iniciar tradução</strong>. A partir daí, tradução
@@ -322,9 +561,6 @@ export const TUTORIAL: TutorialSectionData[] = [
           ]}
         />
         <Tip>Se Continuar estiver apagado, leia a linha logo abaixo dos botões: ela diz o que falta nesta etapa.</Tip>
-        <Tip>
-          Remessas com 20 arquivos ou mais pedem que você escolha a inspeção: de todos os documentos ou de uma amostra com os 10 primeiros.
-        </Tip>
         <div className="tutorial-figures">
           <Figure src="envio-1" alt="Etapa 1: escolha da modalidade e dos arquivos" caption="Etapa 1: a modalidade e os arquivos." />
           <Figure src="envio-2" alt="Etapa 2: protocolo e tipo documental" caption="Etapa 2: protocolo, nome e tipo de documento." />
@@ -337,27 +573,45 @@ export const TUTORIAL: TutorialSectionData[] = [
   {
     key: 'queue',
     title: 'Meu trabalho',
-    summary: 'O que está com você, o que espera por você e o que a equipe pode assumir.',
+    summary: 'O que está com você, o que espera por você, o que a equipe pode assumir e a escolha de usar a IA.',
     roles: ['user', 'leader', 'director'],
     target: { area: 'work', tab: 'mine' },
-    body: () => (
+    body: (role) => (
       <>
         <Theory>
           <p>
-            Cada tradução tem um <strong>responsável</strong>: quem enviou ou quem assumiu. Só o responsável e a liderança da equipe editam
-            e aprovam. Colegas da mesma equipe veem o trabalho uns dos outros, mas não alteram.
-          </p>
-          <p>
-            Em <strong>Meu trabalho</strong>, os números do topo mostram o que fazer agora. <strong>Comigo</strong> lista as suas traduções
-            em andamento, e <strong>Disponíveis para assumir</strong> lista as que estão sem responsável na sua equipe.
+            Cada tradução tem um <strong>responsável</strong>: quem enviou ou quem assumiu.{' '}
+            {role === 'director'
+              ? 'Você edita só o que é seu; no trabalho dos outros, você autoriza (conclui, pede para refazer e reatribui).'
+              : role === 'leader'
+                ? 'Você edita as suas e as da sua equipe.'
+                : 'Você edita e conclui as suas. Colegas da mesma equipe veem o trabalho uns dos outros, mas não alteram.'}
           </p>
         </Theory>
+        <Fields
+          items={[
+            ['Nova tradução', 'Começa um envio (atalho N).'],
+            ['Para revisar', 'Quantas prévias em Word esperam a sua conferência, e quantas estão em outras etapas.'],
+            [
+              'Minha numeração',
+              'Quantos números da Tradução Pública você usou no ano e a sua cota (ou "sem limite"). Quando a cota acaba, Concluir fica bloqueado.',
+            ],
+            ['Notificações novas', 'Quantas notificações você não leu; "ver todas" abre Notificações.'],
+            [
+              'Preferência de uso da IA: Com IA / Sem IA',
+              'Escolhe se o Auxílio da IA aparece nas suas traduções (glossário, diagramação e dúvidas). Vale para os protocolos criados daqui em diante e funciona só com a IA ligada e o seu acesso liberado pela liderança.',
+            ],
+            ['Comigo', 'As suas traduções em andamento. Clique numa para abrir a conferência.'],
+            ['Disponíveis para assumir', 'As traduções da equipe sem responsável. Assumir faz a tradução passar a ser sua.'],
+            ['Prévia das últimas notificações', 'As cinco notificações mais recentes, para agir sem sair da tela.'],
+          ]}
+        />
         <Practice
           steps={[
             <>Comece pelo número "Para revisar": são as prévias em Word esperando a sua conferência.</>,
             <>Clique numa tradução da lista para abrir a conferência.</>,
             <>
-              Para pegar um documento livre da equipe, use <strong>Assumir</strong> em "Disponíveis para assumir". Ele passa a ser seu.
+              Para pegar um documento livre da equipe, use <strong>Assumir</strong> em "Disponíveis para assumir".
             </>,
           ]}
         />
@@ -370,9 +624,59 @@ export const TUTORIAL: TutorialSectionData[] = [
     ),
   },
   {
+    key: 'team-list',
+    title: 'Traduções da equipe',
+    summary: 'A lista completa por fase, os filtros, a reatribuição e os tipos novos.',
+    roles: ['leader', 'director'],
+    target: { area: 'work', tab: 'team' },
+    body: (role) => (
+      <>
+        <Theory>
+          <p>
+            A aba <strong>{role === 'director' ? 'Todas as traduções' : 'Da equipe'}</strong> mostra{' '}
+            {role === 'director' ? 'as traduções de todas as equipes' : 'todas as traduções da sua equipe'}, organizadas numa régua de fases
+            com a contagem de cada uma: Produção, Conferência, Aprovação, Entrega, Pendências e Todas. A miniatura da linha do fluxo em cada
+            documento mostra onde ele está.
+          </p>
+        </Theory>
+        <Fields
+          items={[
+            ['Régua de fases', 'Clique numa fase para ver só os documentos dela. "3. Aprovação" é onde a liderança decide e numera.'],
+            ['Buscar protocolo, arquivo, remessa, tipo ou número', 'Acha qualquer documento.'],
+            role === 'director' && ['Equipe', 'Filtra por equipe, ou "Sem equipe (aguardando direcionamento)".'],
+            ['Tipo de documento e Categoria e modelo documental', 'Filtram pelo tipo escrito no documento e pela categoria do sistema.'],
+            ['Modalidade e Idiomas', 'Filtram pela modalidade e pelo par de idiomas.'],
+            ['Recebidas: de / até', 'Filtram pela data de recebimento.'],
+            ['Só tipos novos', 'Mostra os documentos de um tipo que o sistema ainda não traduziu antes: confira com mais atenção.'],
+            ['Limpar filtros', 'Volta a mostrar tudo.'],
+            [
+              'Etiquetas Tipo novo, Sem responsável e Número anulado',
+              'Avisam o que precisa de atenção em cada linha. Sem responsável: alguém precisa assumir.',
+            ],
+            ['Caixa de seleção e ZIP', 'Marque documentos concluídos para baixar em ZIP (até 100 por vez).'],
+          ]}
+        />
+        <Practice
+          steps={[
+            <>Escolha a fase na régua e use os filtros para chegar ao documento.</>,
+            <>
+              Abra o documento. Para mudar o responsável, use <strong>Reatribuir…</strong> em Ajustes manuais e escolha a pessoa da equipe.
+            </>,
+            <>Em "Pendências", veja o que falhou ou está parado e decida: processar de novo, pedir para refazer ou cancelar.</>,
+          ]}
+        />
+        <Figure
+          src="lista-fases"
+          alt="Lista de traduções com a régua de fases"
+          caption="Traduções: fases com contagem, filtros e a lista com a linha do fluxo de cada documento."
+        />
+      </>
+    ),
+  },
+  {
     key: 'review',
     title: 'Conferir e aprovar',
-    summary: 'A comparação lado a lado, a conferência obrigatória, reprovar com as fases e os ajustes manuais.',
+    summary: 'A comparação lado a lado, a conferência, os dados do documento e os ajustes manuais.',
     roles: ['user', 'leader', 'director'],
     target: { area: 'work', tab: 'mine' },
     body: (role) => (
@@ -384,42 +688,94 @@ export const TUTORIAL: TutorialSectionData[] = [
             pessoa comparar os dois.
           </p>
           <p>
-            A <strong>conferência</strong> registra essa comparação. Para reprovar, indique as fases que falharam (correção, tradução,
-            diagramação ou revisão) e escreva um comentário. Depois de três reprovações seguidas, o sistema bloqueia novas tentativas até
-            alguém registrar uma nova forma de formatação.
-          </p>
-          <p>
             A barra <strong>Próximo passo</strong>, presa no pé da tela, acompanha você enquanto compara. Ela mostra a etapa atual (por
-            exemplo, "Etapa 4 de 6 · Prévia em Word"), o que falta e os botões que levam adiante: a caixa{' '}
-            <strong>Comparei o original e o Word</strong>, <strong>Reprovar…</strong> e <strong>Aprovar e concluir</strong>. Quando a
-            tradução está pronta, ela mostra <strong>Concluir</strong>; depois de concluída, os botões para baixar o Word e o PDF.
+            exemplo, "Etapa 4 de 6 · Prévia em Word"), o que falta e os botões que levam adiante.
           </p>
         </Theory>
+        <Fields
+          title="Barra Próximo passo e conferência"
+          items={[
+            ['Assumir documento', 'Aparece quando ninguém é responsável. Assuma para conferir e concluir.'],
+            ['Comparei o original e o Word', 'Registra que você comparou os dois. Sem ela, aprovar fica apagado.'],
+            [
+              'Aprovar e concluir / Aprovar Word',
+              'Aprova o Word. Quem pode concluir segue direto para a conclusão; os outros deixam a tradução pronta para concluir.',
+            ],
+            [
+              'Reprovar…',
+              'Abre a conferência com o formulário: marque as fases que falharam (correção, tradução, diagramação ou revisão) e descreva o que precisa ser refeito.',
+            ],
+            ['Salvar alterações', 'Aparece quando há texto editado e não salvo (ou Ctrl + S).'],
+            ['Concluir', 'Aparece com a tradução pronta. Leva ao painel de conclusão.'],
+            ['Baixar Word / Baixar PDF', 'Aparecem depois de concluída.'],
+            ['Pontos para conferir', 'O que a revisão automática não resolveu sozinha. Clique para ver a lista.'],
+          ]}
+        />
+        <Fields
+          title="Dados e opções do documento"
+          items={[
+            ['Tempos do documento', 'Quando chegou, quanto levou cada etapa, a conclusão e os downloads.'],
+            [
+              'Tipo documental e modelo',
+              'O tipo que o sistema reconheceu e a confiança. Se estiver errado, escolha o tipo certo e escreva o motivo; a sua escolha passa a valer.',
+            ],
+            [
+              'Corrigir idiomas da documentação',
+              'Se o envio foi feito com o par errado, escolha o idioma original e o da tradução e escreva o motivo. O documento é processado de novo no par certo.',
+            ],
+            ['Histórico de conferências', 'Quem conferiu, quando, e o que foi aprovado ou reprovado em cada revisão.'],
+          ]}
+        />
+        <Fields
+          title="Ajustes manuais"
+          items={[
+            [
+              'Editar texto',
+              role === 'director'
+                ? 'Edita o texto quando a tradução é sua. Escolha o bloco, o alinhamento (à esquerda, centralizado, à direita ou justificado) e mova blocos para cima ou para baixo.'
+                : 'Edita o texto: escolha o bloco, o alinhamento (à esquerda, centralizado, à direita ou justificado) e mova blocos para cima ou para baixo.',
+            ],
+            ['Salvar alterações / Descartar', 'Grava ou desfaz o que você editou.'],
+            ['Revisão automática', 'Roda de novo as correções de idioma, números, datas, glossário e marcadores.'],
+            ['Salvar e voltar à conferência', 'Grava as alterações e devolve a tradução para a conferência.'],
+            ['Correções feitas', 'A lista do que a revisão automática corrigiu, com o antes e o depois.'],
+            [
+              'Registrar nova forma de formatação',
+              'Depois de três reprovações seguidas, a tradução fica bloqueada. Dê um nome à nova formatação, explique o que mudou e registre para liberar.',
+            ],
+            [
+              'Auxílio da IA',
+              'Se você trabalha com IA: tire dúvidas sobre o processo e veja a sugestão de diagramação, para aceitar ou recusar.',
+            ],
+            ['Baixar prévia (DOCX) / Baixar original', 'Abre os arquivos no seu computador, se a prévia não carregar.'],
+            leads(role) && ['Reatribuir…', 'Passa a tradução para outra pessoa da equipe.'],
+            leads(role) && ['Processar de novo', 'Manda de volta para a fila uma tradução que falhou ou que precisa ser refeita do zero.'],
+          ]}
+        />
         <Practice
           steps={[
             <>Abra a tradução e compare o original com o Word, página por página. Não precisa rolar até o fim para agir.</>,
             <>
-              Se estiver certo, marque <strong>Comparei o original e o Word</strong> na barra Próximo passo e use{' '}
-              <strong>Aprovar e concluir</strong>. Em seguida, escolha como concluir (veja Concluir e numerar).
+              Se estiver certo, marque <strong>Comparei o original e o Word</strong> e use <strong>Aprovar e concluir</strong>.
             </>,
             <>
-              Se algo estiver errado, use <strong>Reprovar…</strong> na barra: a tela vai até a conferência, já com o formulário aberto.
-              Marque as fases e escreva o que precisa mudar.
-            </>,
-            <>
-              Se a barra mostrar "pontos para conferir", clique no aviso para ver a lista. Com alterações não salvas, a barra mostra{' '}
-              <strong>Salvar alterações</strong> (ou use <kbd>Ctrl</kbd> + <kbd>S</kbd>).
-            </>,
-            <>
-              Para corrigir você mesmo, abra <strong>Ajustes manuais</strong>: editar o texto, confirmar o checklist das etapas, rodar a
-              revisão automática de novo ou pedir auxílio da IA.
+              Se algo estiver errado, use <strong>Reprovar…</strong>, marque as fases e escreva o que precisa mudar. Ou corrija você mesmo
+              em <strong>Ajustes manuais</strong>.
             </>,
           ]}
         />
-        <Tip>
-          "Pontos para conferir" lista o que a revisão automática não conseguiu resolver (por exemplo, trechos iguais ao original). Baixar
-          para conferir abre o arquivo no seu computador, se a prévia não carregar.
-        </Tip>
+        {role === 'director' && (
+          <RoleNote role={role}>
+            No trabalho de outras pessoas, você não edita o texto: você aprova, conclui, pede para refazer ou reatribui. Para editar, assuma
+            ou reatribua a tradução a você.
+          </RoleNote>
+        )}
+        {role === 'leader' && (
+          <RoleNote role={role}>
+            Você edita e aprova as traduções de qualquer pessoa da sua equipe, reatribui e manda processar de novo. O Diretor só autoriza no
+            trabalho dos outros.
+          </RoleNote>
+        )}
         <Figure
           src="detalhe-topo"
           alt="Topo da tradução com a linha do fluxo e a barra Próximo passo"
@@ -436,67 +792,76 @@ export const TUTORIAL: TutorialSectionData[] = [
           alt="Conferência antes da aprovação"
           caption="A conferência: confirme a comparação ou reprove indicando as fases."
         />
-        {leads(role) && (
-          <Tip>
-            Na lista de traduções, as fases ficam numa régua com a contagem de cada uma (Produção, Conferência, Aprovação, Entrega,
-            Pendências e Todas). A miniatura da linha do fluxo em cada documento mostra onde ele está.
-          </Tip>
-        )}
-        {leads(role) && (
-          <Figure
-            src="lista-fases"
-            alt="Lista de traduções com a régua de fases"
-            caption="Traduções: fases com contagem, filtros e a lista com a linha do fluxo de cada documento."
-          />
-        )}
       </>
     ),
   },
   {
     key: 'conclude',
     title: 'Concluir e numerar',
-    summary: 'Quem é responsável conclui: com ou sem tradutor juramentado, número, livro e folha.',
+    summary: 'Com ou sem tradutor juramentado, número, livro e folha, refazer e pedidos de número.',
     roles: ['user', 'leader', 'director'],
-    target: { area: 'work', tab: 'team' },
-    body: () => (
+    target: { area: 'work', tab: 'mine' },
+    body: (role) => (
       <>
         <Theory>
           <p>
-            Concluir libera o Word e o PDF finais. Quem conclui é o responsável pela tradução; o Supervisor da equipe e o Diretor também
-            podem, e só precisam agir em problemas de numeração (número repetido, fora da sequência e pedidos de alteração). Na juramentada,
-            a conclusão escolhe:
+            Concluir libera o Word e o PDF finais. Quem conclui é o responsável pela tradução; o Líder da equipe e o Diretor também podem, e
+            só precisam agir em problemas de numeração (número repetido, fora da sequência e pedidos de alteração).
           </p>
-          <ul className="tutorial-list">
-            <li>
-              <strong>Com tradutor</strong>: o Word sai na máscara do tradutor juramentado, com número, livro e folha conforme a regra de
-              numeração dele.
-            </li>
-            <li>
-              <strong>Sem tradutor</strong>: o Word sai no layout do original, sem máscara e sem número.
-            </li>
-          </ul>
           <p>
             As <strong>cotas</strong> anuais limitam quantos números cada pessoa, equipe ou a organização pode emitir. Quando um limite
             acaba, Pronta e Concluir ficam bloqueadas; a liderança é avisada aos 80% e aos 100%.
           </p>
         </Theory>
+        <Fields
+          title="Concluir tradução"
+          items={[
+            [
+              'Tradutor juramentado: Com tradutor',
+              'Na juramentada, o Word sai na máscara do tradutor, com número, livro e folha pela regra de numeração dele. Escolha o tradutor.',
+            ],
+            ['Tradutor juramentado: Sem tradutor', 'O Word sai no layout do original, sem máscara e sem número.'],
+            ['Número, livro e folha', 'Sugeridos pela regra do tradutor. Confira antes de concluir.'],
+            [
+              'Motivo',
+              'Aparece quando algo foge da regra (por exemplo, número fora da sequência ou ainda há pontos para conferir). Explique; fica registrado.',
+            ],
+            ['Checklist das etapas', 'Confirme cada item das etapas da modalidade.'],
+            ['Concluir e liberar download', 'Gera o Word e o PDF finais e avisa quem enviou e quem revisou.'],
+          ]}
+        />
+        <Fields
+          title="Refazer e número"
+          items={[
+            ['Refazer…', 'Marque as fases com falha e escreva o que precisa ser refeito. A tradução volta para Para revisar.'],
+            [
+              'Alterar ou anular número…',
+              'Depois de concluída, peça para alterar (novo número, livro ou folha) ou anular o número, com o motivo. Um número emitido nunca some: o pedido fica registrado.',
+            ],
+            leads(role) && [
+              'Decidir o pedido',
+              'Os pedidos chegam em Equipe › Numeração › Cotas e pedidos para a liderança aprovar ou recusar.',
+            ],
+          ]}
+        />
         <Practice
           steps={[
-            <>Abra a tradução em Aguardando conclusão (fase 3. Aprovação, na lista de Traduções).</>,
+            <>Abra a tradução em Aguardando conclusão.</>,
             <>
-              Use <strong>Concluir</strong> na barra Próximo passo, no pé da tela. A tela vai até o painel de conclusão. Também dá para usar{' '}
-              <strong>Aprovar e concluir</strong> ou, em Ajustes manuais, <strong>Concluir</strong>.
+              Use <strong>Concluir</strong> na barra Próximo passo (ou <strong>Aprovar e concluir</strong>).
             </>,
             <>Na juramentada, escolha com ou sem tradutor; com tradutor, confira o número, o livro e a folha sugeridos.</>,
             <>
-              Clique em <strong>Concluir e liberar download</strong>. Quem enviou e quem revisou são avisados.
-            </>,
-            <>
-              Para devolver, use <strong>Refazer…</strong> (em Ajustes manuais) com o motivo; a tradução volta para Para revisar.
+              Clique em <strong>Concluir e liberar download</strong>.
             </>,
           ]}
         />
-        <Tip>Um número já emitido não some: pedir alteração ou anulação é feito em Equipes, na aba Numeração, e fica registrado.</Tip>
+        {role === 'user' && (
+          <RoleNote role={role}>
+            Você conclui as suas traduções. Se a cota acabar ou o número sair errado, avise o Líder: ele ajusta a cota e decide os pedidos
+            de número.
+          </RoleNote>
+        )}
         <Figure
           src="conclusao"
           alt="Painel Concluir tradução"
@@ -508,36 +873,47 @@ export const TUTORIAL: TutorialSectionData[] = [
   {
     key: 'deliver',
     title: 'Entregas e ZIP',
-    summary: 'Baixar o Word e o PDF finais, um a um ou em lote.',
+    summary: 'Baixar o Word e o PDF finais, um a um ou em lote, e os documentos enviados.',
     roles: ['user', 'leader', 'director'],
     target: { area: 'work', tab: 'done' },
-    body: () => (
+    body: (role) => (
       <>
         <Theory>
           <p>
-            <strong>Entregas e ZIP</strong> reúne as traduções concluídas e os documentos enviados, sempre ligados entre si. Cada tradução
-            tem os botões para salvar o Word e o PDF. Para várias de uma vez, o ZIP organiza os arquivos em pastas por protocolo, par de
-            idiomas e formato.
-          </p>
-          <p>
-            No ZIP, cada arquivo leva o <strong>número da tradução e o protocolo</strong>, por exemplo "0012-2026 – ABC-1". Sem número, leva
-            o protocolo e a referência da tradução, como "ABC-1 – Tradução 7"; sem os dois, só "Tradução 7". Para achar depois, pesquise
-            "Tradução 7" (ou só "7") nas listas e na pesquisa.
+            <strong>Entregas e ZIP</strong> reúne as traduções concluídas e os documentos enviados, sempre ligados entre si. No ZIP, cada
+            arquivo leva o <strong>número da tradução e o protocolo</strong>, por exemplo "0012-2026 – ABC-1". Sem número, leva o protocolo
+            e a referência da tradução, como "ABC-1 – Tradução 7"; sem os dois, só "Tradução 7".
           </p>
         </Theory>
+        <Fields
+          items={[
+            ['Traduções concluídas / Documentos enviados', 'O que listar: as traduções prontas ou os originais enviados.'],
+            ['Protocolo, arquivo, lote, tipo ou nº', 'Acha pelo que você lembra. "Tradução 7" ou só "7" acha pela referência.'],
+            role === 'director' && ['Equipe', 'Filtra por equipe.'],
+            ['Tipo de documento e Idiomas', 'Filtram pelo tipo e pelo par de idiomas.'],
+            ['Concluída por', 'Filtra por quem concluiu.'],
+            ['Concluídas: de / até', 'Filtram pela data de conclusão.'],
+            [
+              'Formato e Situação da tradução',
+              'Na aba Documentos enviados: o tipo de arquivo e se já há tradução, em andamento ou com falha.',
+            ],
+            ['Salvar arquivos', 'Na linha de cada tradução: Word ou PDF.'],
+            ['Salvar original', 'Na aba Documentos enviados: baixa o arquivo enviado.'],
+            ['Selecionar resultados carregados', 'Marca de uma vez tudo o que está na lista.'],
+            ['ZIP em Word / ZIP em PDF', 'Baixa os marcados num ZIP, em pastas por protocolo, par de idiomas e formato. Até 100 por ZIP.'],
+          ]}
+        />
         <Practice
           steps={[
-            <>Use os filtros (protocolo, tipo, idiomas, quem concluiu e datas) para achar as traduções.</>,
+            <>Use os filtros para achar as traduções.</>,
             <>
-              Para um documento, use <strong>Salvar arquivos</strong> na linha dele e escolha Word ou PDF.
+              Para um documento, use <strong>Salvar arquivos</strong> na linha dele.
             </>,
             <>
-              Para várias, marque as caixas à esquerda (ou <strong>Selecionar resultados carregados</strong>) e clique em{' '}
-              <strong>ZIP em Word</strong> ou <strong>ZIP em PDF</strong>.
+              Para várias, marque as caixas e clique em <strong>ZIP em Word</strong> ou <strong>ZIP em PDF</strong>.
             </>,
           ]}
         />
-        <Tip>Cada ZIP aceita até 100 documentos. A aba Documentos enviados mostra os originais e as traduções geradas de cada um.</Tip>
         <Figure
           src="entregas"
           alt="Entregas com documentos marcados e os botões ZIP"
@@ -560,12 +936,12 @@ export const TUTORIAL: TutorialSectionData[] = [
             para baixar de novo.
           </p>
         </Theory>
-        <Practice
-          steps={[
-            <>Procure pelo arquivo, tipo ou número, ou filtre por idiomas e pela data de conclusão.</>,
-            <>
-              Use <strong>Ver prévia</strong> para conferir ou <strong>Baixar</strong> para salvar o arquivo final.
-            </>,
+        <Fields
+          items={[
+            ['Arquivo, tipo ou nº (0001/2026)', 'Acha pelo nome do arquivo, pelo tipo ou pelo número.'],
+            ['Idiomas', 'Filtra pelo par de idiomas.'],
+            ['Concluídas: de / até', 'Filtra pela data de conclusão.'],
+            ['Ver prévia / Baixar', 'Confere ou salva o arquivo final.'],
           ]}
         />
         <Figure src="historico" alt="Tela Meu histórico" caption="Meu histórico: o que você concluiu, com prévia e download." />
@@ -575,7 +951,7 @@ export const TUTORIAL: TutorialSectionData[] = [
   {
     key: 'dashboard',
     title: 'Início e indicadores',
-    summary: 'Os números do período, a fila agora e os gráficos.',
+    summary: 'Os números do período, a fila agora, os gráficos e as comparações.',
     roles: ['user', 'leader', 'director'],
     target: { area: 'home' },
     body: (role) => (
@@ -584,31 +960,62 @@ export const TUTORIAL: TutorialSectionData[] = [
           <p>
             O Início mostra como{' '}
             {role === 'user' ? 'você está indo' : role === 'leader' ? 'a sua equipe está indo' : 'a organização e cada equipe estão indo'}{' '}
-            no período escolhido. Cada número vem com a variação em relação ao período anterior.
+            no período escolhido. Cada número vem com a variação em relação ao período anterior. As abas do seu Início:
           </p>
           <ul className="tutorial-list">
+            {role === 'director' && (
+              <>
+                <li>
+                  <strong>Organização</strong>: concluídas, recebidas, acerto de primeira, tempo até concluir, a fila agora e os gráficos da
+                  organização (idiomas, tipos de documento, acertos e erros por tipo, equipes, pessoas e numeração do ano).
+                </li>
+                <li>
+                  <strong>Erros × acertos</strong>: produção, retrabalho, conferências humanas, causas de falha técnica e os documentos do
+                  período, por equipe.
+                </li>
+              </>
+            )}
+            {role !== 'user' && (
+              <>
+                <li>
+                  <strong>{role === 'director' ? 'Equipes' : 'Equipe'}</strong>: a fila agora, tendência, funil, pessoas por semana,
+                  entregas e tempo de revisão por pessoa, documentos e numeração dos tradutores.
+                </li>
+                <li>
+                  <strong>Com IA × sem IA</strong>: compara recebidos, concluídos, acerto de primeira e tempo até concluir dos protocolos
+                  feitos com e sem IA.
+                </li>
+              </>
+            )}
             <li>
-              <strong>Acerto de primeira</strong>: traduções concluídas sem pedido para refazer e sem justificativa.
-            </li>
-            <li>
-              <strong>Agora</strong>: a fila neste momento, numa régua por etapa (Processando, Para revisar, Aguardando conclusão e Com
-              falha), atualizada a cada 15 segundos.
-            </li>
-            <li>
-              <strong>Gráficos</strong>: tendência por semana, funil do fluxo e outros. Azul é o período atual; ocre, o anterior.
+              <strong>Meu desenvolvimento</strong>: a sua produção, acertos e retrabalho, conferências e fases, causas de falha e os seus
+              documentos.
             </li>
           </ul>
         </Theory>
-        <Practice
-          steps={[
-            <>Escolha o período (7 dias, 30 dias, 90 dias, 12 meses ou datas) e, se quiser, desmarque a comparação.</>,
-            <>Passe o mouse sobre os gráficos para ver os valores; "Ver tabela" mostra os mesmos números em tabela.</>,
-            <>
-              Em <strong>Escolher painéis</strong>, escolha os gráficos extras; em <strong>Exportar e imprimir</strong>, baixe o CSV ou
-              imprima.
-            </>,
+        <Fields
+          items={[
+            ['7 dias, 30 dias, 90 dias, 12 meses, Datas', 'O período. Em Datas, escolha o começo e o fim.'],
+            ['Comparar com o período anterior', 'Mostra a variação de cada número.'],
+            role === 'director' && ['Toda a organização / Equipe', 'Escolhe a equipe dos números.'],
+            ['Idiomas e Modalidade', 'Filtram os indicadores de desenvolvimento.'],
+            role === 'director' && ['Pesquisar documentos no relatório', 'Acha um documento do período pelo protocolo, arquivo ou pessoa.'],
+            [
+              'Agora',
+              'A fila neste momento (Processando, Para revisar, Aguardando conclusão e Com falha), atualizada a cada 15 segundos. Pausar congela.',
+            ],
+            ['Escolher painéis', 'Escolhe quais gráficos aparecem. Restaurar painéis principais volta ao padrão.'],
+            ['Ampliar, ↑, ↓, Ocultar', 'Em cada gráfico: aumenta, muda a ordem ou esconde.'],
+            ['Ver tabela', 'Mostra os números do gráfico em tabela.'],
+            [
+              'Exportar',
+              role === 'user'
+                ? 'Exportar indicadores CSV baixa os seus números.'
+                : 'CSV (por pessoa ou por documento) e Imprimir / PDF; em Erros × acertos e Meu desenvolvimento, Exportar indicadores CSV.',
+            ],
           ]}
         />
+        <Tip>Passe o mouse sobre os gráficos para ver os valores. Azul é o período atual; ocre tracejado, o anterior.</Tip>
         {role === 'user' ? (
           <Figure
             src="usuario-inicio"
@@ -631,51 +1038,162 @@ export const TUTORIAL: TutorialSectionData[] = [
     ),
   },
   {
-    key: 'teams',
-    title: 'Equipes, numeração e auditoria',
-    summary: 'Pessoas, números da Tradução Pública, tradutores juramentados e o registro de tudo.',
+    key: 'people',
+    title: 'Equipe e pedidos de senha',
+    summary: 'Quem está em cada equipe, com que papel, e os pedidos de senha nova.',
     roles: ['leader', 'director'],
-    target: { area: 'team' },
-    body: () => (
+    target: { area: 'team', tab: 'people' },
+    body: (role) => (
       <>
         <Theory>
-          <ul className="tutorial-list">
-            <li>
-              <strong>Pessoas</strong>: quem está em cada equipe e com que papel (Supervisor ou Usuário). O Diretor cria equipes.
-            </li>
-            <li>
-              <strong>Pedidos de senha</strong>: quem esqueceu a senha pede uma nova. Confirme com a pessoa e autorize com o seu token: o do
-              Líder libera o Usuário da equipe por 24 horas, até 3 vezes seguidas; o do Diretor vale de vez, para qualquer pessoa.
-            </li>
-            <li>
-              <strong>Numeração</strong>: os números emitidos por tradutor, as cotas anuais e os pedidos de alteração ou anulação.
-            </li>
-            <li>
-              <strong>Tradutores juramentados</strong>: o cadastro de cada tradutor, a máscara em Word (com os marcadores como{' '}
-              <code>{'{{texto}}'}</code>, <code>{'{{numero}}'}</code> e <code>{'{{data}}'}</code>) e a regra de numeração.
-            </li>
-            <li>
-              <strong>Auditoria</strong>: tudo o que aconteceu, com filtros por gravidade, causa, pessoa e período, e as pendências
-              operacionais de agora.
-            </li>
-          </ul>
+          <p>
+            {role === 'director'
+              ? 'Você cria equipes e define quem é Líder (Supervisor) ou Usuário em cada uma.'
+              : 'Você acompanha as equipes que lidera e adiciona ou remove Usuários delas. Quem vira Líder é decisão do Diretor.'}{' '}
+            Ninguém altera o próprio papel.
+          </p>
         </Theory>
-        <Practice
-          steps={[
-            <>
-              Em Pessoas, escolha a equipe à esquerda e use <strong>Adicionar pessoas</strong>, <strong>Tornar Supervisor</strong> ou{' '}
-              <strong>Remover</strong>.
-            </>,
-            <>Em Tradutores juramentados, cadastre o tradutor e envie a máscara em Word; cada envio vira uma nova edição.</>,
-            <>Em Auditoria, marque "Somente erros e emergências" para ver só o que precisa de atenção.</>,
+        <Fields
+          title="Pessoas"
+          items={[
+            role === 'director' && ['Nome da nova equipe / Criar equipe', 'Cria uma equipe.'],
+            ['Buscar equipe', 'Acha a equipe na lista da esquerda.'],
+            [
+              role === 'director' ? 'Todas, Sem membros' : 'Todas, Lidero, Opero',
+              role === 'director' ? 'Filtra as equipes.' : 'Mostra as equipes em que você é Líder ou Usuário.',
+            ],
+            ['Membros / Adicionar pessoas', 'Lista quem está na equipe ou acrescenta pessoas ativas.'],
+            ['Adicionar como', role === 'director' ? 'Usuário ou Supervisor (Líder).' : 'Usuário. Só o Diretor adiciona Líderes.'],
+            ['Buscar por nome ou e-mail, Todas as funções, Qualquer situação', 'Filtram os membros.'],
+            role === 'director' && ['Tornar Supervisor / Tornar Usuário', 'Muda o papel da pessoa nesta equipe.'],
+            ['Remover', role === 'director' ? 'Tira a pessoa da equipe.' : 'Tira um Usuário da equipe.'],
           ]}
         />
+        <Fields
+          title="Pedidos de senha"
+          items={[
+            [
+              role === 'director' ? 'Autorizar' : 'Liberar 24 h',
+              role === 'director'
+                ? 'Autoriza a senha nova de vez, com o Token do Diretor. Vale para qualquer pessoa, menos você.'
+                : 'Libera a senha nova por 24 horas, com o Token do Líder. Só para Usuários das suas equipes, até 3 vezes seguidas.',
+            ],
+            ['Recusar', 'Nega o pedido. A pessoa continua com a senha antiga.'],
+          ]}
+        />
+        <Tip>
+          Confirme com a pessoa, por telefone ou pessoalmente, antes de autorizar: quem tem o pedido aprovado entra com a senha que
+          escolheu.
+        </Tip>
         <div className="tutorial-figures">
           <Figure src="equipes-pessoas" alt="Equipes, aba Pessoas" caption="Pessoas: equipes e membros." />
+          <Figure src="pedidos-senha" alt="Pedidos de senha na tela Equipe" caption="Pedidos de senha: liberar, autorizar ou recusar." />
+        </div>
+      </>
+    ),
+  },
+  {
+    key: 'numbering',
+    title: 'Numeração e tradutores',
+    summary: 'Cotas, pedidos de número, cadastro dos tradutores, máscaras, planilhas de números e livros.',
+    roles: ['leader', 'director'],
+    target: { area: 'team', tab: 'numbering' },
+    body: (role) => (
+      <>
+        <Theory>
+          <p>
+            A numeração da Tradução Pública segue a regra de cada tradutor juramentado. Quem cadastra os tradutores, envia as máscaras e
+            configura os números são os <strong>Líderes</strong>. O Diretor define os limites e decide os pedidos.
+          </p>
+        </Theory>
+        <Fields
+          title="Numeração › Cotas e pedidos"
+          items={[
+            ['Ano', 'O ano das cotas e dos números.'],
+            ['Minha cota', 'Quantos números você usou e o seu limite.'],
+            role === 'director' && ['Organização e equipes', 'O limite anual da organização e de cada equipe. Vazio é "sem limite".'],
+            [
+              'Cota por pessoa',
+              role === 'director'
+                ? 'O limite anual de cada pessoa (1 a 1000).'
+                : 'O limite anual de cada Usuário das suas equipes (1 a 1000).',
+            ],
+            [
+              'Pedidos de alteração e anulação',
+              role === 'director'
+                ? 'Aprove ou recuse os pedidos. Só o Diretor desfaz uma decisão e volta a numeração anterior.'
+                : 'Aprove ou recuse os pedidos das suas equipes.',
+            ],
+          ]}
+        />
+        <Fields
+          title="Numeração › Tradutores e números"
+          items={[
+            ['Regra de numeração', 'Como numerar, a sigla, desde quando somar as assinaturas, os idiomas e o lembrete na conclusão.'],
+            [
+              'Números (planilhas)',
+              'Envie a planilha de números do tradutor, com o lote e o idioma (ou o idioma pela coluna da planilha).',
+            ],
+            ['Filtros dos números', 'Situação (disponíveis, reservados, bloqueados), uso, idioma e pagos ou gratuitos; Buscar número.'],
+            ['Reservar para…, bloquear, excluir', 'Ações em cada número. Um número usado não é excluído.'],
+            ['Livros', 'Cadastre o livro, o primeiro nº de tradução e a primeira folha. O limite de folhas aparece no título.'],
+            ['Autorizar protocolo zerado', 'Exceção de numeração que a liderança autoriza.'],
+          ]}
+        />
+        <Fields
+          title="Tradutores juramentados"
+          items={[
+            role === 'leader' && ['Cadastrar tradutor', 'Nome completo, matrícula (ex.: JUCESP nº 0000), idiomas e observações.'],
+            [
+              'Máscara em Word (.docx)',
+              role === 'leader'
+                ? 'Envie a máscara com os marcadores {{texto}}, {{numero}} e {{data}}. Cada envio vira uma nova edição; escreva o que mudou.'
+                : 'Veja e baixe as máscaras e as edições. Quem envia é o Líder.',
+            ],
+            ['PDF do tradutor (referência)', 'Um PDF de exemplo do tradutor, para conferir a máscara.'],
+            ['Como a máscara em Word é preenchida', 'Explica cada marcador da máscara.'],
+          ]}
+        />
+        {role === 'director' && (
+          <RoleNote role={role}>
+            Você define os limites e decide os pedidos; o cadastro dos tradutores, das planilhas e dos livros fica com os Líderes.
+          </RoleNote>
+        )}
+        <div className="tutorial-figures">
           <Figure src="equipes-numeracao" alt="Equipes, aba Numeração" caption="Numeração: tradutores, números, cotas e pedidos." />
           <Figure src="equipes-tradutores" alt="Equipes, aba Tradutores juramentados" caption="Tradutores juramentados e as máscaras." />
-          <Figure src="equipes-auditoria" alt="Equipes, aba Auditoria" caption="Auditoria: filtros, totais e pendências." />
         </div>
+      </>
+    ),
+  },
+  {
+    key: 'audit',
+    title: 'Auditoria',
+    summary: 'O registro de tudo o que aconteceu, com filtros e pendências.',
+    roles: ['leader', 'director'],
+    target: { area: 'team', tab: 'audit' },
+    body: (role) => (
+      <>
+        <Theory>
+          <p>
+            A auditoria registra cada ação: quem entrou, o que enviou, conferiu, aprovou, concluiu e baixou, e cada falha.{' '}
+            {role === 'director' ? 'Você vê tudo.' : 'Você vê os eventos das equipes que lidera.'} O registro não pode ser alterado.
+          </p>
+        </Theory>
+        <Fields
+          items={[
+            ['Buscar protocolo, arquivo, pessoa, ação ou erro', 'Acha um registro.'],
+            ['Gravidade e Causa do erro', 'Filtram pela importância e pela causa da falha.'],
+            ['Grupo de ações e Ação', 'Filtram pelo tipo de evento.'],
+            ['Quem, Equipe e Alvo', 'Filtram pela pessoa, pela equipe e pelo que foi afetado.'],
+            ['Período: de / até', 'Filtram pela data.'],
+            ['Somente erros e emergências', 'Mostra só o que precisa de atenção.'],
+            ['Pendências operacionais agora', 'O que está parado ou falhando neste momento.'],
+            role === 'director' && ['Quantidade por causa do erro', 'Quantas falhas de cada causa no período.'],
+            ['Atualizar auditoria / Carregar mais', 'Busca os registros novos ou os seguintes.'],
+          ]}
+        />
+        <Figure src="equipes-auditoria" alt="Equipes, aba Auditoria" caption="Auditoria: filtros, totais e pendências." />
       </>
     ),
   },
@@ -688,43 +1206,74 @@ export const TUTORIAL: TutorialSectionData[] = [
     body: (role) => (
       <>
         <Theory>
-          <ul className="tutorial-list">
-            <li>
-              <strong>Glossário</strong>: traduções aprovadas de termos, por idioma de destino. A revisão automática usa e confere. Já vem
-              com a terminologia das skills e dos tipos documentais (CNN, antecedentes, atestados, conselhos, divórcio, procuração, ementa e
-              certidões), do português para inglês, francês, italiano e espanhol e desses idiomas para o português. Um termo ajustado por
-              alguém não é trocado nas atualizações.
-            </li>
-            <li>
-              <strong>Regras</strong>: para cada modalidade e idioma, a fonte, o tamanho, o sufixo do arquivo, as datas, os números e os
-              checklists de correção e revisão.
-            </li>
-            <li>
-              <strong>Tipos de documento</strong>: teste um documento novo sem criar tradução e veja se o sistema consegue fazê-lo, e os
-              tipos que já passaram pelo sistema.
-            </li>
-            <li>
-              <strong>IA</strong>: auxílio opcional, limitado ao glossário, à diagramação e a orientações. O sistema funciona sem ela.
-            </li>
-            {role === 'director' && (
-              <li>
-                <strong>Tradução automática</strong>: o serviço usado (LibreTranslate local e gratuito, DeepL Free ou desligada).
-              </li>
-            )}
-          </ul>
+          <p>
+            Os ajustes dizem como o sistema traduz. Já vêm com a terminologia das skills e dos tipos documentais (CNN, antecedentes,
+            atestados, conselhos, divórcio, procuração, ementa e certidões), do português para inglês, francês, italiano e espanhol e desses
+            idiomas para o português. Um termo ajustado por alguém não é trocado nas atualizações.
+          </p>
         </Theory>
-        <Practice
-          steps={[
-            <>
-              No Glossário, escolha o idioma de destino (para o português, escolha também o idioma do termo), preencha o termo e a tradução,
-              e clique em <strong>Adicionar</strong>.
-            </>,
-            <>Em Regras, escolha a modalidade e o idioma, ajuste e salve. Os ajustes valem para as próximas traduções.</>,
-            <>
-              Em Tipos de documento, use <strong>Escolher arquivo</strong> e <strong>Testar</strong> antes de receber um tipo novo.
-            </>,
+        <Fields
+          title="Glossário"
+          items={[
+            [
+              'Para inglês, francês, italiano, espanhol, português',
+              'O idioma de destino. Para o português, escolha também o idioma do termo.',
+            ],
+            ['Buscar termo', 'Acha um termo cadastrado.'],
+            ['Termo / Tradução / Observação (opcional)', 'O termo do original, a tradução aprovada e uma nota.'],
+            ['Alcance', role === 'director' ? 'Toda a organização ou uma equipe.' : 'A sua equipe. Termos da organização são do Diretor.'],
+            ['Adicionar / Remover', 'Cadastra ou tira um termo do seu alcance.'],
           ]}
         />
+        <Fields
+          title="Regras"
+          items={[
+            ['Juramentada, Certificada, Técnica, Simples e Idioma de destino', 'Escolhem qual regra você está ajustando.'],
+            ['Fonte e Tamanho (pt)', 'A letra do Word final.'],
+            ['Sufixo do arquivo', 'O que entra no fim do nome do arquivo (certidao.pdf → certidao - ENG.docx).'],
+            ['Datas', 'Por extenso no idioma de destino, ou como no original (só o nome do mês muda).'],
+            ['Números e códigos', 'Exatamente como no original, ou com o separador decimal do idioma de destino.'],
+            ['Elementos visuais', 'Só marcador entre colchetes ([Carimbo], [Assinatura]) ou nota do tradutor descritiva.'],
+            ['Traduzir nomes de instituições, Trechos em outro idioma, Bordas só nas tabelas', 'Detalhes de como o texto e o layout saem.'],
+            ['Checklist de correção e de revisão', 'Um item por linha; aparecem para confirmar antes de concluir.'],
+            ['Salvar regra', 'Vale para as próximas traduções.'],
+          ]}
+        />
+        <Fields
+          title="Tipos de documento"
+          items={[
+            ['Idiomas, Modalidade, Tipo documental e modelo, Diagramação do ensaio', 'Os parâmetros do teste.'],
+            ['Escolher arquivo / Testar', 'Testa um documento novo sem criar tradução: o sistema mostra o que consegue fazer.'],
+            ['Baixar prévia do teste (Word)', 'Confere o resultado no seu computador.'],
+            ['Fases com falha e Comentário', 'Se o teste não ficou bom, registre o que falhou.'],
+            ['Nome do formato e Motivo', 'Registra uma nova formatação para esse tipo.'],
+            ['Tipos que já passaram pelo sistema', 'A lista dos tipos conhecidos.'],
+          ]}
+        />
+        <Fields
+          title="IA"
+          items={[
+            role === 'director' && ['Ligar a IA / Desligar a IA', 'Só o Diretor liga ou desliga. O sistema funciona sem ela.'],
+            ['Modelo', 'O modelo de IA usado.'],
+            ['Prompt de governança', 'As regras que a IA segue em todos os pedidos. Salvar prompt grava.'],
+            ['Habilidades / Nova habilidade', 'Instruções para tarefas específicas: nome e instruções.'],
+            [
+              'Acesso por pessoa',
+              role === 'director' ? 'Libera ou limita a IA para cada pessoa.' : 'Libera ou limita a IA para as pessoas das suas equipes.',
+            ],
+            ['Registro de chamadas', 'Cada pedido feito à IA, por quem e para quê.'],
+          ]}
+        />
+        {role === 'director' && (
+          <Fields
+            title="Tradução automática"
+            items={[
+              ['LibreTranslate (local, gratuito)', 'Roda no seu servidor; o documento não sai dele. É o padrão.'],
+              ['DeepL Free (externo)', 'Melhor qualidade; grátis até 500 mil caracteres por mês. O texto vai para o DeepL.'],
+              ['Desligada', 'Sem tradução automática: os rascunhos trazem o texto original para traduzir à mão.'],
+            ]}
+          />
+        )}
         <div className="tutorial-figures">
           <Figure src="ajustes-glossario" alt="Ajustes, Glossário" caption="Glossário por idioma de destino." />
           <Figure src="ajustes-regras" alt="Ajustes, Regras" caption="Regras por modalidade e idioma." />
@@ -748,17 +1297,19 @@ export const TUTORIAL: TutorialSectionData[] = [
         <Theory>
           <p>
             Cadastros públicos não acessam nada até um Diretor aprovar. Em Usuários, o Diretor promove a Diretor, revoga sessões, suspende e
-            reativa contas. Suspender encerra todas as sessões da pessoa na hora.
+            reativa contas. Suspender encerra todas as sessões da pessoa na hora. Ninguém altera o próprio papel nem a própria situação.
           </p>
         </Theory>
-        <Practice
-          steps={[
-            <>
-              Em <strong>Cadastros pendentes</strong>, use Aprovar ou Rejeitar.
-            </>,
-            <>
-              Em <strong>Usuários</strong>, filtre pela situação e use as ações de cada pessoa. Tornar Diretor tira a pessoa das equipes.
-            </>,
+        <Fields
+          items={[
+            [
+              'Cadastros pendentes: Aprovar / Rejeitar',
+              'Libera ou recusa quem pediu acesso. Depois de aprovar, coloque a pessoa numa equipe.',
+            ],
+            ['Usuários: situação', 'Filtra por Todos, Pendente, Ativo ou Suspenso.'],
+            ['Tornar Diretor', 'Dá o papel de Diretor. A pessoa sai das equipes, porque o Diretor já acompanha todas.'],
+            ['Revogar sessões', 'Encerra os acessos abertos da pessoa, sem suspender a conta.'],
+            ['Suspender / Reativar', 'Bloqueia ou libera a conta.'],
           ]}
         />
         <Figure src="admin-usuarios" alt="Administração, Usuários" caption="Usuários: papéis, sessões e suspensão." />
@@ -771,27 +1322,32 @@ export const TUTORIAL: TutorialSectionData[] = [
     summary: 'Avisos, preferências, aparência, senha e sessões.',
     roles: ['user', 'leader', 'director'],
     target: { area: 'account' },
-    body: () => (
+    body: (role) => (
       <>
         <Theory>
           <p>
-            As notificações avisam documentos prontos, pedidos para refazer, conclusões, falhas e números. Em Configurações, você escolhe
-            como recebê-las: na tela, no Windows ou num resumo agrupado, e com que frequência.
+            As notificações avisam documentos prontos, tipos novos, pedidos para refazer, conclusões, falhas e números
+            {role === 'user' ? '' : ', e, para a liderança, pedidos de senha e de número'}. Em Configurações, você escolhe como recebê-las.
           </p>
         </Theory>
-        <Practice
-          steps={[
-            <>
-              Em <strong>Notificações</strong>, alterne entre Não lidas e Todas, filtre por tipo e use Marcar todas como lidas.
-            </>,
-            <>
-              Em <strong>Configurações › Preferências</strong>, ative os avisos, escolha a forma de entrega e os assuntos, e a aparência
-              (Claro, Escuro ou Acompanhar o sistema).
-            </>,
-            <>
-              Em <strong>Alterar senha</strong>, use de 12 a 256 caracteres. Em <strong>Minhas sessões</strong>, encerre o acesso de outros
-              computadores.
-            </>,
+        <Fields
+          title="Notificações"
+          items={[
+            ['Mostrar: Não lidas / Todas', 'O que listar.'],
+            ['Tipo de notificação e Assunto', 'Filtram as notificações.'],
+            ['Marcar todas como lidas', 'Limpa o contador do sino.'],
+          ]}
+        />
+        <Fields
+          title="Configurações"
+          items={[
+            ['Aparência: Claro, Modo noturno, Acompanhar o sistema', 'O tema da tela.'],
+            ['Ativar avisos', 'Liga ou desliga as notificações.'],
+            ['Forma de entrega', 'Resumo inteligente (agrupa o que precisa de atenção e explica o motivo) ou avisos individuais.'],
+            ['Frequência dos avisos', 'Assim que possível, a cada 5 ou 15 minutos, ou a cada hora.'],
+            ['Assuntos e canais', 'Quais assuntos avisar e onde: na tela ou no Windows.'],
+            ['Alterar senha: Senha atual, Nova senha, Confirmar nova senha', 'A senha nova tem de 12 a 256 caracteres.'],
+            ['Minhas sessões', 'Os computadores conectados à sua conta. Encerre os que você não reconhece.'],
           ]}
         />
         <Tip>
@@ -831,10 +1387,19 @@ export const TUTORIAL: TutorialSectionData[] = [
           {role !== 'user' && (
             <p>
               Os pedidos aparecem no sino e em <strong>Equipe › Pedidos de senha</strong>. Confirme com a pessoa, por telefone ou
-              pessoalmente, antes de autorizar: quem tem o pedido aprovado entra com a senha que escolheu.
+              pessoalmente, antes de autorizar.
             </p>
           )}
         </Theory>
+        <Fields
+          title="Campos de Esqueci a senha"
+          items={[
+            ['E-mail', 'O e-mail da sua conta.'],
+            ['Senha nova e Confirmar', 'A senha que você quer usar, duas vezes.'],
+            ['Pedir senha nova', 'Envia o pedido para a liderança.'],
+            role === 'director' && ['Tenho o Token do Diretor', 'Com o Token do Diretor, a senha nova vale na hora, sem pedido.'],
+          ]}
+        />
         <Practice
           steps={[
             <>
@@ -855,14 +1420,6 @@ export const TUTORIAL: TutorialSectionData[] = [
                     <strong>Recusar</strong>.
                   </>,
                 ]),
-            ...(role === 'director'
-              ? [
-                  <>
-                    Se você é Diretor e esqueceu a sua senha, abra <strong>Tenho o Token do Diretor</strong> na tela Esqueci a senha: com o
-                    token, a senha nova vale na hora.
-                  </>,
-                ]
-              : []),
           ]}
         />
         <div className="tutorial-figures">
@@ -893,11 +1450,20 @@ export const TUTORIAL: TutorialSectionData[] = [
             seguidas, só o Diretor autoriza.
           </dd>
         </div>
+        {role !== 'user' && (
+          <div>
+            <dt>Aparece "Token incorreto"</dt>
+            <dd>
+              Confira o token do seu papel: o Líder usa o Token do Líder, e o Diretor, o Token do Diretor. Maiúsculas, espaços e hífens não
+              importam. Errar muitas vezes bloqueia novas tentativas por alguns minutos.
+            </dd>
+          </div>
+        )}
         <div>
-          <dt>Aparece "Token incorreto"</dt>
+          <dt>Um botão que outra pessoa usa não aparece para mim</dt>
           <dd>
-            Confira o token do seu papel: o Líder usa o Token do Líder, e o Diretor, o Token do Diretor. Maiúsculas, espaços e hífens não
-            importam. Errar muitas vezes bloqueia novas tentativas por alguns minutos.
+            Cada papel vê só as ações dele. Veja a seção <strong>Quem faz o quê</strong>.
+            {role === 'user' ? ' Para reatribuir, cancelar ou decidir números, fale com o Líder.' : ''}
           </dd>
         </div>
         <div>
@@ -926,18 +1492,27 @@ export const TUTORIAL: TutorialSectionData[] = [
         <div>
           <dt>O botão de aprovar está apagado</dt>
           <dd>
-            Falta marcar "Comparei o original e o Word desta revisão", salvar uma edição pendente ou confirmar o checklist das etapas (em
-            Ajustes manuais).
+            Falta marcar "Comparei o original e o Word", salvar uma edição pendente ou confirmar o checklist das etapas (em Ajustes
+            manuais).
           </dd>
         </div>
         <div>
           <dt>Pronta ou Concluir foi recusada por cota</dt>
-          <dd>O limite anual de números acabou para a pessoa, a equipe ou a organização. A liderança ajusta em Equipes › Numeração.</dd>
+          <dd>
+            O limite anual de números acabou para a pessoa, a equipe ou a organização.{' '}
+            {role === 'user' ? 'Avise o Líder.' : 'Ajuste em Equipe › Numeração › Cotas e pedidos.'}
+          </dd>
         </div>
         <div>
           <dt>A tradução está bloqueada depois de três reprovações</dt>
           <dd>Registre uma nova forma de formatação (com nome e explicação) em Registrar nova forma de formatação, na própria tradução.</dd>
         </div>
+        {role === 'director' && (
+          <div>
+            <dt>Enviei uma remessa e ela não andou</dt>
+            <dd>Remessas do Diretor esperam o direcionamento. Em Nova tradução, escolha a equipe de destino.</dd>
+          </div>
+        )}
         <div>
           <dt>Apareceu um aviso pedindo para recarregar</dt>
           <dd>O sistema foi atualizado. Recarregue a página (Ctrl+F5) para usar a versão nova.</dd>
@@ -951,22 +1526,64 @@ export function tutorialFor(role: TutorialRole) {
   return TUTORIAL.filter((section) => section.roles.includes(role));
 }
 
+export const ROLE_NAME: Record<TutorialRole, string> = { user: 'Usuário', leader: 'Líder', director: 'Diretor' };
+
+/** Perspectivas que cada papel pode abrir: a própria e as dos papéis abaixo (para treinar a equipe). */
+export const TUTORIAL_VIEWS: Record<TutorialRole, TutorialRole[]> = {
+  user: ['user'],
+  leader: ['user', 'leader'],
+  director: ['user', 'leader', 'director'],
+};
+
 /** Uma seção do tutorial, com o resumo, o conteúdo e o atalho para a tela. */
 export function TutorialSection({
   section,
   role,
+  views = [role],
+  onView,
+  canOpen = () => true,
   onGo,
 }: {
   section: TutorialSectionData;
   role: TutorialRole;
+  views?: TutorialRole[];
+  onView?: (role: TutorialRole) => void;
+  canOpen?: (target: TutorialTarget) => boolean;
   onGo: (target: TutorialTarget) => void;
 }) {
+  const own = views[views.length - 1] ?? role;
   return (
     <article className="tutorial" aria-labelledby={`tutorial-${section.key}`}>
+      {views.length > 1 && onView && (
+        <div className="tutorial-view">
+          <span className="muted small-text" id="tutorial-view-label">
+            Ver o tutorial como
+          </span>
+          <div className="segmented" role="radiogroup" aria-labelledby="tutorial-view-label">
+            {views.map((view) => (
+              <button
+                key={view}
+                type="button"
+                role="radio"
+                aria-checked={view === role}
+                className={view === role ? 'on' : undefined}
+                onClick={() => onView(view)}
+              >
+                {ROLE_NAME[view]}
+              </button>
+            ))}
+          </div>
+          {role !== own && (
+            <p className="muted small-text">
+              Você está vendo o que um {ROLE_NAME[role]} vê, para orientar a sua equipe. As telas que são só desse papel não abrem daqui.
+            </p>
+          )}
+        </div>
+      )}
       <header className="tutorial-head">
         <h2 id={`tutorial-${section.key}`}>{section.title}</h2>
         <p className="muted">{section.summary}</p>
-        {section.target && (
+        {section.target && canOpen(section.target) && (
           <button type="button" className="small" onClick={() => onGo(section.target!)}>
             Abrir esta tela
           </button>

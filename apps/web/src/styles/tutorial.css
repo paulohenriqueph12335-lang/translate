@@ -186,3 +186,58 @@
     }
   }
 }
+
+@layer components {
+  /* Seletor de perspectiva do tutorial (Usuário, Líder, Diretor). */
+  .tutorial-view {
+    @apply mb-5 flex flex-wrap items-center gap-x-3 gap-y-2;
+  }
+  .tutorial-view > p {
+    @apply m-0 w-full;
+  }
+}
+
+@layer components {
+  /* Campos e botões de cada tela: o nome como aparece na tela e, ao lado, o que fazer. */
+  .tutorial-fields {
+    @apply m-0 grid gap-0 p-0;
+  }
+  .tutorial-fields > div {
+    @apply grid gap-1 py-2.5;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    column-gap: 1.25rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tutorial-fields > div:last-child {
+    border-bottom: 0;
+  }
+  .tutorial-fields dt {
+    font-weight: 650;
+    color: var(--ink);
+  }
+  .tutorial-fields dd {
+    @apply m-0;
+    color: var(--ink-2, var(--ink));
+  }
+  @media (max-width: 640px) {
+    .tutorial-fields > div {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  /* O que muda no papel de quem lê. */
+  .tutorial-role-note {
+    @apply my-4 grid gap-1 rounded-lg px-4 py-3;
+    background: var(--ghost);
+  }
+  /* Comparativo dos papéis: a coluna de quem lê fica em destaque. */
+  .tutorial-compare th[scope='row'] {
+    @apply font-semibold;
+    color: var(--ink);
+    white-space: normal;
+  }
+  .tutorial-compare .current {
+    background: var(--ghost);
+    color: var(--ink);
+    font-weight: 600;
+  }
+}

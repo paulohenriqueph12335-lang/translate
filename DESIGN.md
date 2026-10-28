@@ -84,7 +84,7 @@ Uma família só: **Schibsted Grotesk Variable**, instalada como dependência lo
 ### Celular
 
 - Nada passa da borda da tela.
-- Abas e submenus quebram em linhas.
+- Abas e submenus quebram em linhas. Submenus longos (mais de 6 itens, como o Tutorial) viram uma lista de escolha.
 - Tabelas viram cartões, com o nome da coluna acima de cada valor (`table-labels.ts`). A prévia do documento fica como o original.
 
 ## Forma
