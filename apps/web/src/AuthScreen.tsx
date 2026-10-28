@@ -1,13 +1,49 @@
-import { useState, type FormEvent, type InputHTMLAttributes } from 'react';
+import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from 'react';
 import { api, ApiError, type Me } from './api';
 import { Wordmark } from './ui';
 
-/** Campo de senha com "Mostrar" / "Ocultar", para quem quiser conferir o que digitou. */
+/** PrintScreen e a tecla do sistema, que abre Win+Shift+S no Windows e Cmd+Shift+3/4/5 no Mac. */
+const CAPTURE_KEYS = new Set(['PrintScreen', 'Meta', 'OS']);
+/** Quanto tempo a senha fica à mostra sem nenhuma ação. */
+const REVEAL_MS = 30_000;
+
+/**
+ * Campo de senha com "Mostrar" / "Ocultar", para quem quiser conferir o que digitou. À mostra, a senha volta a ser
+ * ocultada no começo de um print, ao sair da janela ou da aba, ao imprimir e depois de 30 segundos. O navegador não
+ * consegue impedir a captura de tela do sistema: isso reduz a chance de ela sair num print.
+ */
 export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    const hide = () => setVisible(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (!CAPTURE_KEYS.has(event.key)) return;
+      hide();
+      // O PrintScreen do Windows guarda a imagem na área de transferência: ela é trocada por um texto vazio.
+      if (event.key === 'PrintScreen') navigator.clipboard?.writeText('').catch(() => undefined);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') hide();
+    };
+    const timer = window.setTimeout(hide, REVEAL_MS);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+    window.addEventListener('blur', hide);
+    window.addEventListener('beforeprint', hide);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
+      window.removeEventListener('blur', hide);
+      window.removeEventListener('beforeprint', hide);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [visible]);
   return (
     <span className="password-field account-password-field">
-      <input {...props} type={visible ? 'text' : 'password'} />
+      <input {...props} type={visible ? 'text' : 'password'} data-revealed={visible || undefined} />
       <button
         type="button"
         className="link small-text"

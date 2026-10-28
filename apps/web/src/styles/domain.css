@@ -1481,4 +1481,10 @@
   .password-field input {
     flex: 1;
   }
+  /* Senha à mostra nunca sai no papel nem no PDF da impressão. */
+  @media print {
+    .password-field input[data-revealed] {
+      visibility: hidden;
+    }
+  }
 }
