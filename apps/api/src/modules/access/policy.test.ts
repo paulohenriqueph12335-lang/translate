@@ -4,7 +4,9 @@ import {
   canAddMember,
   canAssignBatch,
   canApproveTranslation,
+  canAuthorizePasswordReset,
   canCancelInBatch,
+  canConcludeTranslation,
   canClaimTranslation,
   canDecideNumberingRequest,
   canEditTranslation,
@@ -164,6 +166,25 @@ describe('o trabalho de cada usuário é dele', () => {
     assert.equal(canEditTranslation(operatorA, batch, null), false);
     assert.equal(canApproveTranslation(director, batch), true);
     assert.equal(canApproveTranslation(operatorA, batch), false);
+  });
+
+  it('conclui o responsável e a liderança; colega e quem saiu da equipe não', () => {
+    assert.equal(canConcludeTranslation(operatorA, batch, operatorA.id), true);
+    assert.equal(canConcludeTranslation(otherOperator, batch, operatorA.id), false);
+    assert.equal(canConcludeTranslation(operatorA, batch, null), false);
+    assert.equal(canConcludeTranslation(leaderA, batch, operatorA.id), true);
+    assert.equal(canConcludeTranslation(director, batch, operatorA.id), true);
+    assert.equal(canConcludeTranslation(actor({ id: operatorA.id }), batch, operatorA.id), false);
+  });
+
+  it('senha nova: o Diretor autoriza qualquer um, menos a si; o Líder, só Usuário da equipe dele', () => {
+    const target = (teams: Record<string, TeamRole>, id = 'alvo') => ({ id, memberships: new Map(Object.entries(teams)) });
+    assert.equal(canAuthorizePasswordReset(director, target({ [TEAM_A]: 'leader' })), true);
+    assert.equal(canAuthorizePasswordReset(director, target({}, director.id)), false);
+    assert.equal(canAuthorizePasswordReset(leaderA, target({ [TEAM_A]: 'operator' })), true);
+    assert.equal(canAuthorizePasswordReset(leaderA, target({ [TEAM_A]: 'leader' })), false);
+    assert.equal(canAuthorizePasswordReset(leaderA, target({ [TEAM_B]: 'operator' })), false);
+    assert.equal(canAuthorizePasswordReset(otherOperator, target({ [TEAM_A]: 'operator' })), false);
   });
 
   it('sem responsável, a equipe assume; reatribuir é do Supervisor e do Diretor', () => {

@@ -34,10 +34,12 @@ const KIND_TONE: Record<string, string> = {
 export function Notifications({
   onOpenTranslation,
   onOpenDocuments,
+  onOpenPasswords,
   onChange,
 }: {
   onOpenTranslation: (id: string) => void;
   onOpenDocuments: (batchId?: string) => void;
+  onOpenPasswords: () => void;
   onChange: () => void;
 }) {
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
@@ -65,6 +67,7 @@ export function Notifications({
     if (!item.readAt) void markRead([item.id]);
     if (item.translationId) onOpenTranslation(item.translationId);
     else if (item.batchId) onOpenDocuments(item.batchId);
+    else if (item.kind === 'password_reset_requested') onOpenPasswords();
   }
 
   return (

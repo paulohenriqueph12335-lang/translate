@@ -68,7 +68,10 @@ export function notificationCatalog(profile: NotificationProfile) {
 export function classifyNotification(kind: string) {
   let category: NotificationCategory = 'administration';
   if (['translation_ready', 'translation_approved'].includes(kind)) category = 'workflow';
-  else if (['translation_submitted', 'translation_returned', 'pattern_unknown', 'approval_waiting'].includes(kind)) category = 'review';
+  else if (
+    ['translation_submitted', 'translation_returned', 'pattern_unknown', 'approval_waiting', 'password_reset_requested'].includes(kind)
+  )
+    category = 'review';
   else if (['translation_failed', 'review_blocked', 'processing_stalled', 'download_waiting'].includes(kind)) category = 'failures';
   else if (['batch_assigned', 'translation_assigned', 'unassigned_work'].includes(kind)) category = 'assignments';
   else if (kind.startsWith('numbering_') || kind.startsWith('quota_')) category = 'numbering';
@@ -84,6 +87,7 @@ export function classifyNotification(kind: string) {
               'approval_waiting',
               'download_waiting',
               'unassigned_work',
+              'password_reset_requested',
             ].includes(kind)
           ? 'warning'
           : 'info';
@@ -101,6 +105,7 @@ export function classifyNotification(kind: string) {
       pattern_unknown: 'O tipo de documento ainda não possui um exemplo concluído para este fluxo.',
       translation_assigned: 'Você passou a ser responsável por este documento.',
       batch_assigned: 'Uma remessa foi direcionada à sua equipe.',
+      password_reset_requested: 'Alguém pediu uma senha nova e espera a sua autorização.',
     }[kind] ?? catalog[category].description;
   return { category, severity, reason };
 }

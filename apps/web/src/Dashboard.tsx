@@ -1,7 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AiComparisonPanel } from './AiComparison';
 import { AiManagement } from './AiManagement';
-import { api, statusLabel, type Me, type Page, type Session, type User, type UserStatus, setUnauthorizedHandler } from './api';
+import {
+  api,
+  statusLabel,
+  type Me,
+  type Page,
+  type PasswordResetItem,
+  type Session,
+  type User,
+  type UserStatus,
+  setUnauthorizedHandler,
+} from './api';
 import { Audit } from './Audit';
 import { AutoTranslationNotice } from './AutoTranslationNotice';
 import { BellPanel } from './BellPanel';
@@ -11,6 +21,7 @@ import { Downloads } from './Downloads';
 import { LiveNotifications } from './LiveNotifications';
 import { Notifications, useUnreadCount } from './Notifications';
 import { Numbering } from './Numbering';
+import { PasswordRequests } from './PasswordRequests';
 import { OrganizationPanel, TeamPanel } from './Panels';
 import { History, Workspace } from './Workspace';
 import { TranslationRulesEditor } from './Modes';
@@ -99,6 +110,11 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
     () => (isDirector ? api<Page<User>>('GET', '/users?status=pending&limit=100') : Promise.resolve(null)),
     [isDirector, place.area],
   );
+  // Pedidos de senha: o Diretor decide todos; o Líder, os dos Usuários das equipes dele.
+  const passwordRequests = useLoad(
+    () => (manages ? api<{ items: PasswordResetItem[] }>('GET', '/password-resets') : Promise.resolve(null)),
+    [manages, place.area, notificationsVersion],
+  );
   const go = (area: AreaKey, tab = '') => {
     setOpenTranslation(null);
     setPlace({ area, tab });
@@ -142,6 +158,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
   }
 
   const pendingCount = pending.data?.items.length ?? 0;
+  const passwordCount = passwordRequests.data?.items.length ?? 0;
   const translationNotice = <AutoTranslationNotice isDirector={isDirector} />;
   const translations = () => (
     <>
@@ -248,9 +265,16 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
       key: 'team',
       label: isDirector ? 'Equipes' : 'Equipe',
       title: isDirector ? 'Equipes' : 'Equipe',
-      subtitle: 'Pessoas, numeração, tradutores juramentados e o registro do que foi feito.',
+      subtitle: 'Pessoas, pedidos de senha, numeração, tradutores juramentados e o registro do que foi feito.',
+      count: passwordCount,
       tabs: [
         { key: 'people', label: 'Pessoas', render: () => <Teams isDirector={isDirector} selfId={me.user.id} /> },
+        {
+          key: 'passwords',
+          label: 'Pedidos de senha',
+          count: passwordCount,
+          render: () => <PasswordRequests isDirector={isDirector} onChange={passwordRequests.reload} />,
+        },
         { key: 'numbering', label: 'Numeração', render: () => <Numbering me={me} onOpenTranslation={goToTranslation} /> },
         { key: 'translators', label: 'Tradutores juramentados', render: () => <Translators canManage={supervises} /> },
         {
@@ -318,6 +342,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
                 setDocumentTarget(batchId ? { batchId } : {});
                 goToUpload();
               }}
+              onOpenPasswords={() => go('team', 'passwords')}
               onChange={() => setNotificationsVersion((current) => current + 1)}
             />
           ),
@@ -459,6 +484,7 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
               version={notificationsVersion}
               onOpenTranslation={goToTranslation}
               onOpenDocuments={(batchId) => openDocuments(batchId ? { batchId } : {})}
+              onOpenPasswords={() => go('team', 'passwords')}
               onSeeAll={() => go('notifications')}
               onChange={() => setNotificationsVersion((value) => value + 1)}
             />
@@ -483,6 +509,14 @@ export function Dashboard({ me, onLogout, onUnauthorized }: { me: Me; onLogout: 
             onNew={() => setNotificationsVersion((value) => value + 1)}
           />
           {me.user.testAccount && <TestAccountBanner me={me} onDeleted={onLogout} />}
+          {me.user.accessExpiresAt && (
+            <div className="alert warning temporary-access" role="status">
+              <span>
+                <strong>Acesso liberado pelo Líder até {dateTime(me.user.accessExpiresAt)}.</strong> Depois disso o sistema bloqueia a
+                entrada. Para voltar ao acesso normal, peça ao Diretor para autorizar a sua senha em "Esqueci a senha".
+              </span>
+            </div>
+          )}
           {single ? (
             <div key={current.key} className="panel-enter">
               {tab.render()}

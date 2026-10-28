@@ -90,6 +90,9 @@ services:
       LIBRETRANSLATE_URL: http://translator:5000
       DEEPL_API_KEY: ${DEEPL_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Tokens fixos do Diretor e do Líder (ADR-031). Vazios, valem os tokens entregues com o sistema.
+      DIRECTOR_TOKEN: ${DIRECTOR_TOKEN:-}
+      LEADER_TOKEN: ${LEADER_TOKEN:-}
       # Word → PDF para ver e baixar a prévia e a tradução em PDF (ADR-017).
       CONVERTER_URL: http://converter:3000
     ports:

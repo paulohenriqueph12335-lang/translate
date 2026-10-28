@@ -17,7 +17,7 @@ No início, `migrate` espera o Postgres saudável e aplica, em ordem e uma únic
 
 ## Primeiro Diretor
 
-Com a stack em execução, abra <http://localhost:5173>: sem Diretor, aparece a **Configuração inicial**. Ela pede o código de configuração, que está no log da API (Docker Desktop → Containers → translate → api → Logs, procure "CÓDIGO DE CONFIGURAÇÃO INICIAL", ou rode `docker compose logs api`), e o nome, o e-mail e a senha do Diretor. Marque **Conta de teste** para experimentar; com **Criar também Líder e Usuário de teste**, o sistema cria a "Equipe de Teste" com `lider.teste@exemplo.com` e `usuario.teste@exemplo.com`, com a mesma senha. O botão **Excluir contas de teste**, no topo da tela do Diretor de teste, apaga todas de uma vez, e a configuração inicial volta para criar a conta definitiva.
+Com a stack em execução, abra <http://localhost:5173>: sem Diretor, aparece a **Configuração inicial**. Ela pede o **Token do Diretor**, o token fixo entregue com o sistema, e o nome, o e-mail e a senha do Diretor. Para trocar o token, defina `DIRECTOR_TOKEN` (e, para o do Líder, `LEADER_TOKEN`) no `.env` e reinicie a API (ADR-031). Marque **Conta de teste** para experimentar; com **Criar também Líder e Usuário de teste**, o sistema cria a "Equipe de Teste" com `lider.teste@exemplo.com` e `usuario.teste@exemplo.com`, com a mesma senha. O botão **Excluir contas de teste**, no topo da tela do Diretor de teste, apaga todas de uma vez, e a configuração inicial volta para criar a conta definitiva.
 
 Também dá para criar pelo terminal. A senha é pedida sem eco, e o comando recusa se já existir Diretor:
 
@@ -40,8 +40,8 @@ Todos os perfis encontram **Configurações** no rodapé do menu:
 
 1. Para tradução juramentada **com máscara**, como Supervisor, abra **Tradutores juramentados**, cadastre cada tradutor (nome, matrícula, idiomas) e envie a **máscara em Word** dele no armazenamento de máscaras, com os marcadores `{{texto}}`, `{{numero}}`, `{{data}}` etc. no lugar certo. Cada envio vira uma edição numerada e permite voltar à anterior. Essa opção exige tradutor e máscara configurados; a numeração segue as regras do tradutor e a conferência da liderança. O envio também oferece o fluxo sem máscara, conforme a modalidade escolhida.
 2. A tradução automática gratuita já vem ligada: o serviço `translator` (LibreTranslate) sobe com o Compose e baixa os modelos PT, EN, FR, IT e ES na primeira vez (`docker compose logs -f translator`). Em uma instalação que já tinha só PT/EN, baixe os novos uma vez com `docker compose exec translator /app/venv/bin/python /app/scripts/install_models.py --load_only_lang_codes en,pt,fr,it,es` e reinicie o `translator`. Para usar o DeepL Free no lugar dele, crie uma conta em deepl.com/pro-api, coloque `DEEPL_API_KEY=` no `.env`, recrie o worker e escolha o DeepL em **Configurações**.
-3. Em **Enviar documentos**, crie a remessa com protocolo ou justificativa de ausência, par de idiomas e, se quiser, etiquetas. Remessas com 20 arquivos ou mais exigem escolha de inspeção integral ou por amostra. Cada documento armazenado entra na fila, inclusive nos lotes do Diretor ainda sem equipe. A equipe recebe "Pronto para revisar"; tipos ainda sem tradução concluída geram o aviso "Tipo de documento novo" para a liderança.
-4. Em **Traduções**, o Operador compara original e Word, registra a conferência da revisão, corrige o necessário e marca como pronta. O Líder ou Diretor conclui ou devolve com motivo e fases falhas. Três reprovações consecutivas exigem novo formato estrutural. As concluídas ficam em **Entregas e ZIP**, junto das opções de Word/PDF e exportação em lote. Consulte as regras detalhadas abaixo.
+3. Em **Traduções › Nova tradução**, escolha a modalidade e crie a remessa com protocolo ou justificativa de ausência e o par de idiomas. Remessas com 20 arquivos ou mais exigem escolha de inspeção integral ou por amostra. Cada documento armazenado entra na fila, inclusive nos lotes do Diretor ainda sem equipe. A equipe recebe "Pronto para revisar"; tipos ainda sem tradução concluída geram o aviso "Tipo de documento novo" para a liderança.
+4. Em **Traduções**, o responsável compara original e Word, registra a conferência da revisão, corrige o necessário e conclui (ADR-031). O Líder ou o Diretor também concluem e são quem devolve uma tradução pronta, com motivo e fases falhas, e quem resolve problemas de numeração. Três reprovações consecutivas exigem novo formato estrutural. As concluídas ficam em **Entregas e ZIP**, com Word e PDF um a um ou em ZIP. No ZIP, cada arquivo leva o número da tradução e o protocolo; sem número, leva a referência "Tradução N", que também serve para buscar depois. Consulte as regras detalhadas abaixo.
 5. O aviso no topo de **Envios** e **Traduções** diz se o worker parou, se a tradução automática está fora do ar ou se falta configurar o tradutor público. A chave `ANTHROPIC_API_KEY` não é mais usada (ADR-010) e pode ser apagada do `.env`.
 
 ## Painéis, protocolos e fluxo de revisão (2026-10-24)
@@ -81,6 +81,15 @@ A interface apresenta os PDFs com PDF.js e worker locais, inclusive em navegador
 ## Capacidade
 
 Medida no teste de carga de 20/10/2026 ([resultados](exemplos-simulados/README.md#teste-de-carga-20102026-máquina-de-desenvolvimento-docker-desktop)): uma instância da API responde ~75 requisições/s com p95 de 44 ms antes de ocupar um núcleo inteiro; um worker traduz ~370 documentos simples por hora (~10 s cada), com o LibreTranslate usando ~1,5 núcleo. Para crescer: mais instâncias da API atrás de um balanceador, mais workers (a fila usa `SKIP LOCKED`) e mais núcleos para o tradutor (`TRANSLATOR_THREADS`).
+
+## Esqueci a senha
+
+Na entrada, **Esqueci a senha** registra uma senha nova pendente. Quem decide é o Diretor ou o Líder, em Equipe › Pedidos de senha, com o token do próprio papel:
+
+- o Diretor autoriza de vez;
+- o Líder libera o Usuário da equipe por 24 horas, até 3 vezes seguidas; depois, só o Diretor troca a senha.
+
+Com o Token do Diretor, a própria tela "Esqueci a senha" troca a senha na hora. É o caminho quando o único Diretor esqueceu a dele (ADR-031).
 
 ## Persistência e recuperação
 

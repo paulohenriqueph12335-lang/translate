@@ -47,10 +47,14 @@ senha padrão):
 
 O comando de linha continua valendo.
 
+### Revisão de 2026-10-28: Token do Diretor
+
+A configuração inicial passa a pedir o **Token do Diretor**, um valor fixo, no lugar do código de uso único que saía no log da API. O código do log deixa de existir. O mesmo token autoriza a troca de senha de qualquer pessoa, inclusive pela tela "Esqueci a senha". Isso resolve a recuperação quando todos os Diretores perdem o acesso. Detalhes em [ADR-031](031-tokens-recovery-conclusion.md).
+
 ## Consequências
 
 - Acesso ao shell/containers do ambiente equivale a poder criar o primeiro Diretor; isso já é verdade para quem acessa o banco.
-- Recuperação quando todos os Diretores perderem acesso exige intervenção operacional no banco; documentar procedimento na Fase 8.
+- Recuperação quando todos os Diretores perderem acesso: "Esqueci a senha" com o Token do Diretor (revisão de 2026-10-28).
 
 ## Alternativas consideradas
 

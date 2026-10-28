@@ -19,6 +19,7 @@ const NEEDS_ACTION = new Set([
   'quota_warning',
   'quota_exhausted',
   'numbering_request',
+  'password_reset_requested',
 ]);
 
 const when = (iso: string) => {
@@ -37,6 +38,7 @@ export function BellPanel({
   version,
   onOpenTranslation,
   onOpenDocuments,
+  onOpenPasswords,
   onSeeAll,
   onChange,
 }: {
@@ -44,6 +46,7 @@ export function BellPanel({
   version: number;
   onOpenTranslation: (id: string) => void;
   onOpenDocuments: (batchId?: string) => void;
+  onOpenPasswords: () => void;
   onSeeAll: () => void;
   onChange: () => void;
 }) {
@@ -96,6 +99,7 @@ export function BellPanel({
     if (!item.readAt) void markRead([item.id]);
     if (item.translationId) onOpenTranslation(item.translationId);
     else if (item.batchId) onOpenDocuments(item.batchId);
+    else if (item.kind === 'password_reset_requested') onOpenPasswords();
     else onSeeAll();
   }
 

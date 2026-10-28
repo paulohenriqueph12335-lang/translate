@@ -36,6 +36,7 @@ import {
 } from '@tradutor/core/translation';
 import {
   canApproveTranslation,
+  canConcludeTranslation,
   canClaimTranslation,
   canDecideNumberingRequest,
   canEditTranslation,
@@ -62,6 +63,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface JobRow {
   id: string;
+  /** Referência sequencial ("Tradução 123"): nome no ZIP sem número nem protocolo e busca. */
+  reference_number: string;
   /** Modalidade (ADR-015): juramentada, certificada, técnica ou simples. */
   translation_mode: Mode;
   /** Juramentada com a máscara do tradutor (padrão) ou sem máscara (ADR-017). */
@@ -209,6 +212,7 @@ const withMask = (row: Pick<JobRow, 'translation_mode' | 'use_mask'>) => row.tra
 function summary(row: JobRow, actor: Actor, at = new Date()) {
   const batch = { teamId: row.team_id, ownerId: row.owner_id };
   const canApprove = canApproveTranslation(actor, batch);
+  const canConclude = canConcludeTranslation(actor, batch, row.assignee_id);
   const canEdit = canEditTranslation(actor, batch, row.assignee_id);
   const open = !['approved', 'cancelled', 'failed'].includes(row.status);
   const sworn = withMask(row);
@@ -217,6 +221,7 @@ function summary(row: JobRow, actor: Actor, at = new Date()) {
   const seconds = (from: Date, to = at) => Math.max(0, Math.floor((to.getTime() - from.getTime()) / 1000));
   return {
     id: row.id,
+    reference: Number(row.reference_number),
     translationMode: row.translation_mode,
     modeLabel: modeLabel[row.translation_mode],
     stages: MODE_STAGES[row.translation_mode],
@@ -299,9 +304,12 @@ function summary(row: JobRow, actor: Actor, at = new Date()) {
       submit: row.status === 'in_review' && canEdit && !blocked,
       claim: open && canClaimTranslation(actor, batch, row.assignee_id),
       reassign: open && canReassignTranslation(actor, batch),
-      approve: (row.status === 'in_review' || row.status === 'awaiting_approval') && canApprove && !blocked,
+      /** Concluir: o responsável ou a liderança (2026-10-28). */
+      approve: (row.status === 'in_review' || row.status === 'awaiting_approval') && canConclude && !blocked,
       /** Aprovar o Word (ADR-017): leva à próxima fase — pronta para conclusão, ou concluída por quem pode concluir. */
-      accept: !blocked && ((row.status === 'in_review' && (canEdit || canApprove)) || (row.status === 'awaiting_approval' && canApprove)),
+      accept: !blocked && ((row.status === 'in_review' && (canEdit || canApprove)) || (row.status === 'awaiting_approval' && canConclude)),
+      /** Exceções de numeração (protocolo zero): só a liderança autoriza. */
+      authorizeNumbering: canApprove,
       returnForChanges: ['in_review', 'awaiting_approval'].includes(row.status) && (canEdit || canApprove) && !blocked,
       cancel: !['approved', 'cancelled', 'failed'].includes(row.status) && canApprove,
       reprocess: ['in_review', 'awaiting_approval', 'failed', 'approved'].includes(row.status) && canApprove && !blocked,
@@ -850,7 +858,11 @@ export function createTranslationService({
         `(unaccent(d.display_name) ILIKE unaccent(${pattern}) OR unaccent(coalesce(b.name, '')) ILIKE unaccent(${pattern})
           OR unaccent(coalesce(b.protocol,'')) ILIKE unaccent(${pattern})
           OR unaccent(coalesce(j.document_type, '')) ILIKE unaccent(${pattern}) OR unaccent(coalesce(j.source_title, '')) ILIKE unaccent(${pattern})
-          OR coalesce(j.number_label, '') ILIKE ${pattern})`,
+          OR coalesce(j.number_label, '') ILIKE ${pattern}${
+            /^(tradu[cç][aã]o\s*)?\d{1,15}$/i.test(query.q.trim())
+              ? ` OR j.reference_number = ${param(query.q.trim().replace(/\D/g, ''))}::bigint`
+              : ''
+          })`,
       );
     }
     if (after) conditions.push(`(j.created_at, j.id) < (${param(after[0])}::timestamptz, ${param(after[1])}::uuid)`);
@@ -1088,14 +1100,15 @@ export function createTranslationService({
 
   /**
    * Aprovar o Word (ADR-017): tradução e revisão já foram automáticas; quem aprova leva o documento à próxima fase.
-   * O responsável (ou o Supervisor) confirma o que faltar do checklist e marca como pronta; quem pode concluir conclui
-   * na hora, com o tradutor e a numeração escolhidos. Um Usuário aprova e a liderança conclui.
+   * O responsável (ou o Supervisor) confirma o que faltar do checklist e marca como pronta; quem pode concluir (o
+   * responsável ou a liderança, desde 2026-10-28) conclui na hora, com o tradutor e a numeração escolhidos.
    */
   async function accept(ctx: AuthenticatedContext, jobId: string) {
     const row = await loadJob(pool, ctx, jobId);
     requireUnblocked(row);
     const batch = { teamId: row.team_id, ownerId: row.owner_id };
     const canApprove = canApproveTranslation(ctx.actor, batch);
+    const canConclude = canConcludeTranslation(ctx.actor, batch, row.assignee_id);
     const canEdit = canEditTranslation(ctx.actor, batch, row.assignee_id);
     if (row.status === 'in_review') {
       if (!canEdit && !canApprove) throw forbidden('Somente o responsável ou a liderança da equipe aprova esta tradução');
@@ -1104,11 +1117,12 @@ export function createTranslationService({
         .filter((item) => !item.checked)
         .map((item) => item.key);
       if (pending.length && canEdit) await setChecks(ctx, jobId, { keys: pending, checked: true });
-      if (canEdit) await submit(ctx, jobId);
+      // Quem vai concluir em seguida não avisa a liderança de que está pronta.
+      if (canEdit) await submit(ctx, jobId, { quiet: canConclude });
     } else if (row.status !== 'awaiting_approval') {
       throw conflict(`Ação não permitida no estado "${row.status}"`);
     }
-    if (!canApprove) return get(ctx, jobId);
+    if (!canConclude) return get(ctx, jobId);
     // Juramentada sem tradutor decidido: fica pronta, e quem conclui escolhe o tradutor (ou nenhum) na conclusão.
     if (withMask(row) && !row.preferred_translator_id) {
       const entry = await pool.query(`SELECT 1 FROM numbering_entries WHERE job_id = $1 AND status <> 'void'`, [jobId]);
@@ -1156,7 +1170,7 @@ export function createTranslationService({
     return get(ctx, jobId);
   }
 
-  const submit = (ctx: AuthenticatedContext, jobId: string) =>
+  const submit = (ctx: AuthenticatedContext, jobId: string, options: { quiet?: boolean } = {}) =>
     transition(
       ctx,
       jobId,
@@ -1193,7 +1207,8 @@ export function createTranslationService({
           [jobId, ctx.actor.id],
         );
         await audit(db, ctx, row, 'translation.submitted', { revision: row.current_revision });
-        // Pronto pelo Operador: a decisão final é do Líder da equipe ou do Diretor.
+        if (options.quiet) return;
+        // Pronto sem concluir: o responsável ou a liderança conclui; a liderança é avisada.
         await notify(
           db,
           { teamId: row.team_id, leaders: true, directors: true, exclude: ctx.actor.id },
@@ -1478,15 +1493,24 @@ export function createTranslationService({
     });
   }
 
+  /** Concluir: o responsável pela tradução ou a liderança da equipe (2026-10-28). */
+  async function requireConcluder(ctx: AuthenticatedContext, jobId: string) {
+    const row = await loadJob(pool, ctx, jobId);
+    if (!canConcludeTranslation(ctx.actor, { teamId: row.team_id, ownerId: row.owner_id }, row.assignee_id)) {
+      throw forbidden('Somente o responsável pela tradução, o Líder da equipe ou o Diretor conclui');
+    }
+  }
+
   /**
-   * Conclusão (ADR-007, ADR-012): só Supervisor da equipe ou Diretor; problemas de checagem em aberto exigem justificativa.
+   * Conclusão (ADR-007, ADR-012; revisão de 2026-10-28): o responsável, o Supervisor da equipe ou o Diretor; problemas
+   * de checagem em aberto exigem justificativa.
    * Quem conclui escolhe o tradutor juramentado e digita o número (e, se usar, livro e folha) conforme as regras dele;
    * o DOCX final é a máscara do tradutor preenchida, gravado imutável. Nada é concluído automaticamente.
    */
   async function approve(ctx: AuthenticatedContext, jobId: string, input: ApproveInput) {
     if (input.withoutTranslator && (input.translatorId || input.number || input.book || input.sheet))
       throw new AppError(400, 'VALIDATION_FAILED', 'Sem tradutor, a conclusão não leva tradutor nem número');
-    await requireApprover(ctx, jobId);
+    await requireConcluder(ctx, jobId);
     const keyHolder: { key?: string } = {};
     try {
       await withTransaction(pool, async (db) => {

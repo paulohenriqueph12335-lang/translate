@@ -508,7 +508,13 @@ function flowSteps(t: TranslationSummary) {
     [
       'Conclusão',
       t.status === 'awaiting_approval' ? 'current' : t.status === 'approved' ? 'done' : 'waiting',
-      t.status === 'awaiting_approval' ? 'Com a liderança' : t.status === 'approved' ? (t.number ? `nº ${t.number}` : 'Concluída') : '—',
+      t.status === 'awaiting_approval'
+        ? 'Pronta para concluir'
+        : t.status === 'approved'
+          ? t.number
+            ? `nº ${t.number}`
+            : 'Concluída'
+          : '—',
     ],
     ['Word final', t.status === 'approved' ? 'done' : 'waiting', t.status === 'approved' ? 'Word e PDF liberados' : '—'],
   ];
@@ -575,7 +581,9 @@ export function WordPanel({
             {final
               ? `${t.number ? `Tradução Pública nº ${t.number} · ` : ''}pronta para entregar`
               : t.status === 'awaiting_approval'
-                ? 'Aprovada: aguardando a conclusão pela liderança'
+                ? t.permissions.approve
+                  ? 'Aprovada: pronta para você concluir'
+                  : 'Aprovada: aguardando a conclusão pelo responsável'
                 : t.useMask && t.preferredTranslator
                   ? `Na máscara de ${t.preferredTranslator.name}, com o número previsto`
                   : t.useMask

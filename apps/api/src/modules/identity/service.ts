@@ -6,6 +6,7 @@ import { AppError, forbidden, notFound } from '../../http/errors.js';
 import type { AuthenticatedContext, RequestContext, ServiceDeps } from '../context.js';
 import { getDummyHash, hashPassword, PASSWORD_MAX, PASSWORD_MIN, verifyPassword } from './passwords.js';
 import { toUserPreferences, type PreferencesRow, type UserPreferences, type UserPreferencesPatch } from './preferences.js';
+import { LEADER_UNLOCK_LIMIT } from './recovery.js';
 import { hashToken, newSessionToken } from './tokens.js';
 
 export interface PublicUser {
@@ -17,6 +18,8 @@ export interface PublicUser {
   createdAt: string;
   /** Conta criada como teste na configuração inicial: pode ser excluída. */
   testAccount: boolean;
+  /** Acesso liberado pelo Líder: termina nesta hora, até o Diretor trocar a senha. */
+  accessExpiresAt: string | null;
 }
 
 export interface UserRow {
@@ -27,9 +30,10 @@ export interface UserRow {
   org_role: OrgRole;
   created_at: Date;
   test_account: boolean;
+  access_expires_at: Date | null;
 }
 
-export const USER_COLUMNS = 'u.id, u.email, u.display_name, u.status, u.org_role, u.created_at, u.test_account';
+export const USER_COLUMNS = 'u.id, u.email, u.display_name, u.status, u.org_role, u.created_at, u.test_account, u.access_expires_at';
 
 export const toPublicUser = (row: UserRow): PublicUser => ({
   id: row.id,
@@ -39,6 +43,7 @@ export const toPublicUser = (row: UserRow): PublicUser => ({
   orgRole: row.org_role,
   createdAt: row.created_at.toISOString(),
   testAccount: row.test_account,
+  accessExpiresAt: row.access_expires_at?.toISOString() ?? null,
 });
 
 export interface Membership {
@@ -101,6 +106,25 @@ export function createIdentityService({ pool, config, now = () => new Date() }: 
       if (row.status === 'pending') throw new AppError(403, 'ACCOUNT_PENDING', 'Cadastro aguardando aprovação');
       throw new AppError(403, 'ACCOUNT_UNAVAILABLE', 'Conta indisponível. Procure a administração.');
     }
+    if (row.access_expires_at && row.access_expires_at <= now()) {
+      const unlocks = (await pool.query<{ leader_unlocks: number }>('SELECT leader_unlocks FROM users WHERE id = $1', [row.id])).rows[0]
+        ?.leader_unlocks;
+      await recordAudit(pool, {
+        actorUserId: null,
+        action: 'auth.login_denied',
+        targetType: 'user',
+        targetId: row.id,
+        correlationId: ctx.correlationId,
+        metadata: { reason: 'access_expired' },
+      });
+      throw new AppError(
+        403,
+        'ACCESS_EXPIRED',
+        (unlocks ?? 0) >= LEADER_UNLOCK_LIMIT
+          ? `O acesso liberado pelo Líder terminou e já foi liberado ${LEADER_UNLOCK_LIMIT} vezes. Agora só o Diretor troca a sua senha: peça em "Esqueci a senha".`
+          : 'O acesso liberado pelo Líder terminou. Peça uma senha nova em "Esqueci a senha".',
+      );
+    }
 
     const token = newSessionToken();
     const issuedAt = now();
@@ -112,10 +136,13 @@ export function createIdentityService({ pool, config, now = () => new Date() }: 
       );
       const currentUser = locked.rows[0];
       if (!currentUser || currentUser.status !== 'active' || currentUser.password_hash !== row.password_hash) return null;
+      // Acesso liberado pelo Líder: a sessão não passa do fim da liberação.
+      const ttlEnd = new Date(issuedAt.getTime() + ttlMs);
+      const expiresAt = currentUser.access_expires_at && currentUser.access_expires_at < ttlEnd ? currentUser.access_expires_at : ttlEnd;
       const created = await db.query<{ id: string; expires_at: Date }>(
         `INSERT INTO sessions (user_id, token_hash, created_at, last_seen_at, expires_at, user_agent)
          VALUES ($1, $2, $3, $3, $4, $5) RETURNING id, expires_at`,
-        [row.id, hashToken(token), issuedAt, new Date(issuedAt.getTime() + ttlMs), ctx.userAgent?.slice(0, 256) ?? null],
+        [row.id, hashToken(token), issuedAt, expiresAt, ctx.userAgent?.slice(0, 256) ?? null],
       );
       const createdSession = created.rows[0]!;
       await recordAudit(db, {
@@ -147,7 +174,8 @@ export function createIdentityService({ pool, config, now = () => new Date() }: 
     const result = await pool.query<UserRow & { session_id: string; last_seen_at: Date }>(
       `SELECT s.id AS session_id, s.last_seen_at, ${USER_COLUMNS}
          FROM sessions s JOIN users u ON u.id = s.user_id
-        WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 AND s.last_seen_at > $3`,
+        WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 AND s.last_seen_at > $3
+          AND (u.access_expires_at IS NULL OR u.access_expires_at > $2)`,
       [hashToken(token), current, new Date(current.getTime() - idleMs)],
     );
     const row = result.rows[0];

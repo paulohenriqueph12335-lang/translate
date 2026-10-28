@@ -2,6 +2,23 @@
 
 O roadmap normaliza as fases do plano mestre. Uma fase só avança quando seus critérios verificáveis passam; compilar sozinho não conclui uma fase.
 
+## Estado em 28/10/2026
+
+As fases 0 a 3 estão implementadas. A 4 (fila e recuperação), a 5 (OCR) e boa parte da 7 (idiomas, modalidades e glossário) também, com testes. Desde então entraram o redesign da interface, o tutorial, os tokens fixos e a recuperação de senha, a conclusão pelo responsável e os nomes no ZIP (ADR-031). Fastify, Zod, Vite e o SDK da AWS foram atualizados, e `pnpm audit --prod` não aponta vulnerabilidades.
+
+Os registros abaixo de cada fase mostram como o sistema estava quando a fase foi entregue. Para o estado atual, veja [project-overview.md](project-overview.md), [architecture.md](architecture.md) e [data-model.md](data-model.md).
+
+Próximos passos:
+
+- recuperação de senha por e-mail e MFA;
+- limitador de tentativas compartilhado entre instâncias da API;
+- criptografia em repouso;
+- imagens Docker de produção, sem `tsx watch` nem o servidor do Vite e sem rodar como root;
+- healthchecks de todos os serviços;
+- backup e restauração testados;
+- limpeza de objetos órfãos no S3;
+- divisão de `apps/api/src/http/routes.ts` por módulo.
+
 ## Fase 0 — Fundação local (em andamento)
 
 Monorepositório, Docker, configuração, PostgreSQL, armazenamento local, API/worker/web mínimos e migrações.

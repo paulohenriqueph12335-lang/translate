@@ -181,12 +181,22 @@ describe('nomes estáveis, ZIP íntegro e rastreamento de downloads', () => {
       { translationIds: [translationIds[2], translationIds[0], translationIds[1]], format: 'docx' },
     );
     assert.equal(response.statusCode, 200, response.body);
+    // Todas do mesmo protocolo: o ZIP leva o protocolo.
+    assert.match(decodeURIComponent(String(response.headers['content-disposition'])), /ABC-10003 – Word\.zip/);
     const archive = await JSZip.loadAsync(response.rawPayload);
     const entries = Object.keys(archive.files).filter((path) => !archive.files[path]!.dir);
     assert.equal(entries.length, 3);
+    // A referência do nome no ZIP encontra a tradução na busca.
+    const reference = /Tradução (\d+)\.docx$/.exec(entries[0]!)![1]!;
+    const found = await member.get(`/api/v1/translations?q=${encodeURIComponent(`Tradução ${reference}`)}`);
+    assert.deepEqual(
+      found.body.items.map((item: { reference: number }) => item.reference),
+      [Number(reference)],
+    );
     assert.equal(new Set(entries.map((path) => path.toLowerCase())).size, 3);
     for (const path of entries) {
-      assert.match(path, /^ABC-10003\/FR-ES\/Word\/ABC-10003 – Arquivo/);
+      // Sem número de Tradução Pública: protocolo e a referência sequencial da tradução.
+      assert.match(path, /^ABC-10003\/FR-ES\/Word\/ABC-10003 – Tradução \d+\.docx$/);
       assert.ok(!path.split('/').includes('..'));
       assert.deepEqual(await archive.file(path)!.async('nodebuffer'), samples.docx());
     }

@@ -42,6 +42,15 @@ const schema = z.object({
     .string()
     .optional()
     .transform((value) => value || undefined),
+  // Tokens fixos do Diretor e do Líder: sem valor, valem os tokens entregues com o sistema (só o hash fica no código).
+  DIRECTOR_TOKEN: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
+  LEADER_TOKEN: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
   // Gerenciamento AI (ADR-021): sem chave, a IA fica indisponível e o sistema segue normalmente.
   GEMINI_API_KEY: z
     .string()

@@ -778,7 +778,7 @@ function TranslationView({ id, me, onBack, onGoTranslators }: { id: string; me: 
                 key={`${id}-${t.status}-numbering`}
                 translationId={id}
                 editable={t.permissions.approve}
-                canAuthorize={t.permissions.approve}
+                canAuthorize={!!t.permissions.authorizeNumbering}
                 defaultTranslatorId={t.preferredTranslator?.id ?? null}
                 defaultPages={t.pageCount}
                 completed={t.status === 'awaiting_approval'}

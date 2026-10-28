@@ -1,45 +1,76 @@
 # Visão do projeto
 
+Atualizado em 28/10/2026. O produto, os papéis e o tom estão em [PRODUCT.md](../PRODUCT.md). A interface está em [DESIGN.md](../DESIGN.md).
+
 ## Propósito
 
-Construir uma aplicação web em que pessoas autorizadas possam enviar documentos, escolher idiomas, acompanhar tarefas de tradução e baixar arquivos reconstruídos com a formatação original preservada tanto quanto os formatos suportarem.
+O Tradutor Documental é uma aplicação web para a operação de tradução de uma organização. Nela, as pessoas autorizadas:
 
-## Usuários e acesso previstos
+- enviam documentos em remessas com protocolo;
+- recebem um rascunho traduzido automaticamente, no layout do original;
+- conferem o original e o Word lado a lado;
+- concluem e baixam o Word e o PDF finais.
 
-- **Diretor:** administra a organização, aprova cadastros, atribui funções e direciona para as equipes os lotes que envia.
-- **Líder:** administra somente equipes, pessoas e recursos delegados; os lotes que envia vão direto para a própria equipe.
-- **Operador:** trabalha com todos os documentos da sua equipe (ver, baixar e, nas próximas fases, traduzir); não cria lotes.
-- **Cadastro pendente:** não tem acesso interno até aprovação.
+Na tradução juramentada, o Word final pode sair na máscara do tradutor juramentado, com número, livro e folha.
 
-O servidor deverá verificar permissões por ação e por objeto, sempre considerando proprietário e equipe. Essa hierarquia é requisito de produto, não funcionalidade já implementada.
+## Papéis
 
-## Escopo do MVP
+- **Diretor**:
+  - administra a organização, aprova cadastros, cria equipes e direciona as remessas que envia;
+  - decide pedidos de numeração e autoriza senhas novas com o Token do Diretor.
+- **Líder (Supervisor)**:
+  - gerencia as equipes que lidera, os tradutores juramentados e a numeração;
+  - devolve traduções prontas;
+  - libera por 24 horas o acesso de quem esqueceu a senha, com o Token do Líder.
+- **Usuário**:
+  - envia documentos e revisa os que estão com ele;
+  - conclui a própria tradução (ADR-031).
+- **Cadastro pendente**: não acessa nada até a aprovação de um Diretor.
 
-- Cadastro pendente, autenticação, hierarquia de funções, equipes e auditoria.
-- Upload e histórico com lotes de até 100 arquivos e estado individual por documento.
-- Fila persistente, retomada, idempotência, retentativas limitadas e cancelamento.
-- Tradução com origem selecionável ou detecção opcional, destino obrigatório e provedor adaptável.
-- Formatos-alvo: DOCX, PDF digital, PDF digitalizado, JPG/JPEG, PNG e PPTX.
-- OCR local e conversão documental no worker; arquivos privados e falhas recuperáveis.
+O servidor verifica as permissões por ação e por objeto, sempre pela equipe e pelo responsável, em [`apps/api/src/modules/access/policy.ts`](../apps/api/src/modules/access/policy.ts).
 
-Fidelidade visual perfeita, aplicação móvel, Kubernetes, edição colaborativa, documentos corrompidos/protegidos e tradução totalmente offline estão fora do primeiro lançamento.
+## O que o sistema faz hoje
 
-## Fluxo de trabalho desejado
+- **Entrada e contas**:
+  - cadastro pendente e sessões revogáveis;
+  - troca de senha e "Esqueci a senha";
+  - primeiro Diretor criado com o Token do Diretor;
+  - contas de teste.
+- **Envio**:
+  - remessas de até 100 arquivos, com protocolo ou justificativa, par de idiomas e modalidade (juramentada, certificada, técnica ou simples);
+  - formatos aceitos: PDF digital ou digitalizado, DOCX, PPTX e imagens.
+- **Processamento**:
+  - fila no PostgreSQL;
+  - OCR local, leitura do layout e tradução automática gratuita (LibreTranslate local; DeepL Free opcional);
+  - revisão automática e modelos de corpo e de moldura.
+- **Revisão**:
+  - original e Word lado a lado, checklist por modalidade e conferência por amostra;
+  - até 3 reprovações seguidas;
+  - registro de formato novo.
+- **Conclusão e numeração**:
+  - tradutores juramentados com máscara em Word e regras de numeração por tradutor;
+  - cotas anuais e pedidos de alteração ou anulação.
+- **Entregas**: Word e PDF um a um ou em ZIP. No ZIP, cada arquivo leva o número e o protocolo, ou a referência "Tradução N".
+- **Acompanhamento**:
+  - painéis da organização, da equipe e pessoais;
+  - notificações por categoria e auditoria somente inserção;
+  - Gerenciamento AI (Gemini, opcional).
 
-1. Uma pessoa autenticada cria um lote e envia arquivos.
-2. A API valida limites, formato, tamanho e permissão; registra lote e itens.
-3. Os arquivos originais são salvos em armazenamento privado e os trabalhos ficam persistidos.
-4. Um worker extrai conteúdo, traduz segmentos pelo provedor configurado e reconstrói o formato.
-5. O sistema salva resultado e avisos, atualiza o estado do item e registra eventos de auditoria.
-6. A pessoa autorizada consulta o histórico e baixa o resultado.
+## Fora do escopo atual
 
-Cada etapa deve ter estado e erro próprios. Uma falha de OCR não deve parecer falha de tradução; uma resposta parcial do provedor não pode marcar o documento como concluído.
+Os itens abaixo estão em [roadmap.md](roadmap.md) e no relatório técnico de 27/10/2026:
+
+- recuperação de senha por e-mail e MFA;
+- criptografia em repouso;
+- limitador de tentativas compartilhado entre instâncias da API;
+- imagens Docker de produção;
+- backup e restauração testados;
+- aplicativo móvel e várias organizações.
 
 ## Princípios
 
-- Monólito modular em TypeScript, com contratos explícitos entre módulos.
-- Validar toda entrada na fronteira; regras de negócio não ficam nos controladores HTTP.
-- Documentos e credenciais não entram no Git nem nos logs.
-- OCR, extração e reconstrução locais; tradução externa apenas quando habilitada e configurada.
-- Persistir estados e checkpoints antes de alegar que uma tarefa é recuperável.
-- Declarar limitações de cada formato e orientar revisão quando a fidelidade não puder ser garantida.
+- Monólito modular em TypeScript, com regras de negócio fora dos controladores HTTP.
+- Validar toda entrada na fronteira, com Zod.
+- Documentos e credenciais não entram no Git nem nos logs. Dos tokens fixos, só o hash fica no código.
+- OCR, extração e tradução padrão rodam na própria infraestrutura. O envio externo só acontece quando o Diretor escolhe.
+- Nada é concluído automaticamente: alguém com permissão confere e conclui.

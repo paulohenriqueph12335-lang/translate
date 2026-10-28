@@ -28,7 +28,9 @@ Decisões que mudam limites, dependências ou operação ficam registradas como 
 - [ADR-024 — Configurações pessoais, aparência e troca de senha](024-personal-settings.md)
 - [ADR-025 — Painéis pessoais, protocolos e fluxo documental rastreável](025-operational-document-flow.md)
 - [ADR-028 — Revisão persistida dos ensaios de novos formatos](028-pattern-trial-reviews.md)
+- [ADR-029 — Notificações por interesse, canal e responsabilidade](029-smart-notifications.md)
 - [ADR-030 — Tipos documentais e isolamento das tentativas de processamento](030-document-categories-and-queue-fencing.md)
+- [ADR-031 — Tokens fixos, recuperação de senha, conclusão pelo responsável e nomes no ZIP](031-tokens-recovery-conclusion.md)
 
 ## Modelo para novas decisões
 

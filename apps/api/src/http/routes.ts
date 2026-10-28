@@ -34,6 +34,7 @@ import {
 import { PASSWORD_MAX, PASSWORD_MIN } from '../modules/identity/passwords.js';
 import { UserPreferences, UserPreferencesPatch } from '../modules/identity/preferences.js';
 import type { IdentityService } from '../modules/identity/service.js';
+import type { RecoveryService } from '../modules/identity/recovery.js';
 import type { SetupService } from '../modules/identity/setup.js';
 import { pageQuery } from '../modules/pagination.js';
 import type { TeamService } from '../modules/teams/service.js';
@@ -48,6 +49,7 @@ export const SESSION_COOKIE = 'sid';
 export interface Services {
   identity: IdentityService;
   setup: SetupService;
+  recovery: RecoveryService;
   users: UserAdminService;
   teams: TeamService;
   audit: AuditService;
@@ -160,13 +162,47 @@ export function registerRoutes(
     return { user: result.user, memberships: await services.identity.listMemberships(result.user.id) };
   });
 
-  // ---------- Configuração inicial (ADR-004): primeiro Diretor pela interface, com o código do log da API ----------
+  // ---------- Esqueci a senha: pedido ao Diretor ou ao Líder; com o Token do Diretor, troca na hora ----------
+  app.post('/api/v1/auth/password-reset', async (request, reply) => {
+    const body = parse(
+      z.strictObject({
+        email,
+        newPassword: z.string().min(PASSWORD_MIN, `Use pelo menos ${PASSWORD_MIN} caracteres`).max(PASSWORD_MAX),
+        directorToken: z.string().trim().max(100).optional(),
+      }),
+      request.body,
+    );
+    limit(deps.passwordLimiter, [`ip:${request.ip}`, `email:${body.email}`]);
+    const result = await services.recovery.request(
+      { email: body.email, newPassword: body.newPassword, ...(body.directorToken ? { directorToken: body.directorToken } : {}) },
+      requestContext(request),
+    );
+    return reply.code(result.status === 'changed' ? 200 : 202).send(result);
+  });
+
+  app.get('/api/v1/password-resets', async (request) => services.recovery.list(auth(request)));
+
+  app.post('/api/v1/password-resets/:id/approve', async (request) => {
+    const ctx = auth(request);
+    limit(deps.passwordLimiter, [`ip:${request.ip}`, `user:${ctx.actor.id}`]);
+    const { id } = parse(idParams, request.params);
+    const body = parse(z.strictObject({ token: z.string().trim().min(1, 'Digite o token').max(100) }), request.body);
+    return services.recovery.decide(ctx, id, { action: 'approve', token: body.token });
+  });
+
+  app.post('/api/v1/password-resets/:id/reject', async (request) => {
+    const ctx = auth(request);
+    const { id } = parse(idParams, request.params);
+    return services.recovery.decide(ctx, id, { action: 'reject' });
+  });
+
+  // ---------- Configuração inicial (ADR-004): primeiro Diretor pela interface, com o Token do Diretor ----------
   app.get('/api/v1/setup', async () => ({ needed: await services.setup.needed() }));
 
   app.post('/api/v1/setup', async (request, reply) => {
     const body = parse(
       z.strictObject({
-        code: z.string().trim().min(4).max(20),
+        code: z.string().trim().min(4).max(100),
         email,
         displayName: z.string().trim().min(1).max(120),
         password: z.string().min(PASSWORD_MIN).max(PASSWORD_MAX),

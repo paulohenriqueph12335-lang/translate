@@ -1,4 +1,3 @@
-import { randomInt, timingSafeEqual } from 'node:crypto';
 import { withTransaction } from '@tradutor/core/db';
 import { isDirector } from '../access/policy.js';
 import { recordAudit } from '../audit/audit.js';
@@ -7,11 +6,7 @@ import type { AuthenticatedContext, RequestContext, ServiceDeps } from '../conte
 import type { PoolClient } from 'pg';
 import { BootstrapRefused, bootstrapDirector } from './bootstrap.js';
 import { hashPassword } from './passwords.js';
-
-/** Sem letras e números que se confundem (0/O, 1/I/L). */
-const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-/** Códigos errados que fazem o código ser trocado por outro (além do limite de tentativas por IP). */
-const MAX_WRONG = 10;
+import type { MasterTokenCheck } from './master-tokens.js';
 
 /**
  * Contas de demonstração criadas junto com o Diretor de teste: dados fictícios fixos (domínio reservado exemplo.com) e a
@@ -36,44 +31,14 @@ async function anonymize(db: Pick<PoolClient, 'query'>, userId: string) {
 }
 
 /**
- * Configuração inicial (ADR-004, revisão de 2026-10-22). Enquanto não há Diretor, a API gera um código de uso único e
- * o escreve no próprio log (Docker Desktop → Containers → api → Logs); quem tem esse código cria o primeiro Diretor
- * pela interface. O código muda a cada reinício, depois de erros demais e quando volta a faltar Diretor.
+ * Configuração inicial (ADR-004, revisões de 2026-10-22 e 2026-10-28). Enquanto não há Diretor, quem tem o Token do
+ * Diretor cria o primeiro pela interface. O token é fixo; errar é registrado na auditoria e limitado por IP.
  */
-export function createSetupService({ pool, announce }: ServiceDeps & { announce: (code: string) => void }) {
-  let code: string | null = null;
-  let wrong = 0;
-
-  const newCode = () => {
-    const pick = () => Array.from({ length: 4 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('');
-    code = `${pick()}-${pick()}`;
-    wrong = 0;
-    announce(code);
-  };
-
+export function createSetupService({ pool, checkToken }: ServiceDeps & { checkToken: MasterTokenCheck }) {
   async function needed() {
     const directors = await pool.query(`SELECT 1 FROM users WHERE org_role = 'director' LIMIT 1`);
     return directors.rowCount === 0;
   }
-
-  /** Gera e anuncia o código quando falta Diretor; chamado ao subir a API e quando uma conta de teste sai. */
-  async function prepare() {
-    if (await needed()) {
-      if (!code) newCode();
-    } else code = null;
-  }
-
-  const matches = (given: string) => {
-    if (!code) return false;
-    const a = Buffer.from(
-      given
-        .trim()
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, ''),
-    );
-    const b = Buffer.from(code.replace('-', ''));
-    return a.length === b.length && timingSafeEqual(a, b);
-  };
 
   async function createDirector(
     input: { code: string; email: string; displayName: string; password: string; testAccount: boolean; demoAccounts?: boolean },
@@ -86,16 +51,9 @@ export function createSetupService({ pool, announce }: ServiceDeps & { announce:
       ]);
       if (taken.rowCount) throw conflict('Os e-mails das contas de teste do Líder e do Usuário já estão em uso');
     }
-    if (!code) newCode();
-    if (!matches(input.code)) {
-      wrong += 1;
+    if (!checkToken('director', input.code)) {
       await recordAudit(pool, { actorUserId: null, action: 'setup.code_rejected', correlationId: ctx.correlationId });
-      if (wrong >= MAX_WRONG) newCode();
-      throw new AppError(
-        403,
-        'FORBIDDEN',
-        'Código de configuração incorreto. Confira no log da API (Docker Desktop → Containers → api → Logs).',
-      );
+      throw new AppError(403, 'FORBIDDEN', 'Token do Diretor incorreto.');
     }
     try {
       const id = await bootstrapDirector(pool, {
@@ -105,7 +63,6 @@ export function createSetupService({ pool, announce }: ServiceDeps & { announce:
         testAccount: input.testAccount || !!input.demoAccounts,
         via: 'web',
       });
-      code = null;
       if (input.demoAccounts) await createDemoAccounts(id, input.password, ctx);
       return id;
     } catch (error) {
@@ -172,7 +129,7 @@ export function createSetupService({ pool, announce }: ServiceDeps & { announce:
 
   /**
    * Exclui todas as contas de teste de uma vez (Diretor). A equipe de teste sai junto quando nada no sistema depende
-   * dela; sem Diretor, a configuração inicial volta com um código novo.
+   * dela; sem Diretor, a configuração inicial volta.
    */
   async function deleteAllTestAccounts(ctx: AuthenticatedContext) {
     if (!isDirector(ctx.actor)) throw forbidden('Só um Diretor exclui todas as contas de teste');
@@ -207,14 +164,13 @@ export function createSetupService({ pool, announce }: ServiceDeps & { announce:
       }
       return ids.length;
     });
-    await prepare();
     return { removed, setupNeeded: await needed() };
   }
 
   /**
    * Exclui uma conta de teste: a própria pessoa ou um Diretor. Os dados pessoais saem (nome, e-mail, senha, sessões e
    * equipes) e a conta deixa de ser Diretor; o histórico de auditoria e o que ela fez no sistema ficam. Sem Diretor, a
-   * configuração inicial volta com um código novo.
+   * configuração inicial volta.
    */
   async function deleteTestAccount(ctx: AuthenticatedContext, userId: string) {
     if (ctx.actor.id !== userId && !isDirector(ctx.actor)) throw forbidden('Só a própria pessoa ou um Diretor exclui uma conta de teste');
@@ -236,11 +192,10 @@ export function createSetupService({ pool, announce }: ServiceDeps & { announce:
         correlationId: ctx.correlationId,
       });
     });
-    await prepare();
     return { setupNeeded: await needed() };
   }
 
-  return { needed, prepare, createDirector, listTestAccounts, deleteTestAccount, deleteAllTestAccounts };
+  return { needed, createDirector, listTestAccounts, deleteTestAccount, deleteAllTestAccounts };
 }
 
 export type SetupService = ReturnType<typeof createSetupService>;

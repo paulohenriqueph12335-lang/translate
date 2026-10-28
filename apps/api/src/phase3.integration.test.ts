@@ -136,7 +136,9 @@ describe('início e rascunho', () => {
     // O modelo de corpo (ADR-019) preenche o tipo pelo título do original; o texto continua sem tradução.
     assert.ok(codes.includes('untranslated') && !codes.includes('missing_document_type'));
     assert.equal(response.body.draft.content.documentType, 'SCHOOL TRANSCRIPT');
-    assert.equal(response.body.translation.permissions.approve, false);
+    // O responsável conclui a própria tradução (2026-10-28).
+    assert.equal(response.body.translation.permissions.approve, true);
+    assert.equal(response.body.translation.permissions.authorizeNumbering, false);
     assert.match(response.body.frame.draftMark, /DRAFT/);
     assert.equal(await processNextJob(processing()), false);
   });
@@ -190,9 +192,13 @@ describe('revisão humana', () => {
 });
 
 describe('aprovação', () => {
-  it('Operador envia para aprovação, mas não aprova nem devolve', async () => {
+  it('Operador marca como pronta e pode concluir, mas não devolve a pronta; colega de outra equipe não conclui', async () => {
     assert.equal((await submitReady(c.op!, ids.job)).body.translation.status, 'awaiting_approval');
-    assert.equal((await c.op!.post(`/api/v1/translations/${ids.job}/approve`)).status, 403);
+    // Pode concluir: o que barra aqui é a numeração ainda vazia, não a permissão.
+    const approve = await c.op!.post(`/api/v1/translations/${ids.job}/approve`);
+    assert.equal(approve.status, 409, JSON.stringify(approve.body));
+    assert.match(approve.body.error.message, /numeração/);
+    assert.equal((await c.opb!.post(`/api/v1/translations/${ids.job}/approve`)).status, 404);
     assert.equal((await c.op!.post(`/api/v1/translations/${ids.job}/return`, { comment: 'revisar' })).status, 403);
     assert.equal(
       (await c.op!.request('PUT', `/api/v1/translations/${ids.job}/draft`, { baseRevision: 2, draft: approvedTranscriptDraft })).status,

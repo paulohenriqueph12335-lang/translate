@@ -122,7 +122,7 @@ export const TUTORIAL: TutorialSectionData[] = [
             </li>
             <li>
               <strong>Conclusão</strong>
-              <span>a liderança conclui (e numera, na juramentada com tradutor).</span>
+              <span>o responsável conclui (e numera, na juramentada com tradutor); a liderança só entra em problemas de numeração.</span>
             </li>
             <li>
               <strong>Word final</strong>
@@ -135,6 +135,10 @@ export const TUTORIAL: TutorialSectionData[] = [
             <>
               Abra o endereço do sistema no navegador e entre com o seu e-mail e a sua senha. Quem ainda não tem conta usa
               <strong> Solicitar acesso</strong>; o cadastro fica pendente até um Diretor aprovar.
+            </>,
+            <>
+              Esqueceu a senha? Use <strong>Esqueci a senha</strong>, escolha uma senha nova e avise a liderança. O Líder da sua equipe
+              libera a senha nova por 24 horas (até 3 vezes seguidas); o Diretor autoriza de vez.
             </>,
             <>
               Depois de entrar, você cai no <strong>Início</strong>.{' '}
@@ -348,11 +352,8 @@ export const TUTORIAL: TutorialSectionData[] = [
           steps={[
             <>Abra a tradução e compare o original com o Word, página por página.</>,
             <>
-              Se estiver certo, marque <strong>Comparei o original e o Word desta revisão</strong> e use{' '}
-              <strong>{role === 'user' ? 'Aprovar Word' : 'Aprovar e concluir'}</strong>.
-              {role === 'user'
-                ? ' A liderança da equipe é avisada para concluir.'
-                : ' Em seguida, escolha como concluir (veja Concluir e numerar).'}
+              Se estiver certo, marque <strong>Comparei o original e o Word desta revisão</strong> e use <strong>Aprovar e concluir</strong>
+              . Em seguida, escolha como concluir (veja Concluir e numerar).
             </>,
             <>
               Se algo estiver errado, use <strong>Reprovar e indicar as fases com falha</strong>, marque as fases e escreva o que precisa
@@ -398,14 +399,16 @@ export const TUTORIAL: TutorialSectionData[] = [
   {
     key: 'conclude',
     title: 'Concluir e numerar',
-    summary: 'A decisão da liderança: com ou sem tradutor juramentado, número, livro e folha.',
-    roles: ['leader', 'director'],
+    summary: 'Quem é responsável conclui: com ou sem tradutor juramentado, número, livro e folha.',
+    roles: ['user', 'leader', 'director'],
     target: { area: 'work', tab: 'team' },
     body: () => (
       <>
         <Theory>
           <p>
-            Concluir libera o Word e o PDF finais. Quem conclui é o Supervisor da equipe ou o Diretor. Na juramentada, a conclusão escolhe:
+            Concluir libera o Word e o PDF finais. Quem conclui é o responsável pela tradução; o Supervisor da equipe e o Diretor também
+            podem, e só precisam agir em problemas de numeração (número repetido, fora da sequência e pedidos de alteração). Na juramentada,
+            a conclusão escolhe:
           </p>
           <ul className="tutorial-list">
             <li>
@@ -577,6 +580,10 @@ export const TUTORIAL: TutorialSectionData[] = [
           <ul className="tutorial-list">
             <li>
               <strong>Pessoas</strong>: quem está em cada equipe e com que papel (Supervisor ou Usuário). O Diretor cria equipes.
+            </li>
+            <li>
+              <strong>Pedidos de senha</strong>: quem esqueceu a senha pede uma nova. Confirme com a pessoa e autorize com o seu token: o do
+              Líder libera o Usuário da equipe por 24 horas, até 3 vezes seguidas; o do Diretor vale de vez, para qualquer pessoa.
             </li>
             <li>
               <strong>Numeração</strong>: os números emitidos por tradutor, as cotas anuais e os pedidos de alteração ou anulação.
