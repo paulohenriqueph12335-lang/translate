@@ -433,6 +433,16 @@ export function createNumberingService({
     await withTransaction(pool, async (db) => {
       const row = await loadRequest(db, ctx, id, true);
       if (row.status !== 'approved') throw conflict('Só um pedido autorizado pode ser revertido');
+      // Reabertura ou pedido mais novo mudaram o documento depois: reverter geraria o Word final com o rascunho em
+      // revisão ou devolveria um número antigo por cima do atual.
+      const job = await db.query<{ status: string }>('SELECT status FROM translation_jobs WHERE id = $1 FOR UPDATE', [row.job_id]);
+      if (job.rows[0]?.status !== 'approved')
+        throw conflict('A tradução foi reaberta depois deste pedido; a numeração não pode ser revertida');
+      const later = await db.query(
+        `SELECT 1 FROM numbering_requests WHERE job_id = $1 AND id <> $2 AND status IN ('pending', 'approved') AND created_at > $3 LIMIT 1`,
+        [row.job_id, id, row.created_at],
+      );
+      if (later.rowCount) throw conflict('Há um pedido mais recente para este número; decida ou reverta o mais recente primeiro');
       if (row.kind === 'annul') {
         await db.query('UPDATE translation_jobs SET annulled_at = NULL, annulled_reason = NULL, updated_at = now() WHERE id = $1', [
           row.job_id,

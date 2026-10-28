@@ -1411,8 +1411,8 @@ export function createTranslationService({
   }
 
   /**
-   * Reatribuir (Supervisor da equipe ou Diretor). O novo responsável precisa ser da equipe do lote; no lote sem equipe,
-   * só um Diretor. É assim que o Diretor age sobre o trabalho de outro usuário: passa a outra pessoa, não edita (D4).
+   * Reatribuir (Supervisor da equipe ou Diretor). O novo responsável precisa ser da equipe do lote ou o próprio Diretor
+   * que reatribui; no lote sem equipe, só um Diretor. É assim que o Diretor age sobre o trabalho de outro usuário: passa a outra pessoa, não edita (D4).
    */
   async function reassign(ctx: AuthenticatedContext, jobId: string, userId: string, options: { confirmCompleted?: boolean } = {}) {
     const row = await loadJob(pool, ctx, jobId);
@@ -1432,9 +1432,9 @@ export function createTranslationService({
           `SELECT u.display_name AS name,
                   (u.status = 'active' AND (
                     ($2::uuid IS NOT NULL AND EXISTS (SELECT 1 FROM team_memberships m WHERE m.user_id = u.id AND m.team_id = $2))
-                    OR ($2::uuid IS NULL AND u.org_role = 'director'))) AS ok
+                    OR (u.org_role = 'director' AND ($2::uuid IS NULL OR u.id = $3)))) AS ok
              FROM users u WHERE u.id = $1`,
-          [userId, current.team_id],
+          [userId, current.team_id, ctx.actor.id],
         );
         if (!target.rows[0]?.ok) throw new AppError(400, 'VALIDATION_FAILED', 'O novo responsável precisa ser da equipe do documento');
         await db.query('UPDATE translation_jobs SET assignee_id = $2, updated_at = now() WHERE id = $1', [jobId, userId]);
@@ -1511,6 +1511,9 @@ export function createTranslationService({
     try {
       await withTransaction(pool, async (db) => {
         const row = await loadJob(db, ctx, jobId, true);
+        // De novo sob bloqueio: uma reatribuição entre a checagem acima e aqui tira a conclusão de quem saiu.
+        if (!canConcludeTranslation(ctx.actor, { teamId: row.team_id, ownerId: row.owner_id }, row.assignee_id))
+          throw forbidden('Somente o responsável pela tradução, o Líder da equipe ou o Diretor conclui');
         requireUnblocked(row);
         if (row.status !== 'in_review' && row.status !== 'awaiting_approval')
           throw conflict(`Ação não permitida no estado "${row.status}"`);

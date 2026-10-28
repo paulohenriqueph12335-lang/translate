@@ -318,11 +318,13 @@ export function createIdentityService({ pool, config, now = () => new Date() }: 
   }
 
   async function listOwnSessions(ctx: AuthenticatedContext) {
+    const current = now();
+    // Sessão parada além do tempo de inatividade já não autentica: não aparece como aberta.
     const result = await pool.query<{ id: string; created_at: Date; last_seen_at: Date; expires_at: Date; user_agent: string | null }>(
       `SELECT id, created_at, last_seen_at, expires_at, user_agent FROM sessions
-        WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
+        WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > $2 AND last_seen_at > $3
         ORDER BY created_at DESC LIMIT 100`,
-      [ctx.actor.id],
+      [ctx.actor.id, current, new Date(current.getTime() - idleMs)],
     );
     return result.rows.map((row) => ({
       id: row.id,

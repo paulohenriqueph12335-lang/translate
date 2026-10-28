@@ -29,6 +29,7 @@ import {
 } from './format.js';
 import { spoolToTempFile, TooLargeError, type SpooledFile } from './spool.js';
 import { docxToPdf, pdfName } from '../../http/pdf.js';
+import { releaseUnreachableAssignments } from '../translations/release.js';
 
 export type DocumentStatus = 'awaiting_upload' | 'uploading' | 'stored' | 'rejected' | 'upload_failed' | 'cancelled';
 export type BatchStatus = 'open' | 'completed';
@@ -805,6 +806,12 @@ export function createDocumentService({ pool, config, storage }: ServiceDeps & {
         correlationId: ctx.correlationId,
         metadata: { from: batch.team_id, to: teamId, completedDocument: !!completed.rowCount, confirmedCompleted: confirmCompleted },
       });
+      // Quem era da equipe anterior perde o acesso: as traduções dela voltam a ficar disponíveis na nova equipe.
+      await releaseUnreachableAssignments(
+        db,
+        { batchId },
+        { actorUserId: ctx.actor.id, correlationId: ctx.correlationId, reason: 'batch_reassigned' },
+      );
       // Documentos armazenados antes da criação desta regra ainda podem estar fora da fila.
       await enqueueTranslations(db, { batchId }, ctx.actor.id);
       const name = (await db.query<{ name: string | null }>('SELECT name FROM batches WHERE id = $1', [batchId])).rows[0]?.name;
