@@ -601,7 +601,7 @@
 
   .doc-review .review-title h2 {
     @apply m-0 font-display leading-tight;
-    font-size: clamp(1.625rem, 2.6vw, 2.125rem);
+    font-size: var(--text-title);
     font-weight: 760;
     letter-spacing: -0.024em;
   }

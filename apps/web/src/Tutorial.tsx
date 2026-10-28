@@ -221,6 +221,10 @@ export const TUTORIAL: TutorialSectionData[] = [
               Aperte <kbd>?</kbd> para ver todos os atalhos. Experimente <kbd>G</kbd> e depois <kbd>T</kbd> para ir às traduções.
             </>,
             <>No celular, as áreas principais ficam na barra de baixo; o restante (Notificações, Configurações, Sair) fica em Mais.</>,
+            <>
+              No celular, nada fica escondido na borda da tela: as abas e os submenus quebram em linhas e as tabelas aparecem como cartões,
+              com o nome de cada coluna acima do valor.
+            </>,
           ]}
         />
         <div className="tutorial-figures">

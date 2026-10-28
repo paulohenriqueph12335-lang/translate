@@ -69,6 +69,23 @@ Uma família só: **Schibsted Grotesk Variable**, instalada como dependência lo
 - Títulos na mesma letra, mais pesados (740–780), com espaçamento negativo e quebra equilibrada.
 - Rótulos de 13–14px. Nada de 11px no texto de trabalho.
 - Números com `tabular-nums`, sem fonte monoespaçada.
+- Tamanhos grandes com teto (2026-10-28), em `tokens.css`. Crescem com a tela só até o limite:
+
+  | Token | Uso | Tamanho |
+  | --- | --- | --- |
+  | `--text-title` | títulos de tela | 22–28px |
+  | `--text-figure` | números dos quadros | 24–32px |
+  | `--text-figure-lg` | total do painel Agora | 28–36px |
+  | `--text-display` | tela de entrada | 24–32px |
+
+- Valor em palavras num quadro de número ("Sem conclusões") usa o tamanho de texto (18px).
+- Gráficos desenham na largura real do espaço: o texto dos eixos fica em 12px em qualquer tela.
+
+### Celular
+
+- Nada passa da borda da tela.
+- Abas e submenus quebram em linhas.
+- Tabelas viram cartões, com o nome da coluna acima de cada valor (`table-labels.ts`). A prévia do documento fica como o original.
 
 ## Forma
 
