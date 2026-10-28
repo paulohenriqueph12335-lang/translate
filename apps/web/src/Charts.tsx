@@ -88,7 +88,8 @@ export function StatTile({ label, value, detail }: { label: string; value: strin
   return (
     <div className="stat-tile">
       <span className="muted small-text">{label}</span>
-      <strong>{value}</strong>
+      {/* Valor em palavras ("Sem conclusões") fica no tamanho de texto, não no de número. */}
+      <strong className={/\p{L}/u.test(value) ? 'stat-text' : undefined}>{value}</strong>
       {detail && <span className="muted small-text">{detail}</span>}
     </div>
   );

@@ -49,12 +49,12 @@
     text-wrap: balance;
   }
   h1 {
-    font-size: 2rem;
+    font-size: var(--text-display);
     font-weight: 780;
     letter-spacing: -0.024em;
   }
   h2 {
-    font-size: 1.75rem;
+    font-size: var(--text-title);
   }
   h3 {
     font-size: 1.125rem;

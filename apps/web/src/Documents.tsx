@@ -25,7 +25,7 @@ import { StatusBadge } from './Translations';
 import { dateTime, Feedback, LoadingHint, message, SearchInput, Section, Segmented, useDebounced, useLoad } from './ui';
 import { useConfirm } from './ConfirmDialog';
 import { DocumentCategorySelect, useDocumentCategories } from './DocumentClassification';
-import { TranslationSteps } from './TranslationSteps';
+import { stepCount, TranslationSteps } from './TranslationSteps';
 import { LanguagePairPicker } from './LanguagePairPicker';
 
 const CONCURRENCY = 3;
@@ -492,6 +492,7 @@ function NewBatch({
       </fieldset>
       <Feedback error={error} />
       <div className="actions doc-form-footer">
+        <span className="step-count">{stepCount(step)}</span>
         {step > 0 && (
           <button type="button" disabled={busy} onClick={() => setStep((current) => current - 1)}>
             Voltar

@@ -7,10 +7,12 @@ import { ConfirmProvider } from './ConfirmDialog';
 import { UpdateBanner } from './UpdateBanner';
 import { LoadingHint, Wordmark } from './ui';
 import { initializeTheme } from './theme';
+import { labelTablesForMobile } from './table-labels';
 import '@fontsource-variable/schibsted-grotesk';
 import './style.css';
 
 initializeTheme();
+labelTablesForMobile();
 
 function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);

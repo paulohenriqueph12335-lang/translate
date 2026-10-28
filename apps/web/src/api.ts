@@ -208,6 +208,13 @@ export type DocumentCategory =
   | 'diploma'
   | 'apostille'
   | 'professional_certificate'
+  | 'naturalization_certificate'
+  | 'criminal_record'
+  | 'medical_certificate'
+  | 'attestation'
+  | 'divorce'
+  | 'power_of_attorney'
+  | 'syllabus'
   | 'contract'
   | 'invoice'
   | 'generic';

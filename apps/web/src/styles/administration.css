@@ -573,7 +573,7 @@
   }
   .audit-summary strong {
     @apply font-sans;
-    font-size: 2rem;
+    font-size: var(--text-figure);
     font-variant-numeric: tabular-nums;
   }
   .audit-incidents {

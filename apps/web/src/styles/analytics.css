@@ -129,7 +129,7 @@
   .kpi-value,
   .analytics-view .stat-tile > strong {
     @apply font-sans text-ink;
-    font-size: clamp(2rem, 3vw, 2.875rem);
+    font-size: var(--text-figure);
     font-weight: 720;
     line-height: 1.02;
     letter-spacing: -0.035em;
@@ -664,7 +664,7 @@
   }
   .live-total > strong {
     @apply font-sans;
-    font-size: 3rem;
+    font-size: var(--text-figure-lg);
     line-height: 0.95;
     letter-spacing: -0.04em;
     font-weight: 740;
@@ -902,7 +902,7 @@
     font-weight: 400;
   }
   .workspace-view .action-tile strong {
-    font-size: 2.25rem;
+    font-size: clamp(1.25rem, 1rem + 0.8vw, 1.5rem);
     letter-spacing: -0.03em;
     color: var(--ink);
   }
@@ -964,7 +964,7 @@
     border-left: 1px solid var(--rule);
   }
   .ai-compare-tiles .stat-tile strong {
-    font-size: 2.25rem;
+    font-size: var(--text-figure);
   }
   .ai-compare-tiles i {
     @apply mr-1.5 inline-block;
@@ -1030,10 +1030,10 @@
     }
     .kpi-value,
     .analytics-view .stat-tile > strong {
-      font-size: clamp(1.625rem, 8vw, 2.125rem);
+      font-size: var(--text-figure);
     }
     .workspace-view .action-tile strong {
-      font-size: 1.75rem;
+      font-size: 1.25rem;
     }
     .dash-filters > .period-filter {
       @apply grid w-full gap-2.5;
@@ -1057,12 +1057,6 @@
     }
     .analytics-card figcaption h3 {
       font-size: 1.125rem;
-    }
-    .trend-svg .axis {
-      font-size: 19px;
-    }
-    .trend-svg .direct-label {
-      font-size: 20px;
     }
     .trend-tip {
       top: 3rem;
@@ -1178,5 +1172,16 @@
     .analytics-view .stat-row {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
+  }
+}
+
+@layer components {
+  /* Valores em palavras nos quadros de números: tamanho de texto, para não estourar o quadro no celular. */
+  .stat-tile > strong.stat-text,
+  .analytics-view .stat-tile > strong.stat-text,
+  strong.kpi-value.stat-text {
+    font-size: 1.125rem;
+    line-height: 1.35;
+    letter-spacing: 0;
   }
 }

@@ -1,6 +1,6 @@
 # Modelo de dados
 
-Atualizado em 28/10/2026. As migrações ficam em `packages/database/migrations` (`0001` a `0034`). Cada uma é aplicada uma vez, em ordem, com trava e transação. São 42 tabelas, contando `schema_migrations`.
+Atualizado em 28/10/2026. As migrações ficam em `packages/database/migrations` (`0001` a `0035`). Cada uma é aplicada uma vez, em ordem, com trava e transação. São 42 tabelas, contando `schema_migrations`.
 
 ## Por domínio
 
@@ -22,6 +22,7 @@ Atualizado em 28/10/2026. As migrações ficam em `packages/database/migrations`
 
 - Toda linha documental herda a equipe e o dono da remessa. O escopo é aplicado nas consultas e nas políticas, nunca pelo que o cliente envia.
 - Chaves estrangeiras, `CHECK` de estados e índices seguem as consultas reais.
+- As categorias de documento (`document_category` e `suggested_document_category`) seguem `BODY_MODELS`: são 19, com os tipos da migração `0035` (ADR-033).
 - A auditoria não é alterada pela aplicação.
 - O PostgreSQL guarda metadados, estados, checksums e chaves de objeto geradas no servidor. O conteúdo binário fica no S3.
 - O conteúdo dos documentos fica cifrado pela aplicação (ADR-032):

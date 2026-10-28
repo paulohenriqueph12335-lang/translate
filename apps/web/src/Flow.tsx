@@ -20,7 +20,7 @@ import { Feedback, LoadingHint, message, useLoad } from './ui';
 import { captureUpload, planUploadRetries, type UploadSnapshot } from './upload-plan';
 import { PdfPreview } from './PdfPreview';
 import { DocumentCategorySelect, useDocumentCategories } from './DocumentClassification';
-import { TranslationSteps } from './TranslationSteps';
+import { stepCount, TranslationSteps } from './TranslationSteps';
 import { FinalDelivery } from './DeliveryActions';
 
 /**
@@ -449,6 +449,7 @@ export function NewTranslation({
       )}
       <Feedback error={error} />
       <div className="actions doc-form-footer">
+        <span className="step-count">{stepCount(step)}</span>
         {step > 0 && (
           <button type="button" disabled={busy || locked} onClick={() => setStep((current) => current - 1)}>
             Voltar

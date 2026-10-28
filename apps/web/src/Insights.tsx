@@ -244,7 +244,7 @@ export function KpiTile({
   return (
     <div className="kpi-tile">
       <span className="kpi-label">{label}</span>
-      <strong className="kpi-value">{value}</strong>
+      <strong className={/\p{L}/u.test(value) ? 'kpi-value stat-text' : 'kpi-value'}>{value}</strong>
       {delta}
       {detail && <span className="muted small-text">{detail}</span>}
     </div>
@@ -263,8 +263,17 @@ interface Series {
 /** Linha por semana com cursor: a linha vertical acha a semana e a dica lista todas as séries. */
 export function TrendChart({ labels, series, unit = '' }: { labels: string[]; series: Series[]; unit?: string }) {
   const [hover, setHover] = useState<number | null>(null);
-  const width = 720;
-  const height = 300;
+  // A largura do desenho acompanha a do espaço: o texto fica no tamanho do resto da tela, sem crescer em telas largas.
+  const box = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(720);
+  useEffect(() => {
+    const element = box.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => entry && setWidth(Math.max(280, Math.round(entry.contentRect.width))));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [labels.length > 0]);
+  const height = width < 520 ? 200 : 240;
   const pad = { top: 16, right: 40, bottom: 28, left: 36 };
   const max = Math.max(1, ...series.flatMap((s) => s.values));
   const niceMax = Math.ceil(max / Math.pow(10, Math.floor(Math.log10(max)))) * Math.pow(10, Math.floor(Math.log10(max)));
@@ -273,6 +282,8 @@ export function TrendChart({ labels, series, unit = '' }: { labels: string[]; se
   const x = (index: number) => pad.left + (labels.length <= 1 ? plotW / 2 : (index / (labels.length - 1)) * plotW);
   const y = (value: number) => pad.top + plotH - (value / niceMax) * plotH;
   const ticks = [0, 0.5, 1].map((share) => Math.round(niceMax * share));
+  // Datas no eixo sem encostar umas nas outras: cerca de uma a cada 64 px.
+  const maxLabels = Math.max(3, Math.floor(plotW / 64));
   const pick = (event: PointerEvent<SVGSVGElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
     const px = ((event.clientX - box.left) / box.width) * width;
@@ -285,7 +296,7 @@ export function TrendChart({ labels, series, unit = '' }: { labels: string[]; se
   };
   if (!labels.length) return <p className="empty">Sem semanas no período.</p>;
   return (
-    <div className="chart trend">
+    <div className="chart trend" ref={box}>
       <div className="legend">
         {series.map((s) => (
           <span key={s.name}>
@@ -317,7 +328,7 @@ export function TrendChart({ labels, series, unit = '' }: { labels: string[]; se
           </g>
         ))}
         {labels.map((label, index) =>
-          labels.length <= 8 || index % Math.ceil(labels.length / 8) === 0 || index === labels.length - 1 ? (
+          labels.length <= maxLabels || index % Math.ceil(labels.length / maxLabels) === 0 || index === labels.length - 1 ? (
             <text key={label} x={x(index)} y={height - 8} className="axis" textAnchor="middle">
               {label}
             </text>

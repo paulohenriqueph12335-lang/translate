@@ -11,6 +11,7 @@ export * from './layout/index.js';
 export * from './mask/fill-mask.js';
 export * from './profiles.js';
 export * from './skill-glossary.js';
+export * from './document-glossary.js';
 export * from './language-detect.js';
 export * from './review.js';
 export * from './ocr.js';

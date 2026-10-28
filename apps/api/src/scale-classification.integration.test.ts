@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { before, after, describe, it } from 'node:test';
 import { processNextJob } from '@tradutor/core/processing';
-import { defaultRules, renderPlainDocx, type Draft, type MachineTranslator } from '@tradutor/core/translation';
+import { BODY_MODELS, defaultRules, renderPlainDocx, type Draft, type MachineTranslator } from '@tradutor/core/translation';
 import { bootstrapDirector } from './modules/identity/bootstrap.js';
 import { createTestApp, TestClient } from './test/helpers.js';
 
@@ -105,7 +105,10 @@ describe('tipos documentais e fluxo em escala', () => {
     assert.equal((await new TestClient(env.app).get('/api/v1/document-categories')).status, 401);
     const catalog = await director.get('/api/v1/document-categories');
     assert.equal(catalog.status, 200);
-    assert.equal(catalog.body.categories.length, 12);
+    assert.deepEqual(
+      catalog.body.categories.map((item: { value: string }) => item.value),
+      [...BODY_MODELS],
+    );
     const { jobs } = await enqueue();
     assert.equal(await processNextJob(processing()), true);
     const detail = await director.get(`/api/v1/translations/${jobs[0]}`);

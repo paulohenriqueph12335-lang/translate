@@ -16,6 +16,13 @@ export const BODY_MODELS = [
   'diploma',
   'apostille',
   'professional_certificate',
+  'naturalization_certificate',
+  'criminal_record',
+  'medical_certificate',
+  'attestation',
+  'divorce',
+  'power_of_attorney',
+  'syllabus',
   'contract',
   'invoice',
   'generic',
@@ -36,7 +43,7 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   birth_certificate: {
     label: 'Certidão de nascimento',
     keywords:
-      /CERTIDAO DE NASCIMENTO|REGISTRO DE NASCIMENTO|BIRTH CERTIFICATE|ACTE DE NAISSANCE|(?:ATTO|CERTIFICATO) DI NASCITA|ACTA DE NACIMIENTO/,
+      /CERTIDAO DE NASCIMENTO|REGISTRO DE NASCIMENTO|BIRTH CERTIFICATE|CERTIFICATE OF (?:LIVE )?BIRTH|ENTRY OF BIRTH|ACTE DE NAISSANCE|(?:ATTO|CERTIFICATO) DI NASCITA|ACTA DE NACIMIENTO|(?:CERTIFICADO|CERTIFICACION LITERAL|INSCRIPCION) DE NACIMIENTO/,
     keyValue: true,
     type: {
       en: 'BIRTH CERTIFICATE',
@@ -48,7 +55,8 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   },
   marriage_certificate: {
     label: 'Certidão de casamento',
-    keywords: /CERTIDAO DE CASAMENTO|MARRIAGE CERTIFICATE|ACTE DE MARIAGE|(?:ATTO|CERTIFICATO) DI MATRIMONIO|ACTA DE MATRIMONIO/,
+    keywords:
+      /CERTIDAO DE CASAMENTO|MARRIAGE CERTIFICATE|CERTIFICATE OF MARRIAGE|ENTRY OF MARRIAGE|ACTE DE MARIAGE|(?:ATTO|CERTIFICATO) DI MATRIMONIO|ACTA DE MATRIMONIO|(?:CERTIFICADO|CERTIFICACION LITERAL) DE MATRIMONIO/,
     keyValue: true,
     type: {
       en: 'MARRIAGE CERTIFICATE',
@@ -60,7 +68,8 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   },
   death_certificate: {
     label: 'Certidão de óbito',
-    keywords: /CERTIDAO DE OBITO|DEATH CERTIFICATE|ACTE DE DECES|(?:ATTO|CERTIFICATO) DI MORTE|ACTA DE DEFUNCION/,
+    keywords:
+      /CERTIDAO DE OBITO|(?:ATESTADO|DECLARACAO) DE OBITO|DEATH CERTIFICATE|CERTIFICATE OF DEATH|ENTRY OF DEATH|ACTE DE DECES|(?:ATTO|CERTIFICATO) DI MORTE|ACTA DE DEFUNCION|(?:CERTIFICADO|CERTIFICACION LITERAL) DE DEFUNCION/,
     keyValue: true,
     type: { en: 'DEATH CERTIFICATE', pt: 'CERTIDÃO DE ÓBITO', fr: 'ACTE DE DÉCÈS', it: 'CERTIFICATO DI MORTE', es: 'ACTA DE DEFUNCIÓN' },
   },
@@ -117,7 +126,7 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
   professional_certificate: {
     label: 'Certidão de conselho profissional',
     keywords:
-      /CONSELHO (REGIONAL|FEDERAL|FICTICIO) DE|CERTIDAO DE (INSCRICAO|REGULARIDADE)|CERTIFICATE OF REGISTRATION|CERTIFICAT D.INSCRIPTION|CERTIFICATO DI ISCRIZIONE|CERTIFICADO DE INSCRIPCION/,
+      /CONSELHO (REGIONAL|FEDERAL|FICTICIO) DE|CONSELHO SECCIONAL|CERTIDAO (DE|NEGATIVA) (INSCRICAO|REGULARIDADE|ETICO)|CERTIFICATE OF REGISTRATION|(?:CERTIFICATE|LETTER) OF (?:GOOD STANDING|CURRENT PROFESSIONAL STATUS)|VERIFICATION OF (?:LICENSURE|REGISTRATION)|GENERAL MEDICAL COUNCIL|(?:STATE )?(?:MEDICAL )?BOARD OF MEDICINE|CERTIFICAT D.INSCRIPTION|ORDRE (?:NATIONAL )?DES MEDECINS|INSCRIPTION AU TABLEAU|CERTIFICATO DI ISCRIZIONE|ORDINE DEI MEDICI|ISCRIZIONE ALL.ALBO|CERTIFICADO DE (?:INSCRIPCION|COLEGIACION)|COLEGIO (?:OFICIAL )?DE MEDICOS/,
     keyValue: true,
     type: {
       en: 'CERTIFICATE OF REGISTRATION',
@@ -125,6 +134,85 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
       fr: "CERTIFICAT D'INSCRIPTION",
       it: 'CERTIFICATO DI ISCRIZIONE',
       es: 'CERTIFICADO DE INSCRIPCIÓN',
+    },
+  },
+  naturalization_certificate: {
+    label: 'Certidão negativa de naturalização (CNN)',
+    keywords:
+      /NEGATIVA DE NATURALIZACAO|NATURALIZACAO BRASILEIRA|(?:NEGATIVE )?CERTIFICATE OF (?:NON.?)?NATURALI[SZ]ATION|NON.?NATURALI[SZ]ATION|NON.?EXISTENCE OF NATURALI[SZ]ATION|NO RECORD OF NATURALI[SZ]ATION|CERTIFICAT NEGATIF DE NATURALISATION|(?:CERTIFICATO|ATTESTAZIONE) (?:NEGATIV[OA] )?DI (?:NON )?NATURALIZZAZIONE|CERTIFICADO NEGATIVO DE NATURALIZACION/,
+    keyValue: true,
+    type: {
+      en: 'NEGATIVE CERTIFICATE OF NATURALIZATION',
+      pt: 'CERTIDÃO NEGATIVA DE NATURALIZAÇÃO',
+      fr: 'CERTIFICAT NÉGATIF DE NATURALISATION',
+      it: 'CERTIFICATO NEGATIVO DI NATURALIZZAZIONE',
+      es: 'CERTIFICADO NEGATIVO DE NATURALIZACIÓN',
+    },
+  },
+  criminal_record: {
+    label: 'Antecedentes criminais',
+    keywords:
+      /ANTECEDENTES (?:CRIMINAIS|PENAIS|PENALES)|CERTIDAO (?:NEGATIVA |JUDICIAL )*CRIMINAL|CRIMINAL (?:RECORD|BACKGROUND|CONVICTION)|POLICE (?:CERTIFICATE|CLEARANCE)|IDENTITY HISTORY SUMMARY|BACKGROUND CHECK|CRIMINAL HISTORY|DISCLOSURE AND BARRING|DISCLOSURE SCOTLAND|CASIER JUDICIAIRE|CASELLARIO (?:GIUDIZIALE|EUROPEO)|CARICHI PENDENTI|PRECEDENTI PENALI|REGISTRO CENTRAL DE PENADOS/,
+    keyValue: true,
+    type: {
+      en: 'CRIMINAL RECORD CERTIFICATE',
+      pt: 'CERTIDÃO DE ANTECEDENTES CRIMINAIS',
+      fr: 'CERTIFICAT DE CASIER JUDICIAIRE',
+      it: 'CERTIFICATO DI PRECEDENTI PENALI',
+      es: 'CERTIFICADO DE ANTECEDENTES PENALES',
+    },
+  },
+  medical_certificate: {
+    label: 'Atestado médico',
+    keywords:
+      /ATESTADO (?:MEDICO|DE SAUDE|DE APTIDAO|DE AFASTAMENTO)|MEDICAL CERTIFICATE|STATEMENT OF FITNESS FOR WORK|FIT NOTE|SICK NOTE|CERTIFICAT (?:MEDICAL|D.ARRET DE TRAVAIL)|ARRET DE TRAVAIL|CERTIFICATO (?:MEDICO|DI MALATTIA)|CERTIFICADO MEDICO|PARTE (?:MEDICO )?DE BAJA/,
+    keyValue: false,
+    type: {
+      en: 'MEDICAL CERTIFICATE',
+      pt: 'ATESTADO MÉDICO',
+      fr: 'CERTIFICAT MÉDICAL',
+      it: 'CERTIFICATO MEDICO',
+      es: 'CERTIFICADO MÉDICO',
+    },
+  },
+  attestation: {
+    label: 'Atestado e declaração',
+    keywords:
+      /\bATESTADO\b|\bDECLARACAO\b|\bAFFIDAVIT\b|LETTER OF (?:ATTESTATION|EMPLOYMENT)|TO WHOM IT MAY CONCERN|\bATTESTATION\b|\bATTESTATO\b|\bDICHIARAZIONE\b|\bCONSTANCIA\b|\bDECLARACION\b/,
+    keyValue: false,
+    type: { en: 'CERTIFICATE', pt: 'ATESTADO', fr: 'ATTESTATION', it: 'ATTESTATO', es: 'CONSTANCIA' },
+  },
+  divorce: {
+    label: 'Divórcio (sentença ou escritura)',
+    keywords:
+      /DIVORCIO|\bDIVORCE\b|\bDIVORZIO\b|DISSOLUTION OF MARRIAGE|DISSOLUCAO DO CASAMENTO|DECREE ABSOLUTE|CESSAZIONE DEGLI EFFETTI CIVILI|SCIOGLIMENTO DEL MATRIMONIO|SEPARACAO (?:JUDICIAL|CONSENSUAL)/,
+    keyValue: false,
+    type: {
+      en: 'DIVORCE DECREE',
+      pt: 'SENTENÇA DE DIVÓRCIO',
+      fr: 'JUGEMENT DE DIVORCE',
+      it: 'SENTENZA DI DIVORZIO',
+      es: 'SENTENCIA DE DIVORCIO',
+    },
+  },
+  power_of_attorney: {
+    label: 'Procuração',
+    keywords:
+      /PROCURACAO|SUBSTABELECIMENTO|POWER OF ATTORNEY|LETTER OF ATTORNEY|\bPROCURATION\b|\bPROCURA (?:SPECIALE|GENERALE)\b|PODER (?:NOTARIAL|GENERAL|ESPECIAL)|ESCRITURA DE (?:APODERAMIENTO|PODER)|OTORGA PODER/,
+    keyValue: false,
+    type: { en: 'POWER OF ATTORNEY', pt: 'PROCURAÇÃO', fr: 'PROCURATION', it: 'PROCURA', es: 'PODER NOTARIAL' },
+  },
+  syllabus: {
+    label: 'Ementa e plano de ensino',
+    keywords:
+      /\bEMENTA\b|PLANO DE ENSINO|CONTEUDO PROGRAMATICO|PROGRAMA DA DISCIPLINA|\bSYLLABUS\b|COURSE (?:DESCRIPTION|OUTLINE)|MODULE (?:DESCRIPTOR|SPECIFICATION)|PROGRAMME D.ENSEIGNEMENT|FICHE (?:DE COURS|U\.?E\.?)|PROGRAMMA (?:DEL CORSO|DI INSEGNAMENTO|DELL.INSEGNAMENTO)|PROGRAMA DE (?:LA )?ASIGNATURA|GUIA DOCENTE/,
+    keyValue: true,
+    type: {
+      en: 'COURSE SYLLABUS',
+      pt: 'EMENTA',
+      fr: "PROGRAMME D'ENSEIGNEMENT",
+      it: 'PROGRAMMA DEL CORSO',
+      es: 'PROGRAMA DE LA ASIGNATURA',
     },
   },
   contract: {
@@ -149,25 +237,51 @@ export const BODY_MODEL_SPECS: Record<BodyModel, ModelSpec> = {
 
 const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
 
+/**
+ * Ordem de prioridade: o tipo mais específico vem antes do que ele costuma citar. A apostila cita o documento
+ * apostilado; a procuração, o divórcio e as certidões de antecedentes qualificam as pessoas com RG e citam a
+ * certidão de casamento; o atestado médico traz o CRM; "declaração" e "atestado" soltos ficam por último.
+ */
+const CLASSIFY_ORDER: BodyModel[] = [
+  'apostille',
+  'naturalization_certificate',
+  'criminal_record',
+  'medical_certificate',
+  'professional_certificate',
+  'power_of_attorney',
+  'divorce',
+  'driver_license',
+  'identity',
+  'birth_certificate',
+  'marriage_certificate',
+  'death_certificate',
+  'school_record',
+  'diploma',
+  'syllabus',
+  'invoice',
+  'contract',
+  'attestation',
+];
+
+const matchModel = (text: string) => CLASSIFY_ORDER.find((model) => BODY_MODEL_SPECS[model].keywords.test(text));
+
+/** Linha com cara de título: em maiúsculas e curta (o texto corrido cita outros documentos). */
+const titleLike = (line: string) => /\p{Lu}{2}/u.test(line) && !/\p{Ll}/u.test(line) && line.trim().split(/\s+/).length <= 12;
+
 /** Tipo do documento pelo título e pelo começo do texto do original. */
 export function classifyDocument(draft: Draft, sourceText: string | null): BodyModel {
+  // O título decide primeiro: "CERTIDÃO DE CASAMENTO" com averbação de divórcio continua certidão de casamento.
+  const title = fold(draft.sourceTitle);
+  const byTitle = title.trim() ? matchModel(title) : undefined;
+  if (byTitle) return byTitle;
   // Só o título e as primeiras linhas: o corpo cita outros documentos (um atestado traz o CRM do médico).
-  const head = fold([draft.sourceTitle, ...(sourceText ?? '').split('\n').slice(0, 8)].join('\n'));
-  // A ordem importa: apostila e conselho citam "certidão" do documento apostilado.
-  const order: BodyModel[] = [
-    'apostille',
-    'professional_certificate',
-    'driver_license',
-    'identity',
-    'birth_certificate',
-    'marriage_certificate',
-    'death_certificate',
-    'school_record',
-    'diploma',
-    'invoice',
-    'contract',
-  ];
-  return order.find((model) => BODY_MODEL_SPECS[model].keywords.test(head)) ?? 'generic';
+  const lines = (sourceText ?? '').split('\n').slice(0, 8);
+  // Sem título reconhecido, a primeira linha em maiúsculas que nomeia um tipo ("ATESTADO MÉDICO" abaixo do timbre).
+  for (const line of lines) {
+    const found = titleLike(line) ? matchModel(fold(line)) : undefined;
+    if (found) return found;
+  }
+  return matchModel(fold([draft.sourceTitle, ...lines].join('\n'))) ?? 'generic';
 }
 
 /** Evidência explicável das mesmas regras usadas na diagramação; a pontuação não é probabilidade estatística. */
