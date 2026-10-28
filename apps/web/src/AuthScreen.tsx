@@ -1,19 +1,35 @@
-import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes } from 'react';
 import { api, ApiError, type Me } from './api';
 import { Wordmark } from './ui';
+import { NoisyPassword } from './NoisyPassword';
 
 /** PrintScreen e a tecla do sistema, que abre Win+Shift+S no Windows e Cmd+Shift+3/4/5 no Mac. */
 const CAPTURE_KEYS = new Set(['PrintScreen', 'Meta', 'OS']);
 /** Quanto tempo a senha fica à mostra sem nenhuma ação. */
 const REVEAL_MS = 30_000;
 
+/** Quem pediu menos movimento no sistema vê a senha como texto comum (com as mesmas regras de ocultar). */
+const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 /**
- * Campo de senha com "Mostrar" / "Ocultar", para quem quiser conferir o que digitou. À mostra, a senha volta a ser
- * ocultada no começo de um print, ao sair da janela ou da aba, ao imprimir e depois de 30 segundos. O navegador não
- * consegue impedir a captura de tela do sistema: isso reduz a chance de ela sair num print.
+ * Campo de senha com "Mostrar" / "Ocultar", para quem quiser conferir o que digitou. À mostra, a senha aparece em
+ * pontos que se movem, embaixo do campo: dá para ler na tela, mas um print guarda só chiado (password-noise.ts). Além
+ * disso, ela volta a ser ocultada ao apertar a tecla de print, ao sair da janela ou da aba, ao imprimir e depois de
+ * 30 segundos.
  */
 export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   const [visible, setVisible] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState('');
+  const plain = visible && reducedMotion();
+  useEffect(() => {
+    if (!visible) return;
+    const field = input.current;
+    const sync = () => setText(field?.value ?? '');
+    sync();
+    field?.addEventListener('input', sync);
+    return () => field?.removeEventListener('input', sync);
+  }, [visible, props.value]);
   useEffect(() => {
     if (!visible) return;
     const hide = () => setVisible(false);
@@ -43,7 +59,7 @@ export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>,
   }, [visible]);
   return (
     <span className="password-field account-password-field">
-      <input {...props} type={visible ? 'text' : 'password'} data-revealed={visible || undefined} />
+      <input {...props} ref={input} type={plain ? 'text' : 'password'} data-revealed={plain || undefined} />
       <button
         type="button"
         className="link small-text"
@@ -53,6 +69,7 @@ export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>,
       >
         {visible ? 'Ocultar' : 'Mostrar'}
       </button>
+      {visible && !plain && <NoisyPassword text={text} />}
     </span>
   );
 }

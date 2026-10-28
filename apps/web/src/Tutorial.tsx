@@ -1415,7 +1415,7 @@ export const TUTORIAL: TutorialSectionData[] = [
             ['Senha nova e Confirmar', 'A senha que você quer usar, duas vezes.'],
             [
               'Mostrar / Ocultar',
-              'Mostra a senha ou o token para conferir. Eles voltam a ficar ocultos sozinhos ao apertar Print Screen ou a tecla do Windows (ou Cmd no Mac), ao trocar de janela ou de aba, ao imprimir e depois de 30 segundos. O print feito com Print Screen é apagado da área de transferência.',
+              'Mostra a senha ou o token embaixo do campo, em pontinhos que se movem: na tela dá para ler, mas um print sai só com chiado. Eles voltam a ficar ocultos sozinhos ao apertar Print Screen ou a tecla do Windows (ou Cmd no Mac), ao trocar de janela ou de aba, ao imprimir e depois de 30 segundos. Se o seu sistema pede menos movimento, a senha aparece como texto comum, com as mesmas regras.',
             ],
             ['Pedir senha nova', 'Envia o pedido para a liderança.'],
             role === 'director' && ['Tenho o Token do Diretor', 'Com o Token do Diretor, a senha nova vale na hora, sem pedido.'],
