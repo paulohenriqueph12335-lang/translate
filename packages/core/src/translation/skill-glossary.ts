@@ -1,5 +1,6 @@
 import type { Queryable } from '../db/pool.js';
 import type { Language } from './draft.js';
+import { DOCUMENT_GLOSSARY, DOCUMENT_GLOSSARY_ORIGIN } from './document-glossary.js';
 
 /**
  * Glossários das skills de tradução da organização (ADR-015), do português para cada idioma. Quando a skill dá duas
@@ -130,26 +131,34 @@ export const SKILL_GLOSSARY: Array<{ target: Language; skill: string; terms: Ski
   { target: 'es', skill: 'traducao-espanhol', terms: ESP },
 ];
 
+/** Todos os termos semeados: as skills (do português) e a terminologia dos tipos documentais (nos dois sentidos). */
+export const SEEDED_GLOSSARY = [
+  ...SKILL_GLOSSARY.map(({ target, skill, terms }) => ({ source: 'pt' as Language, target, origin: `Skill ${skill}`, terms })),
+  ...DOCUMENT_GLOSSARY.map(({ source, target, terms }) => ({ source, target, origin: DOCUMENT_GLOSSARY_ORIGIN, terms })),
+];
+
 /**
- * Coloca o glossário das skills no glossário da organização, se ainda não estiver (idempotente). Precisa de um Diretor
- * para registrar a autoria; sem Diretor (instalação nova), não faz nada e roda de novo na próxima migração.
+ * Coloca o glossário das skills e dos tipos documentais no glossário da organização, se ainda não estiver
+ * (idempotente: termo já cadastrado, inclusive ajustado por alguém, fica como está). Precisa de um Diretor para
+ * registrar a autoria; sem Diretor (instalação nova), não faz nada e roda de novo na próxima migração.
  */
 export async function seedSkillGlossary(db: Queryable) {
   const director = (await db.query<{ id: string }>(`SELECT id FROM users WHERE org_role = 'director' ORDER BY created_at LIMIT 1`)).rows[0];
   if (!director) return 0;
-  const rows = SKILL_GLOSSARY.flatMap(({ target, skill, terms }) =>
+  const rows = SEEDED_GLOSSARY.flatMap(({ source, target, origin, terms }) =>
     terms.map((term) => ({
+      source,
       target,
       source_term: term.source,
       target_term: term.target,
       note: term.note ?? null,
-      origin: `Skill ${skill}`,
+      origin,
     })),
   );
   const result = await db.query(
     `INSERT INTO glossary_entries (source_language, target_language, source_term, target_term, note, team_id, created_by, origin)
-     SELECT 'pt', row.target, row.source_term, row.target_term, row.note, NULL, $1, row.origin
-       FROM jsonb_to_recordset($2::jsonb) AS row(target text, source_term text, target_term text, note text, origin text)
+     SELECT row.source, row.target, row.source_term, row.target_term, row.note, NULL, $1, row.origin
+       FROM jsonb_to_recordset($2::jsonb) AS row(source text, target text, source_term text, target_term text, note text, origin text)
      ON CONFLICT DO NOTHING`,
     [director.id, JSON.stringify(rows)],
   );

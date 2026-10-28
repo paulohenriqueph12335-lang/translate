@@ -137,6 +137,7 @@ export async function autoReview(input: AutoReviewInput): Promise<AutoReviewResu
 
   const units = unitsOf(draft);
   const retranslate = new Map<Unit, CorrectionCode>();
+  const byLength = [...input.glossary].sort((left, right) => right.source.length - left.source.length);
 
   for (const unit of units) {
     let text = unit.get();
@@ -184,9 +185,15 @@ export async function autoReview(input: AutoReviewInput): Promise<AutoReviewResu
       continue;
     }
 
-    // 5. Glossário: termo do original sem a tradução aprovada.
-    for (const term of input.glossary) {
-      if (!termPattern(term.source).test(unit.source) || termPattern(term.target).test(text)) continue;
+    // 5. Glossário: termo do original sem a tradução aprovada. Do mais longo ao mais curto: "Cartório de Registro
+    // Civil" já aplicado cobre "Cartório" e "Registro Civil".
+    let pending = unit.source;
+    for (const term of byLength) {
+      if (!termPattern(term.source).test(pending)) continue;
+      if (termPattern(term.target).test(text)) {
+        pending = pending.replace(new RegExp(termPattern(term.source).source, 'giu'), ' ');
+        continue;
+      }
       const pattern = termPattern(term.source);
       if (pattern.test(text)) {
         const fixed = text.replace(new RegExp(pattern.source, 'giu'), term.target);

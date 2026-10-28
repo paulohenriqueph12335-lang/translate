@@ -136,10 +136,14 @@ export function checkDraft(
         });
       }
     }
-    const source = normalize(sourceText);
+    let source = normalize(sourceText);
     const translated = normalize(target);
-    for (const term of glossary) {
-      if (source.includes(normalize(term.source)) && !translated.includes(normalize(term.target))) {
+    // Do termo mais longo ao mais curto: "Cartório de Registro Civil" aplicado já cobre "Cartório" e "Registro Civil".
+    for (const term of [...glossary].sort((left, right) => right.source.length - left.source.length)) {
+      const wanted = normalize(term.source);
+      if (!source.includes(wanted)) continue;
+      if (translated.includes(normalize(term.target))) source = source.split(wanted).join(' ');
+      else {
         issues.push({
           severity: 'warning',
           code: 'glossary_not_applied',

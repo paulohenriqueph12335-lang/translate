@@ -51,6 +51,28 @@ Em **2026-10-24**, os dois casos reais passaram. O Word FR→ES continha “Hola
 
 Na mesma data, um ensaio local de migração partiu do schema até `0024`, com três trabalhos concluídos e seis eventos históricos de download, e aplicou `0025` a `0028`. Conferiu exclusão de eventos anteriores à aprovação e de `inline=true`, primeiro/último download, contagem e preservação da atividade histórica. A segunda execução não aplicou novas migrações. Eventos legados de PDF sem indicação `inline` permanecem indistinguíveis de entregas para baixar e podem compor o marco histórico.
 
+### Bateria de eficiência dos tipos documentais — 28/10/2026
+
+A bateria cobre CNN, antecedentes, atestados, conselhos, divórcio, procuração, ementa e certidões do registro civil (ADR-033). São 66 documentos fictícios do Brasil, dos EUA, do Reino Unido, da França, da Itália e da Espanha, com 137 traduções em oito pares de idiomas.
+
+Os documentos ficam em `packages/core/src/benchmark/corpus.ts`, divididos em:
+
+- **bateria principal:** usada para ajustar o glossário e as regras;
+- **bateria de validação:** documentos escritos à parte, medidos antes de qualquer ajuste.
+
+`benchmark.test.ts` roda as duas com o tradutor simulado e exige 99% ou mais. Para medir com o LibreTranslate real:
+
+```bash
+docker compose exec api pnpm --filter @tradutor/api benchmark --saida relatorio-bateria.md
+```
+
+Resultados no ambiente de desenvolvimento, com o tradutor simulado (o LibreTranslate não pôde baixar os modelos):
+
+| Bateria | Antes | Depois |
+| --- | --- | --- |
+| Principal | 88,6% (crítico) | 100% |
+| Validação | 96,4% (abaixo da meta), medida antes de qualquer ajuste | 100% |
+
 ### Registro de QA automatizado — 28/10/2026
 
 Depois dos tokens fixos, da recuperação de senha, da conclusão pelo responsável, dos nomes no ZIP e da atualização de Fastify, Zod, Vite e do SDK da AWS (ADR-031):

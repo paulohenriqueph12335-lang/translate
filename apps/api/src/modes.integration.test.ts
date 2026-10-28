@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { processNextJob, type ProcessingDeps } from '@tradutor/core/processing';
 import type { ObjectStorage } from '@tradutor/core/storage';
-import { SKILL_GLOSSARY, seedSkillGlossary, type MachineTranslator } from '@tradutor/core/translation';
+import { SEEDED_GLOSSARY, seedSkillGlossary, type MachineTranslator } from '@tradutor/core/translation';
 import { bootstrapDirector } from './modules/identity/bootstrap.js';
 import { createTestApp, inspectReady, TestClient } from './test/helpers.js';
 
@@ -161,7 +161,7 @@ describe('modalidades de tradução', () => {
 
   it('glossário das skills organizado por idioma de destino, sem duplicar', async () => {
     const inserted = await seedSkillGlossary(pool);
-    const expected = SKILL_GLOSSARY.reduce((sum, skill) => sum + skill.terms.length, 0);
+    const expected = SEEDED_GLOSSARY.reduce((sum, skill) => sum + skill.terms.length, 0);
     assert.ok(inserted > 0 && inserted <= expected);
     assert.equal(await seedSkillGlossary(pool), 0);
     for (const target of ['en', 'fr', 'it', 'es']) {

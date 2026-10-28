@@ -300,7 +300,10 @@ export const TUTORIAL: TutorialSectionData[] = [
             </>,
             <>
               <strong>Identificação e protocolo</strong>: digite o protocolo (letras, números, espaço, ponto, hífen ou sublinhado), um nome
-              opcional e o tipo de documento. Deixe o tipo em Automático quando a remessa tiver documentos diferentes.
+              opcional e o tipo de documento. Deixe o tipo em Automático quando a remessa tiver documentos diferentes: o sistema reconhece
+              certidões de nascimento, casamento e óbito, CNN (certidão negativa de naturalização), antecedentes criminais, atestados
+              médicos e outros atestados e declarações, certidões de conselho (CFM, CRM, OAB), divórcio, procuração, ementa e plano de
+              ensino, além de identidade, CNH, histórico, diploma, apostila, contrato e fatura.
             </>,
             <>
               <strong>Idiomas e equipe</strong>: escolha o par de idiomas (sempre com o português de um dos lados).
@@ -683,7 +686,10 @@ export const TUTORIAL: TutorialSectionData[] = [
         <Theory>
           <ul className="tutorial-list">
             <li>
-              <strong>Glossário</strong>: traduções aprovadas de termos, por idioma de destino. A revisão automática usa e confere.
+              <strong>Glossário</strong>: traduções aprovadas de termos, por idioma de destino. A revisão automática usa e confere. Já vem
+              com a terminologia das skills e dos tipos documentais (CNN, antecedentes, atestados, conselhos, divórcio, procuração, ementa e
+              certidões), do português para inglês, francês, italiano e espanhol e desses idiomas para o português. Um termo ajustado por
+              alguém não é trocado nas atualizações.
             </li>
             <li>
               <strong>Regras</strong>: para cada modalidade e idioma, a fonte, o tamanho, o sufixo do arquivo, as datas, os números e os
@@ -706,7 +712,8 @@ export const TUTORIAL: TutorialSectionData[] = [
         <Practice
           steps={[
             <>
-              No Glossário, escolha o idioma, preencha o termo em português e a tradução, e clique em <strong>Adicionar</strong>.
+              No Glossário, escolha o idioma de destino (para o português, escolha também o idioma do termo), preencha o termo e a tradução,
+              e clique em <strong>Adicionar</strong>.
             </>,
             <>Em Regras, escolha a modalidade e o idioma, ajuste e salve. Os ajustes valem para as próximas traduções.</>,
             <>
